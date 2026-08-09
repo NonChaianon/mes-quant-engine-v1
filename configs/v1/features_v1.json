@@ -1,0 +1,15 @@
+{
+  "policy_version": "MES_V1_FEATURES_1.0",
+  "bar_minutes": 15,
+  "maximum_lookback_bars": 16,
+  "session_vwap_max_bars": 22,
+  "expected_development_rows": 31193,
+  "development_partitions": [
+    "TRAIN",
+    "VALIDATION"
+  ],
+  "final_test_start_year": 2025,
+  "required_active_1m_count": 15,
+  "decision_slot_count": 22,
+  "session_timezone": "America/New_York"
+}

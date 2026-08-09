@@ -1,0 +1,167 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:40.198820+00:00",
+  "policy_version": "MES_V1_PURGED_SPLIT_1.0",
+  "status": "PASS",
+  "upstream_binding": {
+    "cell7_policy_version": "MES_V1_DECISION_UNIVERSE_1.0",
+    "cell7_status": "PASS",
+    "cell7_eligible_rows": 39847,
+    "cell7_universe_sha256": "f86024c7a36780e6a559cc0eec15a7a52a851b24cb453a50136b609c440f2ca7"
+  },
+  "split_contract": {
+    "method": "calendar-year chronological expanding walk-forward",
+    "outer_train_through_year": 2023,
+    "outer_validation_year": 2024,
+    "final_test_from_year": 2025,
+    "final_test_is_untouched": true,
+    "label_horizon_minutes_for_purging": 60,
+    "purge_rule": "remove left-side observations when label_end_time >= first decision_time of the right-side period",
+    "embargo_minutes": 0,
+    "embargo_status": "OPEN — no non-zero embargo is assumed; revisit after feature and label dependence analysis",
+    "economic_label_created": false,
+    "future_return_created": false
+  },
+  "counts": {
+    "decision_rows": 39847,
+    "decision_sessions": 1820,
+    "outer_train_rows": 25685,
+    "outer_validation_rows": 5508,
+    "final_test_rows": 8654,
+    "final_test_sessions": 395,
+    "purged_before_final_test_rows": 0,
+    "walk_forward_folds": 3,
+    "total_fold_purged_rows": 0,
+    "boundary_overlap_rows_after_purge": 0
+  },
+  "outer_partitions": [
+    {
+      "outer_partition": "TRAIN",
+      "rows": 25685,
+      "sessions": 1173,
+      "first_session": "2019-05-06",
+      "last_session": "2023-12-29",
+      "first_decision_utc": "2019-05-06T13:45:00+00:00",
+      "last_decision_utc": "2023-12-29T20:00:00+00:00"
+    },
+    {
+      "outer_partition": "VALIDATION",
+      "rows": 5508,
+      "sessions": 252,
+      "first_session": "2024-01-02",
+      "last_session": "2024-12-31",
+      "first_decision_utc": "2024-01-02T14:45:00+00:00",
+      "last_decision_utc": "2024-12-31T20:00:00+00:00"
+    },
+    {
+      "outer_partition": "FINAL_TEST",
+      "rows": 8654,
+      "sessions": 395,
+      "first_session": "2025-01-02",
+      "last_session": "2026-07-31",
+      "first_decision_utc": "2025-01-02T14:45:00+00:00",
+      "last_decision_utc": "2026-07-31T19:00:00+00:00"
+    }
+  ],
+  "walk_forward_folds": [
+    {
+      "fold_id": "WF_2022",
+      "train_start_session": "2019-05-06",
+      "train_end_session": "2021-12-31",
+      "validation_start_session": "2022-01-03",
+      "validation_end_session": "2022-12-30",
+      "train_rows_before_purge": 14699,
+      "purged_train_rows": 0,
+      "train_rows_after_purge": 14699,
+      "validation_rows": 5510,
+      "train_sessions": 672,
+      "validation_sessions": 251,
+      "overlap_rows_after_purge": 0,
+      "embargo_minutes": 0
+    },
+    {
+      "fold_id": "WF_2023",
+      "train_start_session": "2019-05-06",
+      "train_end_session": "2022-12-30",
+      "validation_start_session": "2023-01-03",
+      "validation_end_session": "2023-12-29",
+      "train_rows_before_purge": 20209,
+      "purged_train_rows": 0,
+      "train_rows_after_purge": 20209,
+      "validation_rows": 5476,
+      "train_sessions": 923,
+      "validation_sessions": 250,
+      "overlap_rows_after_purge": 0,
+      "embargo_minutes": 0
+    },
+    {
+      "fold_id": "WF_2024",
+      "train_start_session": "2019-05-06",
+      "train_end_session": "2023-12-29",
+      "validation_start_session": "2024-01-02",
+      "validation_end_session": "2024-12-31",
+      "train_rows_before_purge": 25685,
+      "purged_train_rows": 0,
+      "train_rows_after_purge": 25685,
+      "validation_rows": 5508,
+      "train_sessions": 1173,
+      "validation_sessions": 252,
+      "overlap_rows_after_purge": 0,
+      "embargo_minutes": 0
+    }
+  ],
+  "purge_boundaries": [
+    {
+      "boundary_id": "WF_2022_VALIDATION_START",
+      "left_role": "TRAIN",
+      "right_role": "VALIDATION",
+      "right_first_decision_utc": "2022-01-03T14:45:00+00:00",
+      "left_last_label_end_after_purge_utc": "2021-12-31T21:00:00+00:00",
+      "purged_left_rows": 0,
+      "overlap_rows_after_purge": 0,
+      "natural_gap_minutes_after_purge": 3945.0
+    },
+    {
+      "boundary_id": "WF_2023_VALIDATION_START",
+      "left_role": "TRAIN",
+      "right_role": "VALIDATION",
+      "right_first_decision_utc": "2023-01-03T14:45:00+00:00",
+      "left_last_label_end_after_purge_utc": "2022-12-30T21:00:00+00:00",
+      "purged_left_rows": 0,
+      "overlap_rows_after_purge": 0,
+      "natural_gap_minutes_after_purge": 5385.0
+    },
+    {
+      "boundary_id": "WF_2024_VALIDATION_START",
+      "left_role": "TRAIN",
+      "right_role": "VALIDATION",
+      "right_first_decision_utc": "2024-01-02T14:45:00+00:00",
+      "left_last_label_end_after_purge_utc": "2023-12-29T21:00:00+00:00",
+      "purged_left_rows": 0,
+      "overlap_rows_after_purge": 0,
+      "natural_gap_minutes_after_purge": 5385.0
+    },
+    {
+      "boundary_id": "FINAL_TEST_START",
+      "left_role": "MODEL_DEVELOPMENT",
+      "right_role": "FINAL_TEST",
+      "right_first_decision_utc": "2025-01-02T14:45:00+00:00",
+      "left_last_label_end_after_purge_utc": "2024-12-31T21:00:00+00:00",
+      "purged_left_rows": 0,
+      "overlap_rows_after_purge": 0,
+      "natural_gap_minutes_after_purge": 2505.0
+    }
+  ],
+  "artifacts": {
+    "split_assignments": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell8_purged_split_assignments_v1.parquet",
+    "walk_forward_folds": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell8_walk_forward_folds_v1.csv",
+    "purge_boundaries": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell8_purge_boundaries_v1.csv"
+  },
+  "sha256": {
+    "input_cell7_universe_sha256": "f86024c7a36780e6a559cc0eec15a7a52a851b24cb453a50136b609c440f2ca7",
+    "input_cell7_audit_sha256": "3e5f76d3ea3c91fe37bfb7f58235dc4c616da88b299a1d370a8a3c67653abf7e",
+    "split_assignments_sha256": "2e13ee7d1e7de321411604c3500c73e68a080b02fa2983288d41d399aeb43035",
+    "walk_forward_folds_sha256": "93ef0978b17857f07d5df34b95253fe4ba998f7d6df3142e43474811a6bb761d",
+    "purge_boundaries_sha256": "550c969a43fefa36a51471a84b36a4fb435d042b88841c7650b5605659fa8e6b"
+  },
+  "failures": []
+}

@@ -1,0 +1,43 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:36.454172+00:00",
+  "input_binding": {
+    "cell3_expected_gap_events": 7931,
+    "loaded_gap_events": 7931,
+    "cell5_expected_v1_partial_bars": 47,
+    "observed_v1_partial_bars": 47
+  },
+  "schedule_clock_basis": {
+    "timezone": "America/New_York",
+    "regular_globex_hours_reference": "Sunday-Friday 18:00-17:00 ET",
+    "intraday_halt_reference": "16:15-16:30 ET",
+    "regular_daily_closed_period_reference": "17:00-18:00 ET",
+    "classification_note": "Exact clock matches are strong schedule attributions. Extended and short-gap categories are candidates, not causal proof from trade-based OHLCV alone."
+  },
+  "results": {
+    "total_gap_events": 7931,
+    "total_missing_minutes": 1256177,
+    "exact_cme_halt_events": 531,
+    "exact_daily_closed_period_events": 1436,
+    "special_close_to_1800_candidates": 50,
+    "degraded_utc_date_overlap_events": 26,
+    "v1_bar_input_overlap_events": 134,
+    "raw_gap_events_impacting_v1_partial_bars": 53,
+    "v1_partial_bars_explained_by_raw_gaps": 47,
+    "v1_partial_bars_unexplained_by_raw_gaps": 0,
+    "roll_boundary_gap_events": 2,
+    "primary_unclassified_events": 0
+  },
+  "policy": {
+    "automatic_raw_row_deletion": false,
+    "automatic_gap_imputation": false,
+    "automatic_degraded_day_exclusion": false,
+    "short_gap_causal_claim": false
+  },
+  "artifacts": {
+    "events": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell6_gap_attribution_events.parquet",
+    "summary": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell6_gap_attribution_summary.csv",
+    "clock_patterns": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell6_gap_clock_patterns.csv",
+    "v1_partial_gap_events": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell6_v1_partial_gap_events.parquet"
+  },
+  "failures": []
+}

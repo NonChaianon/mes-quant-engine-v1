@@ -1,0 +1,49 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:46.702548+00:00",
+  "policy_version": "MES_V1_DEVELOPMENT_PATH_OUTCOMES_1.0",
+  "status": "PASS",
+  "upstream_binding": {
+    "cell10_policy_version": "MES_V1_ECONOMIC_LABELS_1.0",
+    "cell10_labels_sha256": "1f73f06d92bc54ccceff637503ef9cbece0c2b0c6b2018802923ef51d7352bd0",
+    "cell2_raw_file_sha256": "49f243a443abd199607bb51ce8d6c82928e2ba2a0ebb4a11ede10e7e0a0a46d0",
+    "mes_1m_memory_sha256": "e5ef411831c26d5f6975da33c1ffa0891d40c483d20e5b12bc95a73e73193584",
+    "mes_1m_rows_in_memory": 2551123,
+    "mes_1m_first_timestamp": "2019-05-05T22:00:00+00:00",
+    "mes_1m_last_timestamp": "2026-07-31T20:59:00+00:00"
+  },
+  "path_contract": {
+    "entry": "completed 15m close at decision_time",
+    "one_minute_bar_start_offsets": "0..59 minutes after decision_time",
+    "one_minute_rows_required": 60,
+    "endpoint_reconciliation": "close of 1m bar starting t+59m equals Cell 10 +60m close",
+    "same_instrument_required": true,
+    "mfe_mae_before_cost": true,
+    "triple_barrier_created": false,
+    "triple_barrier_status": "OPEN",
+    "same_1m_bar_barrier_order": "UNOBSERVABLE_WITH_OHLC; NEVER_GUESSED",
+    "target_fields_allowed_as_features": false
+  },
+  "counts": {
+    "rows": 39847,
+    "usable_development_paths": 31165,
+    "final_test_rows_sealed": 8654,
+    "final_test_price_lookup_count": 0
+  },
+  "artifacts": {
+    "path_outcomes": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell12_development_path_outcomes_v1.parquet",
+    "path_status_summary": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell12_path_status_summary_v1.csv"
+  },
+  "sha256": {
+    "input_cell2_audit_sha256": "81320a6b12b59198fc449635eda3bdc9c4d5f373804c2bd3a1dc2001a9a61de6",
+    "input_cell10_labels_sha256": "1f73f06d92bc54ccceff637503ef9cbece0c2b0c6b2018802923ef51d7352bd0",
+    "input_cell10_audit_sha256": "01c8402ee7f95dab1f05518a2413402be76d7bedcbd857b659a158ada57d714c",
+    "path_outcomes_sha256": "8e1a9bc263e2dab5e1588d0797cdaa2fa0038a6bcfd6ac1ec9433fa35c253941",
+    "path_status_summary_sha256": "0aae7ac729663991b3bb806942b44da05bb02fb3a29216ad491c1de896c413db"
+  },
+  "open_items": [
+    "Lock LONG/FLAT execution policy before converting outcomes to actions.",
+    "Lock stop/target distances before any triple-barrier auxiliary label.",
+    "Treat a 1m bar touching both barriers as AMBIGUOUS, never ordered."
+  ],
+  "failures": []
+}

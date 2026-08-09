@@ -1,0 +1,64 @@
+{
+  "baseline_version": 1,
+  "baseline_created_utc": "2026-08-08T21:33:27.748946+00:00",
+  "raw_file": {
+    "path": "/content/drive/MyDrive/Quant_Lab/Data/MES_2019_2026_1m.dbn.zst",
+    "size_bytes": 40078487,
+    "mtime_utc": "2026-08-08T16:54:21+00:00",
+    "sha256": "49f243a443abd199607bb51ce8d6c82928e2ba2a0ebb4a11ede10e7e0a0a46d0"
+  },
+  "decoded_integrity": {
+    "rows": 2551123,
+    "first_timestamp": "2019-05-05T22:00:00+00:00",
+    "last_timestamp": "2026-07-31T20:59:00+00:00",
+    "timezone": "UTC",
+    "duplicate_timestamps": 0,
+    "ohlcv_nan_counts": {
+      "open": 0,
+      "high": 0,
+      "low": 0,
+      "close": 0,
+      "volume": 0
+    },
+    "unique_instrument_ids": 30,
+    "roll_transition_count": 29
+  },
+  "old_parquet_cross_check": {
+    "status": "PASS",
+    "parquet_file": {
+      "path": "/content/drive/MyDrive/Quant_Lab/Data/MES_2019_2026_1m.parquet",
+      "size_bytes": 43567185,
+      "mtime_utc": "2026-08-08T16:54:58+00:00",
+      "sha256": "6bf5cb7331bce0ebc4edccee0a454afa9390983d004217067cc0346e02710e43"
+    },
+    "compared_columns": [
+      "instrument_id",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume"
+    ]
+  },
+  "environment_at_freeze": {
+    "python": "3.12.13 (main, Mar  4 2026, 09:23:07) [GCC 11.4.0]",
+    "python_short": "3.12.13",
+    "packages": {
+      "databento": "0.83.0",
+      "databento-dbn": "0.65.0",
+      "pandas-market-calendars": "5.4.0",
+      "exchange-calendars": "4.13.2",
+      "pandas": "2.2.2",
+      "numpy": "2.0.2",
+      "pyarrow": "18.1.0",
+      "zstandard": "0.25.0",
+      "toolz": "1.1.0"
+    },
+    "pip_freeze_file": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/pip_freeze_snapshot.txt",
+    "pip_freeze_lines": 648,
+    "pip_freeze_sha256": "5e12ff7a828e3e0dcce6e1e3f419d384db4dd6f887b8afc30979b97520b0a7c7",
+    "pip_check_returncode": 1,
+    "pip_check_file": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/pip_check_snapshot.txt",
+    "pip_check_sha256": "85513ec5920c67d15efaae984dad6fef17fd38a51bbae22eca0ef07188ddf5b4"
+  }
+}

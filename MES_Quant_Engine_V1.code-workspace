@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "name": "MES Quant Engine V1",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+    "python.analysis.extraPaths": [
+      "src"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+      "tests"
+    ],
+    "files.exclude": {
+      "**/__pycache__": true,
+      "artifacts/cache": true
+    }
+  }
+}

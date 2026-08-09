@@ -1,0 +1,27 @@
+# Local environments and tools
+.venv/
+.idea/
+.vscode/settings.json
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Secrets and machine-specific configuration
+.env
+*.pem
+*.key
+
+# Data and generated runs never belong in ordinary Git
+artifacts/cache/**
+artifacts/runs/**
+!artifacts/cache/.gitkeep
+!artifacts/runs/.gitkeep
+
+# Coverage/build output
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+

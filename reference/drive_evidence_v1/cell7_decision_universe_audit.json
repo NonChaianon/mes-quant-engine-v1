@@ -1,0 +1,77 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:39.546206+00:00",
+  "policy_version": "MES_V1_DECISION_UNIVERSE_1.0",
+  "status": "PASS",
+  "upstream_binding": {
+    "cell4_registry_status": "AVAILABLE",
+    "cell5_failures": [],
+    "cell6_failures": [],
+    "cell6_unclassified_gap_events": 0
+  },
+  "decision_policy": {
+    "bar_minutes": 15,
+    "decision_time_semantics": "end of completed 15-minute input bar",
+    "timezone": "America/New_York",
+    "clock_window_inclusive": "09:45–15:00 America/New_York",
+    "calendar": "NYSE",
+    "calendar_role": "research/entry policy filter; not CME tradability authority",
+    "label_horizon_minutes": 60,
+    "scheduled_close_buffer_applied": true,
+    "partial_bar_decision_eligible": false,
+    "mixed_contract_bar_decision_eligible": false,
+    "degraded_date_auto_exclusion": false,
+    "future_return_used_for_eligibility": false,
+    "future_bar_quality_used_for_eligibility": false
+  },
+  "counts": {
+    "input_15m_rows": 170586,
+    "clock_candidate_rows": 40621,
+    "eligible_decision_rows": 39847,
+    "excluded_clock_candidate_rows": 774,
+    "eligible_sessions": 1820,
+    "partial_clock_candidate_rows": 47,
+    "eligible_partial_rows": 0,
+    "eligible_roll_cross_rows": 0,
+    "degraded_clock_candidate_rows": 235,
+    "degraded_eligible_rows_retained": 230,
+    "early_close_clock_candidate_rows": 225,
+    "early_close_eligible_rows": 149
+  },
+  "time_range": {
+    "first_eligible_decision_utc": "2019-05-06T13:45:00+00:00",
+    "last_eligible_decision_utc": "2026-07-31T19:00:00+00:00"
+  },
+  "primary_exclusion_summary": [
+    {
+      "primary_exclusion_reason": "ELIGIBLE",
+      "rows": 39847
+    },
+    {
+      "primary_exclusion_reason": "NO_NYSE_POLICY_SESSION",
+      "rows": 686
+    },
+    {
+      "primary_exclusion_reason": "AFTER_HORIZON_SAFE_CLOSE",
+      "rows": 75
+    },
+    {
+      "primary_exclusion_reason": "INPUT_BAR_PARTIAL",
+      "rows": 13
+    }
+  ],
+  "artifacts": {
+    "decision_universe": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell7_decision_universe_v1.parquet",
+    "decision_ledger": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell7_decision_universe_ledger.parquet",
+    "daily_summary": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell7_decision_universe_daily_summary.csv"
+  },
+  "sha256": {
+    "input_mes_15m_sha256": "558723ed6965c23fb93a7abc61d65eee405dd9eb5f41a36a96c7b66bbc806dad",
+    "cell4_audit_sha256": "17dec58345f7b92fd7628ac48a80eaeff9558b78ed5ceb60b2148eb18fb367db",
+    "cell5_audit_sha256": "0fd7aba3cca2f3ae88d24b048708517e4829302275ab25f90821ef2af2621c73",
+    "cell6_audit_sha256": "24d580e189feaf9e6f6ca6750dcf5a358ff551920f4dc3dda02892b87c3ec2b0",
+    "decision_universe_sha256": "f86024c7a36780e6a559cc0eec15a7a52a851b24cb453a50136b609c440f2ca7",
+    "decision_ledger_sha256": "6b8ce7f94eb8e1a8279357874045bda21982b3e0b3112c4db097ad2370034c4e",
+    "daily_summary_sha256": "a04816f82da03338759fa15f2f621480b23bbfa28a469fd6637653811e88072a"
+  },
+  "failures": []
+}

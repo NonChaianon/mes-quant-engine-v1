@@ -1,0 +1,9 @@
+parameter,value,unit,status,as_of,source,notes
+contract_multiplier_usd_per_point,5.0,USD/index_point/contract,LOCKED,2026-08-09,https://www.cmegroup.com/markets/equities/sp/micro-e-mini-sandp-500.contractSpecs.html,Official MES contract multiplier.
+tick_size_points,0.25,index_points,LOCKED,2026-08-09,https://www.cmegroup.com/markets/equities/sp/micro-e-mini-sandp-500.contractSpecs.html,Official minimum outright price fluctuation.
+tick_value_usd,1.25,USD/tick/contract,LOCKED,2026-08-09,https://www.cmegroup.com/markets/equities/sp/micro-e-mini-sandp-500.contractSpecs.html,Derived exactly as multiplier × tick size.
+ibkr_execution_fee_per_side_usd,0.25,USD/side/contract,PROVISIONAL,2026-08-09,https://www.interactivebrokers.com/en/pricing/commissions-futures.php,"MES group; <=1,000 monthly contracts; verify account plan."
+cme_exchange_fee_per_side_usd,0.35,USD/side/contract,PROVISIONAL,2026-08-09,https://www.interactivebrokers.com/en/accounts/fees/CME.php,Non-member Micro E-mini futures recovery charge.
+regulatory_fee_per_side_usd,0.01,USD/side/contract,PROVISIONAL,2026-08-09,https://www.interactivebrokers.com/en/accounts/fees/CME.php,NFA regulatory fee recovery charge shown by IBKR.
+clearing_fee_per_side_usd,0.0,USD/side/contract,PROVISIONAL,2026-08-09,https://www.interactivebrokers.com/en/pricing/commissions-futures.php,Zero working assumption; reconcile to actual statement.
+tax_or_entity_adjustment_per_side_usd,0.0,USD/side/contract,OPEN,2026-08-09,USER_IBKR_STATEMENT_REQUIRED,"Depends on IBKR entity, residence, and applicable tax."

@@ -1,0 +1,153 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:24.982052+00:00",
+  "raw_file": {
+    "path": "/content/drive/MyDrive/Quant_Lab/Data/MES_2019_2026_1m.dbn.zst",
+    "size_bytes": 40078487,
+    "mtime_utc": "2026-08-08T16:54:21+00:00",
+    "sha256": "49f243a443abd199607bb51ce8d6c82928e2ba2a0ebb4a11ede10e7e0a0a46d0"
+  },
+  "decoded": {
+    "rows": 2551123,
+    "columns": [
+      "rtype",
+      "publisher_id",
+      "instrument_id",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "symbol"
+    ],
+    "dtypes": {
+      "rtype": "uint8",
+      "publisher_id": "uint16",
+      "instrument_id": "uint32",
+      "open": "float64",
+      "high": "float64",
+      "low": "float64",
+      "close": "float64",
+      "volume": "uint64",
+      "symbol": "object"
+    },
+    "index_name": "ts_event",
+    "timezone": "UTC",
+    "first_timestamp": "2019-05-05T22:00:00+00:00",
+    "last_timestamp": "2026-07-31T20:59:00+00:00",
+    "monotonic_increasing": true,
+    "duplicate_timestamps": 0,
+    "ohlcv_nan_counts": {
+      "open": 0,
+      "high": 0,
+      "low": 0,
+      "close": 0,
+      "volume": 0
+    },
+    "high_violations": 0,
+    "low_violations": 0,
+    "negative_volume_rows": 0,
+    "instrument_id_nan": 0,
+    "unique_instrument_ids": 30,
+    "roll_transition_count": 29,
+    "metadata_mapping_intervals": 30,
+    "content_sha256": "e5ef411831c26d5f6975da33c1ffa0891d40c483d20e5b12bc95a73e73193584",
+    "content_hash_columns": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "instrument_id"
+    ],
+    "content_hash_includes_index": true,
+    "content_hash_algorithm": "SHA256_OVER_PANDAS_UINT64_ROW_HASHES"
+  },
+  "dbn_vs_old_parquet": {
+    "status": "PASS",
+    "reason": null,
+    "compared_columns": [
+      "instrument_id",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume"
+    ],
+    "column_results": {
+      "instrument_id": {
+        "dbn_dtype": "uint32",
+        "parquet_dtype": "uint32",
+        "values_equal": true,
+        "mismatch_count": 0,
+        "examples": []
+      },
+      "open": {
+        "dbn_dtype": "float64",
+        "parquet_dtype": "float64",
+        "values_equal": true,
+        "mismatch_count": 0,
+        "examples": []
+      },
+      "high": {
+        "dbn_dtype": "float64",
+        "parquet_dtype": "float64",
+        "values_equal": true,
+        "mismatch_count": 0,
+        "examples": []
+      },
+      "low": {
+        "dbn_dtype": "float64",
+        "parquet_dtype": "float64",
+        "values_equal": true,
+        "mismatch_count": 0,
+        "examples": []
+      },
+      "close": {
+        "dbn_dtype": "float64",
+        "parquet_dtype": "float64",
+        "values_equal": true,
+        "mismatch_count": 0,
+        "examples": []
+      },
+      "volume": {
+        "dbn_dtype": "uint64",
+        "parquet_dtype": "uint64",
+        "values_equal": true,
+        "mismatch_count": 0,
+        "examples": []
+      }
+    },
+    "index_equal": true,
+    "rows_equal": true,
+    "dbn_rows": 2551123,
+    "parquet_rows": 2551123,
+    "dbn_index_timezone": "UTC",
+    "parquet_index_timezone": "UTC",
+    "missing_dbn_columns": [],
+    "missing_parquet_columns": [],
+    "dbn_columns": [
+      "rtype",
+      "publisher_id",
+      "instrument_id",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "symbol"
+    ],
+    "parquet_columns": [
+      "rtype",
+      "publisher_id",
+      "instrument_id",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "symbol"
+    ]
+  },
+  "failures": [],
+  "status": "PASS",
+  "policy_version": "MES_V1_RAW_INTEGRITY_1.1"
+}

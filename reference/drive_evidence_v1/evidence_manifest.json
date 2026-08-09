@@ -1,0 +1,187 @@
+{
+  "drive_folder_id": "1OiG-wHzVqPV58UHqCdfR8YWB4nG9E1xM",
+  "file_count": 36,
+  "files": [
+    {
+      "file": "cell10_development_label_summary_v1.csv",
+      "sha256": "4957f4a9ae798a0be600d7ebc08754d63f3089c6309d066ea40384a6e076461b",
+      "size_bytes": 262
+    },
+    {
+      "file": "cell10_economic_label_audit.json",
+      "sha256": "01c8402ee7f95dab1f05518a2413402be76d7bedcbd857b659a158ada57d714c",
+      "size_bytes": 4447
+    },
+    {
+      "file": "cell11_cost_scenarios_semantic_v1.csv",
+      "sha256": "7b3c619f1a8c4612d9a6b3df40f86136030baae616c4b0cd160e1651c2db0302",
+      "size_bytes": 1741
+    },
+    {
+      "file": "cell11_cost_temporality_audit.json",
+      "sha256": "dede53da8dab7d78a88fe786d240d5b4c01f657a6a4bee547f1d6b5a25397709",
+      "size_bytes": 2152
+    },
+    {
+      "file": "cell11_fee_vintage_registry_v1.csv",
+      "sha256": "47a1d87591fb0502f939d89718ee1c52fc21276461a8103841af98f0d61167e1",
+      "size_bytes": 1264
+    },
+    {
+      "file": "cell12_path_outcomes_audit.json",
+      "sha256": "59cd1b4117905267e692840943c2c3ad2819d5df315f3a241d1d9984872a4950",
+      "size_bytes": 2430
+    },
+    {
+      "file": "cell12_path_status_summary_v1.csv",
+      "sha256": "0aae7ac729663991b3bb806942b44da05bb02fb3a29216ad491c1de896c413db",
+      "size_bytes": 133
+    },
+    {
+      "file": "cell13_block_bootstrap_ci_v1.csv",
+      "sha256": "4725180e69e64a43b71a082e8f0b85e9b4238f81b98d892468060b71d394ed44",
+      "size_bytes": 17172
+    },
+    {
+      "file": "cell13_dependence_ess_audit_v1.csv",
+      "sha256": "113412d42ac08bd87c18cec014924252f9e53a0762fa061ca887598681344ded",
+      "size_bytes": 1822
+    },
+    {
+      "file": "cell13_development_baseline_audit.json",
+      "sha256": "27d81df435229585d873d792ba7cb52f6ebee3734db36b235151b74f2e494df3",
+      "size_bytes": 4331
+    },
+    {
+      "file": "cell13_naive_baseline_metrics_v1.csv",
+      "sha256": "08d79380c2c8c78110089fa7e79946117dd3c22d12438ad52b8d53421299c541",
+      "size_bytes": 7195
+    },
+    {
+      "file": "cell2_raw_integrity_audit.json",
+      "sha256": "81320a6b12b59198fc449635eda3bdc9c4d5f373804c2bd3a1dc2001a9a61de6",
+      "size_bytes": 3624
+    },
+    {
+      "file": "cell3_gap_distribution.csv",
+      "sha256": "9ee77d5715fe301bb8a9e1410a0edf93545ef5d57a9879bedb9bae32897a2af9",
+      "size_bytes": 2107
+    },
+    {
+      "file": "cell3_supplemental_raw_audit.json",
+      "sha256": "e0332ce74435b8e908729472cdbea35a66cc75fdfb087ed712039fc3466d3297",
+      "size_bytes": 2170
+    },
+    {
+      "file": "cell4_dataset_condition_audit.json",
+      "sha256": "17dec58345f7b92fd7628ac48a80eaeff9558b78ed5ceb60b2148eb18fb367db",
+      "size_bytes": 787
+    },
+    {
+      "file": "cell5_15m_resample_audit.json",
+      "sha256": "0fd7aba3cca2f3ae88d24b048708517e4829302275ab25f90821ef2af2621c73",
+      "size_bytes": 1795
+    },
+    {
+      "file": "cell5_degraded_day_mes_impact.csv",
+      "sha256": "555f42be4e1df5147596ac7208e1b282f707f7e5b817a3b4d725c6d37637100a",
+      "size_bytes": 1241
+    },
+    {
+      "file": "cell5_launch_liquidity_monthly.csv",
+      "sha256": "7f05cceb5e7ca101afbbcc28e6444035722aa8131f2987806f62172b96df2b63",
+      "size_bytes": 5204
+    },
+    {
+      "file": "cell6_gap_attribution_audit.json",
+      "sha256": "24d580e189feaf9e6f6ca6750dcf5a358ff551920f4dc3dda02892b87c3ec2b0",
+      "size_bytes": 1873
+    },
+    {
+      "file": "cell6_gap_attribution_summary.csv",
+      "sha256": "18f70c0cee9f84487ec568f8f73e1e348ddcaa3cca6284a683c235c1752a0f32",
+      "size_bytes": 760
+    },
+    {
+      "file": "cell6_gap_clock_patterns.csv",
+      "sha256": "738b2ec08a5f0e2dbbbf346f412521d43e3d4fbcfe3c9f09c54b8f0610eecd0f",
+      "size_bytes": 83604
+    },
+    {
+      "file": "cell7_decision_universe_audit.json",
+      "sha256": "3e5f76d3ea3c91fe37bfb7f58235dc4c616da88b299a1d370a8a3c67653abf7e",
+      "size_bytes": 3047
+    },
+    {
+      "file": "cell7_decision_universe_daily_summary.csv",
+      "sha256": "a04816f82da03338759fa15f2f621480b23bbfa28a469fd6637653811e88072a",
+      "size_bytes": 157136
+    },
+    {
+      "file": "cell8_purge_boundaries_v1.csv",
+      "sha256": "550c969a43fefa36a51471a84b36a4fb435d042b88841c7650b5605659fa8e6b",
+      "size_bytes": 592
+    },
+    {
+      "file": "cell8_purged_split_audit.json",
+      "sha256": "add3186cb6265d49f96946ced1752f4ed0059b9fd5451f106f5d29f24fb5862a",
+      "size_bytes": 6158
+    },
+    {
+      "file": "cell8_walk_forward_folds_v1.csv",
+      "sha256": "93ef0978b17857f07d5df34b95253fe4ba998f7d6df3142e43474811a6bb761d",
+      "size_bytes": 501
+    },
+    {
+      "file": "cell9_cost_model_audit.json",
+      "sha256": "0ad686d76a0b6b01bd82123745390c60428285260de5b0f5564e7b233acd70c4",
+      "size_bytes": 6704
+    },
+    {
+      "file": "cell9_cost_parameters_v1.csv",
+      "sha256": "24d1953df9c497d991d3b6eb7a9c053046d0c7dbd2a006f4c4c03fbd02aab4f9",
+      "size_bytes": 1558
+    },
+    {
+      "file": "cell9_cost_scenarios_v1.csv",
+      "sha256": "2248d59ff32361dff9c5df94bfdf8d7ad6942ee50ef3d6e1c6a3731779aeff4f",
+      "size_bytes": 970
+    },
+    {
+      "file": "databento_glbx_mdp3_condition_registry.csv",
+      "sha256": "01d3f294cc0660f7d66b9cc2a4a9f1b2e78bbf48685ca98b19f89f582f0c7f0b",
+      "size_bytes": 74225
+    },
+    {
+      "file": "databento_glbx_mdp3_condition_registry_meta.json",
+      "sha256": "dea3885e3011fd0e27265db060c14b2b4e9d8771474f602255696806f94c4e11",
+      "size_bytes": 590
+    },
+    {
+      "file": "databento_glbx_mdp3_flagged_conditions.csv",
+      "sha256": "cfd1c068c479b5242aeefe64fcc506bb162779ff2b25a59c628660dd221c2805",
+      "size_bytes": 561
+    },
+    {
+      "file": "pip_check_snapshot.txt",
+      "sha256": "963ddede0c51c8a7dbb94338c47312b0bec74e30468a5e9011169c21abbdf11b",
+      "size_bytes": 133
+    },
+    {
+      "file": "pip_freeze_snapshot.txt",
+      "sha256": "5e12ff7a828e3e0dcce6e1e3f419d384db4dd6f887b8afc30979b97520b0a7c7",
+      "size_bytes": 12755
+    },
+    {
+      "file": "raw_source_baseline.json",
+      "sha256": "3c96bdc3b89f2d685e2a0d712860dd10642bcae96aadef730279a784dbd389d3",
+      "size_bytes": 2079
+    },
+    {
+      "file": "runtime_source_audit.json",
+      "sha256": "2b38ae98e60c3e7fdc596ec2d2f12449eeed4dc811075b06aa476ff796447242",
+      "size_bytes": 2716
+    }
+  ],
+  "manifest_version": "MES_V1_DRIVE_EVIDENCE_1.0"
+}

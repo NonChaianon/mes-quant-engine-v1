@@ -1,0 +1,106 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:41.405644+00:00",
+  "policy_version": "MES_V1_ECONOMIC_LABELS_1.0",
+  "status": "PASS",
+  "upstream_binding": {
+    "cell7_policy_version": "MES_V1_DECISION_UNIVERSE_1.0",
+    "cell8_policy_version": "MES_V1_PURGED_SPLIT_1.0",
+    "cell9_policy_version": "MES_V1_COST_MODEL_1.0",
+    "mes_15m_sha256": "558723ed6965c23fb93a7abc61d65eee405dd9eb5f41a36a96c7b66bbc806dad",
+    "cell8_assignments_sha256": "2e13ee7d1e7de321411604c3500c73e68a080b02fa2983288d41d399aeb43035",
+    "cell9_cost_scenarios_sha256": "2248d59ff32361dff9c5df94bfdf8d7ad6942ee50ef3d6e1c6a3731779aeff4f"
+  },
+  "label_contract": {
+    "instrument": "MES continuous active contract",
+    "decision_price": "close of completed 15m bar at decision_time",
+    "exit_price": "close of completed 15m bar at decision_time +60m",
+    "horizon_minutes": 60,
+    "future_15m_bars_required": 4,
+    "future_bar_completeness_required": true,
+    "same_instrument_through_horizon_required": true,
+    "roll_crossing_allowed": false,
+    "degraded_date_auto_exclusion": false,
+    "degraded_date_retained_as_context": true,
+    "economic_label_rule": "LONG if gross_points > cost_points; SHORT if gross_points < -cost_points; otherwise NO_TRADE",
+    "threshold_strict": true,
+    "contract_multiplier_usd_per_point": 5.0,
+    "primary_cost_scenario": "CONSERVATIVE",
+    "primary_round_trip_cost_usd": 4.97,
+    "primary_break_even_ticks": 3.976,
+    "primary_break_even_index_points": 0.994
+  },
+  "counts": {
+    "decision_rows": 39847,
+    "development_rows": 31193,
+    "train_rows": 25685,
+    "validation_rows": 5508,
+    "final_test_rows_sealed": 8654,
+    "usable_development_labels": 31165,
+    "unusable_development_labels": 28,
+    "primary_label_counts_development_only": {
+      "LONG": 15188,
+      "SHORT": 13147,
+      "NO_TRADE": 2830
+    },
+    "unusable_reason_counts_development_only": {
+      "HORIZON_BAR_PARTIAL": 28
+    },
+    "usable_degraded_context_rows": 110
+  },
+  "point_in_time_safety": {
+    "future_fields_are_targets_only": true,
+    "future_fields_allowed_as_features": false,
+    "future_quality_used_for_decision_eligibility": false,
+    "future_quality_used_for_label_usability_only": true,
+    "final_test_price_lookup_performed": false,
+    "final_test_outcomes_computed": false,
+    "final_test_label_distribution_inspected": false,
+    "model_fitted": false
+  },
+  "cost_scenarios": [
+    {
+      "scenario": "FEES_ONLY",
+      "total_round_trip_usd": 1.22,
+      "break_even_ticks": 0.976,
+      "break_even_index_points": 0.244,
+      "primary_economic_gate": false
+    },
+    {
+      "scenario": "BASE",
+      "total_round_trip_usd": 3.095,
+      "break_even_ticks": 2.476,
+      "break_even_index_points": 0.619,
+      "primary_economic_gate": false
+    },
+    {
+      "scenario": "CONSERVATIVE",
+      "total_round_trip_usd": 4.97,
+      "break_even_ticks": 3.976,
+      "break_even_index_points": 0.994,
+      "primary_economic_gate": true
+    },
+    {
+      "scenario": "STRESS",
+      "total_round_trip_usd": 8.72,
+      "break_even_ticks": 6.976,
+      "break_even_index_points": 1.744,
+      "primary_economic_gate": false
+    }
+  ],
+  "artifacts": {
+    "economic_labels": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell10_point_in_time_economic_labels_v1.parquet",
+    "development_label_summary": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell10_development_label_summary_v1.csv",
+    "unusable_label_events": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell10_unusable_label_events_v1.parquet"
+  },
+  "sha256": {
+    "input_mes_15m_sha256": "558723ed6965c23fb93a7abc61d65eee405dd9eb5f41a36a96c7b66bbc806dad",
+    "input_cell8_assignments_sha256": "2e13ee7d1e7de321411604c3500c73e68a080b02fa2983288d41d399aeb43035",
+    "input_cell8_audit_sha256": "add3186cb6265d49f96946ced1752f4ed0059b9fd5451f106f5d29f24fb5862a",
+    "input_cell9_scenarios_sha256": "2248d59ff32361dff9c5df94bfdf8d7ad6942ee50ef3d6e1c6a3731779aeff4f",
+    "input_cell9_audit_sha256": "0ad686d76a0b6b01bd82123745390c60428285260de5b0f5564e7b233acd70c4",
+    "economic_labels_sha256": "1f73f06d92bc54ccceff637503ef9cbece0c2b0c6b2018802923ef51d7352bd0",
+    "development_summary_sha256": "4957f4a9ae798a0be600d7ebc08754d63f3089c6309d066ea40384a6e076461b",
+    "unusable_events_sha256": "a7d5a825625474442483022f0052c8f170fc4e4faf391c59f88fca295df7d9b6"
+  },
+  "failures": []
+}

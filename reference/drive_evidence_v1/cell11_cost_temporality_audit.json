@@ -1,0 +1,43 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:41.661001+00:00",
+  "policy_version": "MES_V1_COST_TEMPORALITY_1.0",
+  "status": "PASS",
+  "upstream_binding": {
+    "cell9_policy_version": "MES_V1_COST_MODEL_1.0",
+    "cell9_scenarios_sha256": "2248d59ff32361dff9c5df94bfdf8d7ad6942ee50ef3d6e1c6a3731779aeff4f"
+  },
+  "semantic_contract": {
+    "current_deployment": "PROVISIONAL_COUNTERFACTUAL",
+    "stress": "PROVISIONAL_COUNTERFACTUAL",
+    "historical_vintage": "OPEN",
+    "historical_actual_labels_available": false,
+    "historical_coverage_ratio": 0.0,
+    "historical_labels_allowed": false,
+    "current_snapshot_historical_matching_allowed": false,
+    "volume_tier_rule": "future historical implementation must use causal cumulative month-to-date contracts only"
+  },
+  "cell10_interpretation": {
+    "existing_primary_label_status": "PROVISIONAL",
+    "existing_primary_label_semantics": "CURRENT_DEPLOYMENT_COUNTERFACTUAL; NOT HISTORICAL_ACTUAL_PNL"
+  },
+  "scenario_count": 4,
+  "vintage_registry_rows": 2,
+  "artifacts": {
+    "semantic_scenarios": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell11_cost_scenarios_semantic_v1.csv",
+    "fee_vintage_registry": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell11_fee_vintage_registry_v1.csv"
+  },
+  "sha256": {
+    "input_cell9_parameters_sha256": "24d1953df9c497d991d3b6eb7a9c053046d0c7dbd2a006f4c4c03fbd02aab4f9",
+    "input_cell9_scenarios_sha256": "2248d59ff32361dff9c5df94bfdf8d7ad6942ee50ef3d6e1c6a3731779aeff4f",
+    "input_cell9_audit_sha256": "0ad686d76a0b6b01bd82123745390c60428285260de5b0f5564e7b233acd70c4",
+    "semantic_scenarios_sha256": "7b3c619f1a8c4612d9a6b3df40f86136030baae616c4b0cd160e1651c2db0302",
+    "fee_vintage_registry_sha256": "47a1d87591fb0502f939d89718ee1c52fc21276461a8103841af98f0d61167e1"
+  },
+  "open_items": [
+    "Collect effective-dated CME and IBKR historical fee sources.",
+    "Confirm the user's IBKR legal entity, pricing plan, and taxes.",
+    "Add historical bid/ask or a sourced regime proxy for execution costs.",
+    "Rebuild historical-vintage labels only after 100% causal coverage."
+  ],
+  "failures": []
+}

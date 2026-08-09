@@ -1,0 +1,18 @@
+{
+  "request": {
+    "dataset": "GLBX.MDP3",
+    "start_date": "2019-04-15",
+    "end_date_inclusive": "2026-07-31"
+  },
+  "retrieved_utc": "2026-08-09T07:45:53.532986+00:00",
+  "source": "Databento Historical.metadata.get_dataset_condition",
+  "registry_sha256": "01d3f294cc0660f7d66b9cc2a4a9f1b2e78bbf48685ca98b19f89f582f0c7f0b",
+  "original_warning_evidence": {
+    "known_flagged_dates": [
+      "2020-02-27",
+      "2020-02-28",
+      "2020-06-30"
+    ],
+    "note": "Original Databento warning was truncated. These dates are preserved only as known historical warning evidence."
+  }
+}

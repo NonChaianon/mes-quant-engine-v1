@@ -1,0 +1,278 @@
+{
+  "manifest_version": "MES_V1_FROZEN_COLAB_1.0",
+  "created_for_migration_date": "2026-08-10",
+  "status": "PROVISIONAL_FULL_PARITY_PENDING_LOCAL_LARGE_ARTIFACTS",
+  "notebook": {
+    "id": "1U3KJQJmTnt2bQyeQPfPybgZa9_VllMjG",
+    "name": "MES_Quant_Pipeline_V1_CANONICAL_DEV",
+    "url": "https://colab.research.google.com/drive/1U3KJQJmTnt2bQyeQPfPybgZa9_VllMjG",
+    "drive_modified_utc": "2026-08-09T16:32:27.363Z",
+    "drive_size_bytes": 527161,
+    "local_reference_file": "reference/colab_v1_cells_0_13/MES_V1_cells_0_13.ipynb",
+    "local_reference_sha256": "59125e89c2aa05f34660b6b70194f98d99b561085354174911523cda402c0f53",
+    "transfer_note": "Local reference byte length was reconciled to the exact 527,161-byte Drive download before freezing.",
+    "cell_order": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+    "execution_counts": [37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+    "cell_source_manifest": "reference/colab_v1_cells_0_13/cell_sources_manifest.json",
+    "cell_source_manifest_sha256": "c10b9cf8c6fe9923c9484f42442765e74a446123059583f3a9d183ad583074f6",
+    "sha256s_file": "reference/colab_v1_cells_0_13/SHA256SUMS.txt",
+    "sha256s_sha256": "78cffe3cdf3d7440a1342f40a1d483ea44514f1f5d2a23b9a52b53bcc5b8eb98"
+  },
+  "drive": {
+    "artifact_folder_id": "1OiG-wHzVqPV58UHqCdfR8YWB4nG9E1xM",
+    "artifact_folder_url": "https://drive.google.com/drive/folders/1OiG-wHzVqPV58UHqCdfR8YWB4nG9E1xM",
+    "colab_artifact_root": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/",
+    "small_evidence_reference": "reference/drive_evidence_v1/",
+    "small_evidence_manifest": "reference/drive_evidence_v1/evidence_manifest.json",
+    "small_evidence_manifest_sha256": "6cc4a64de2fb64ee5339475411df896c3f415050c4b7e876c9878dea4e585b62",
+    "small_evidence_manifest_size_bytes": 6349,
+    "small_evidence_file_count": 36
+  },
+  "environment": {
+    "python": "3.12.13",
+    "pandas": "2.2.2",
+    "numpy": "2.0.2",
+    "pyarrow": "18.1.0",
+    "databento": "0.83.0",
+    "databento_dbn": "0.65.0",
+    "pandas_market_calendars": "5.4.0",
+    "exchange_calendars": "4.13.2",
+    "timezone_data": "UTC and America/New_York contracts",
+    "full_pinned_linux_parity": "OPEN"
+  },
+  "audit_canonicalization": {
+    "version": "MES_AUDIT_CANONICAL_JSON_1.0",
+    "parity_mode": "CANONICAL_JSON",
+    "remove_exact_keys": ["audit_written_utc", "manifest_written_utc"],
+    "normalize_colab_artifact_root_to": "${MES_ARTIFACT_ROOT}",
+    "never_remove": ["status", "failures", "counts", "policy_version", "sha256", "upstream_binding"]
+  },
+  "locked_contracts": {
+    "instrument": "MES.v.0",
+    "decision_frequency_minutes": 15,
+    "label_horizon_minutes": 60,
+    "action_space": "LONG_FLAT",
+    "position_policy": "NON_OVERLAPPING_60M",
+    "final_test_start_year": 2025,
+    "final_test_rows": 8654,
+    "final_test_status": "SEALED",
+    "final_test_outcomes_allowed": false,
+    "bootstrap_repetitions": 2000,
+    "primary_bootstrap_block_sessions": 5,
+    "master_seed": 20260809
+  },
+  "golden_counts": {
+    "raw_rows": 2551123,
+    "bars_15m": 170586,
+    "decision_universe_rows": 39847,
+    "outer_train_rows": 25685,
+    "outer_validation_rows": 5508,
+    "development_rows": 31193,
+    "final_test_rows": 8654,
+    "usable_labels_and_paths": 31165,
+    "label_long": 15188,
+    "label_short": 13147,
+    "label_no_trade": 2830,
+    "oof_decisions": 16494,
+    "cell13_event_rows": 65976,
+    "canonical_oof_sessions": 751,
+    "cell13_final_test_rows_used": 0
+  },
+  "artifacts": [
+    {
+      "id": "raw_dbn",
+      "producer": "SOURCE",
+      "file": "MES_2019_2026_1m.dbn.zst",
+      "size_bytes": 40078487,
+      "sha256": "49f243a443abd199607bb51ce8d6c82928e2ba2a0ebb4a11ede10e7e0a0a46d0",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": []
+    },
+    {
+      "id": "decoded_memory_content",
+      "producer": "CELL_2",
+      "file": null,
+      "sha256": "e5ef411831c26d5f6975da33c1ffa0891d40c483d20e5b12bc95a73e73193584",
+      "parity_mode": "PANDAS_UINT64_ROW_HASH_CONTENT",
+      "upstream": ["raw_dbn"]
+    },
+    {
+      "id": "cell5_bars_15m",
+      "producer": "CELL_5",
+      "file": "MES_2019_2026_15m_clean.parquet",
+      "drive_id": "1-LntqvN1nW95tZiJG8evhBu_S_Y881fk",
+      "size_bytes": 6904346,
+      "sha256": "558723ed6965c23fb93a7abc61d65eee405dd9eb5f41a36a96c7b66bbc806dad",
+      "parity_mode": "BYTE_EXACT_AND_ORDERED_CONTENT",
+      "upstream": ["decoded_memory_content"]
+    },
+    {
+      "id": "cell5_audit",
+      "producer": "CELL_5",
+      "file": "cell5_15m_resample_audit.json",
+      "drive_id": "1DKApS4mam7nLnCrqKlader566J5rc1wK",
+      "size_bytes": 1795,
+      "sha256": "0fd7aba3cca2f3ae88d24b048708517e4829302275ab25f90821ef2af2621c73",
+      "parity_mode": "CANONICAL_JSON",
+      "upstream": ["decoded_memory_content"]
+    },
+    {
+      "id": "cell6_audit",
+      "producer": "CELL_6",
+      "file": "cell6_gap_attribution_audit.json",
+      "drive_id": "1r_0tgMSQosD9SqAyb_weILhtu4W-ahH5",
+      "size_bytes": 1873,
+      "sha256": "24d580e189feaf9e6f6ca6750dcf5a358ff551920f4dc3dda02892b87c3ec2b0",
+      "parity_mode": "CANONICAL_JSON",
+      "upstream": ["cell5_bars_15m"]
+    },
+    {
+      "id": "cell7_universe",
+      "producer": "CELL_7",
+      "file": "cell7_decision_universe_v1.parquet",
+      "drive_id": "1wU_cwyRW_HL75RFdjhh1oY02GbFZtW8M",
+      "size_bytes": 1529761,
+      "sha256": "f86024c7a36780e6a559cc0eec15a7a52a851b24cb453a50136b609c440f2ca7",
+      "parity_mode": "BYTE_EXACT_AND_ORDERED_CONTENT",
+      "upstream": ["cell5_bars_15m", "cell5_audit", "cell6_audit"]
+    },
+    {
+      "id": "cell7_audit",
+      "producer": "CELL_7",
+      "file": "cell7_decision_universe_audit.json",
+      "drive_id": "1H0wCs72sw1wKikRDoT6doPplbU8ansgw",
+      "size_bytes": 3047,
+      "sha256": "3e5f76d3ea3c91fe37bfb7f58235dc4c616da88b299a1d370a8a3c67653abf7e",
+      "parity_mode": "CANONICAL_JSON",
+      "upstream": ["cell7_universe"]
+    },
+    {
+      "id": "cell8_assignments",
+      "producer": "CELL_8",
+      "file": "cell8_purged_split_assignments_v1.parquet",
+      "drive_id": "1Q-VC8AQK_AuBDIvxbuPSeYwGiX4g-ORF",
+      "size_bytes": 1447931,
+      "sha256": "2e13ee7d1e7de321411604c3500c73e68a080b02fa2983288d41d399aeb43035",
+      "parity_mode": "BYTE_EXACT_AND_ORDERED_CONTENT",
+      "upstream": ["cell7_universe", "cell7_audit"]
+    },
+    {
+      "id": "cell8_audit",
+      "producer": "CELL_8",
+      "file": "cell8_purged_split_audit.json",
+      "drive_id": "1ud3obS5oIE_oBRfaUgJhnTZexLc3UvGM",
+      "size_bytes": 6158,
+      "sha256": "add3186cb6265d49f96946ced1752f4ed0059b9fd5451f106f5d29f24fb5862a",
+      "parity_mode": "CANONICAL_JSON",
+      "upstream": ["cell8_assignments"]
+    },
+    {
+      "id": "cell9_parameters",
+      "producer": "CELL_9",
+      "file": "cell9_cost_parameters_v1.csv",
+      "drive_id": "1-df34G0lK5Zp1gXkbT-NQmzJr3gP-mzN",
+      "size_bytes": 1558,
+      "sha256": "24d1953df9c497d991d3b6eb7a9c053046d0c7dbd2a006f4c4c03fbd02aab4f9",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell8_assignments"]
+    },
+    {
+      "id": "cell9_scenarios",
+      "producer": "CELL_9",
+      "file": "cell9_cost_scenarios_v1.csv",
+      "drive_id": "1SAh_2XtPQLHfp3Yod3jkVHz1xBhlRaGw",
+      "size_bytes": 970,
+      "sha256": "2248d59ff32361dff9c5df94bfdf8d7ad6942ee50ef3d6e1c6a3731779aeff4f",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell9_parameters"]
+    },
+    {
+      "id": "cell10_labels",
+      "producer": "CELL_10",
+      "file": "cell10_point_in_time_economic_labels_v1.parquet",
+      "drive_id": "1CZ2qyFqPN5CtieU7hTbOHRYqjE8CJoZY",
+      "size_bytes": 2172575,
+      "sha256": "1f73f06d92bc54ccceff637503ef9cbece0c2b0c6b2018802923ef51d7352bd0",
+      "parity_mode": "BYTE_EXACT_AND_ORDERED_CONTENT",
+      "upstream": ["cell5_bars_15m", "cell8_assignments", "cell9_scenarios"]
+    },
+    {
+      "id": "cell11_semantic_costs",
+      "producer": "CELL_11",
+      "file": "cell11_cost_scenarios_semantic_v1.csv",
+      "drive_id": "1r8sLNrD98LCchwqOwkPmth6x23YNneAh",
+      "size_bytes": 1741,
+      "sha256": "7b3c619f1a8c4612d9a6b3df40f86136030baae616c4b0cd160e1651c2db0302",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell9_parameters", "cell9_scenarios"]
+    },
+    {
+      "id": "cell11_fee_vintages",
+      "producer": "CELL_11",
+      "file": "cell11_fee_vintage_registry_v1.csv",
+      "drive_id": "1bf2gHm0bO0cUK8HZosBoGl5D_rMjLC-h",
+      "size_bytes": 1264,
+      "sha256": "47a1d87591fb0502f939d89718ee1c52fc21276461a8103841af98f0d61167e1",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell9_parameters"]
+    },
+    {
+      "id": "cell12_paths",
+      "producer": "CELL_12",
+      "file": "cell12_development_path_outcomes_v1.parquet",
+      "drive_id": "1Tg_x7PtaqCbJ8D2TNLNiBc4tLfDLkwXq",
+      "size_bytes": 3223745,
+      "sha256": "8e1a9bc263e2dab5e1588d0797cdaa2fa0038a6bcfd6ac1ec9433fa35c253941",
+      "parity_mode": "BYTE_EXACT_AND_ORDERED_CONTENT",
+      "upstream": ["decoded_memory_content", "cell10_labels"]
+    },
+    {
+      "id": "cell13_events",
+      "producer": "CELL_13",
+      "file": "cell13_development_oof_baseline_events_v1.parquet",
+      "drive_id": "1Dpw6ua7Coja6ebZc0ZyNR7IJztl3qeEZ",
+      "size_bytes": 606251,
+      "sha256": "a745ad7dd8f39f9c4b90cafedb8ab6cd8242c0991c177698e86dbfad68bc7df4",
+      "parity_mode": "BYTE_EXACT_AND_ORDERED_CONTENT",
+      "upstream": ["cell8_assignments", "cell10_labels", "cell11_semantic_costs", "cell12_paths"]
+    },
+    {
+      "id": "cell13_dependence",
+      "producer": "CELL_13",
+      "file": "cell13_dependence_ess_audit_v1.csv",
+      "drive_id": "1NgzGxITFwnBdNHsJwDNDkOa26EFurVeB",
+      "size_bytes": 1822,
+      "sha256": "113412d42ac08bd87c18cec014924252f9e53a0762fa061ca887598681344ded",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell13_events"]
+    },
+    {
+      "id": "cell13_metrics",
+      "producer": "CELL_13",
+      "file": "cell13_naive_baseline_metrics_v1.csv",
+      "drive_id": "1RmVmDutiXINrmkvWH_7Tk33uJL8kWws4",
+      "size_bytes": 7195,
+      "sha256": "08d79380c2c8c78110089fa7e79946117dd3c22d12438ad52b8d53421299c541",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell13_events"]
+    },
+    {
+      "id": "cell13_bootstrap",
+      "producer": "CELL_13",
+      "file": "cell13_block_bootstrap_ci_v1.csv",
+      "drive_id": "1CQlx_kusA4th7LXuu9EOCakN_vMaGmdF",
+      "size_bytes": 17172,
+      "sha256": "4725180e69e64a43b71a082e8f0b85e9b4238f81b98d892468060b71d394ed44",
+      "parity_mode": "BYTE_EXACT",
+      "upstream": ["cell13_events", "cell13_metrics"]
+    }
+  ],
+  "migration_rules": {
+    "reference_cells_are_importable": false,
+    "new_runs_may_overwrite_frozen_evidence": false,
+    "large_artifacts_in_ordinary_git": false,
+    "final_test_features_before_model_protocol_freeze": false,
+    "cell14_allowed_upstream_ids": ["cell5_bars_15m", "cell5_audit", "cell7_universe", "cell7_audit", "cell8_assignments", "cell8_audit"],
+    "cell14_forbidden_producers": ["CELL_9", "CELL_10", "CELL_11", "CELL_12", "CELL_13"]
+  }
+}

@@ -1,0 +1,2 @@
+"""Label and sealing contracts."""
+

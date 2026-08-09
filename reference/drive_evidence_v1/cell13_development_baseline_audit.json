@@ -1,0 +1,94 @@
+{
+  "audit_written_utc": "2026-08-09T16:32:06.608029+00:00",
+  "policy_version": "MES_V1_DEPENDENCE_BASELINES_1.0",
+  "status": "PASS",
+  "upstream_binding": {
+    "cell8_policy_version": "MES_V1_PURGED_SPLIT_1.0",
+    "cell10_policy_version": "MES_V1_ECONOMIC_LABELS_1.0",
+    "cell11_policy_version": "MES_V1_COST_TEMPORALITY_1.0",
+    "cell12_policy_version": "MES_V1_DEVELOPMENT_PATH_OUTCOMES_1.0",
+    "cell8_assignments_sha256": "2e13ee7d1e7de321411604c3500c73e68a080b02fa2983288d41d399aeb43035",
+    "cell10_labels_sha256": "1f73f06d92bc54ccceff637503ef9cbece0c2b0c6b2018802923ef51d7352bd0",
+    "cell10_audit_sha256": "01c8402ee7f95dab1f05518a2413402be76d7bedcbd857b659a158ada57d714c",
+    "cell11_semantic_costs_sha256": "7b3c619f1a8c4612d9a6b3df40f86136030baae616c4b0cd160e1651c2db0302",
+    "cell12_path_outcomes_sha256": "8e1a9bc263e2dab5e1588d0797cdaa2fa0038a6bcfd6ac1ec9433fa35c253941"
+  },
+  "evaluation_contract": {
+    "action_space": "LONG_FLAT",
+    "short_action_allowed": false,
+    "short_outcome_retained_as_diagnostic": true,
+    "position_policy": "NON_OVERLAPPING_60M",
+    "hold_minutes": 60,
+    "exit_then_entry_at_same_timestamp": true,
+    "maximum_concurrent_positions": 1,
+    "oof_validation_years": [
+      2022,
+      2023,
+      2024
+    ],
+    "final_test_used": false,
+    "cost_scenario": "CONSERVATIVE",
+    "round_trip_cost_usd": 4.97,
+    "cost_semantics": "CURRENT_DEPLOYMENT_COUNTERFACTUAL",
+    "historical_actual_pnl_claim": false,
+    "classification_scope": "OPPORTUNITY_ROWS_BEFORE_POSITION_FILTER",
+    "session_universe": "ALL_CANONICAL_VALIDATION_SESSIONS",
+    "missing_canonical_sessions_allowed": false
+  },
+  "dependence_contract": {
+    "decision_frequency_minutes": 15,
+    "label_horizon_minutes": 60,
+    "empirical_acf_lags": [
+      1,
+      2,
+      3
+    ],
+    "ess_status": "DESCRIPTIVE_ONLY",
+    "n_div_4_status": "THEORETICAL_REFERENCE_ONLY",
+    "confidence_interval_method": "CONSECUTIVE_SESSION_MOVING_BLOCK_BOOTSTRAP",
+    "primary_block_length_sessions": 5,
+    "sensitivity_block_lengths_sessions": [
+      1,
+      5,
+      20
+    ],
+    "bootstrap_repetitions": 2000,
+    "master_seed": 20260809,
+    "pooled_oof_blocks_cross_fold_boundaries": false
+  },
+  "counts": {
+    "unique_oof_validation_decisions": 16494,
+    "baseline_event_rows": 65976,
+    "strategies": 4,
+    "canonical_validation_sessions_by_fold": {
+      "WF_2022": 251,
+      "WF_2023": 250,
+      "WF_2024": 252
+    },
+    "final_test_rows_used": 0
+  },
+  "artifacts": {
+    "baseline_events": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell13_development_oof_baseline_events_v1.parquet",
+    "dependence_ess_audit": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell13_dependence_ess_audit_v1.csv",
+    "naive_baseline_metrics": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell13_naive_baseline_metrics_v1.csv",
+    "block_bootstrap_ci": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell13_block_bootstrap_ci_v1.csv"
+  },
+  "sha256": {
+    "input_cell8_audit_sha256": "add3186cb6265d49f96946ced1752f4ed0059b9fd5451f106f5d29f24fb5862a",
+    "input_cell10_audit_sha256": "01c8402ee7f95dab1f05518a2413402be76d7bedcbd857b659a158ada57d714c",
+    "input_cell11_semantic_costs_sha256": "7b3c619f1a8c4612d9a6b3df40f86136030baae616c4b0cd160e1651c2db0302",
+    "input_cell11_audit_sha256": "dede53da8dab7d78a88fe786d240d5b4c01f657a6a4bee547f1d6b5a25397709",
+    "input_cell12_path_outcomes_sha256": "8e1a9bc263e2dab5e1588d0797cdaa2fa0038a6bcfd6ac1ec9433fa35c253941",
+    "input_cell12_audit_sha256": "59cd1b4117905267e692840943c2c3ad2819d5df315f3a241d1d9984872a4950",
+    "baseline_events_sha256": "a745ad7dd8f39f9c4b90cafedb8ab6cd8242c0991c177698e86dbfad68bc7df4",
+    "dependence_audit_sha256": "113412d42ac08bd87c18cec014924252f9e53a0762fa061ca887598681344ded",
+    "baseline_metrics_sha256": "08d79380c2c8c78110089fa7e79946117dd3c22d12438ad52b8d53421299c541",
+    "block_bootstrap_ci_sha256": "4725180e69e64a43b71a082e8f0b85e9b4238f81b98d892468060b71d394ed44"
+  },
+  "modeling_gate": {
+    "naive_baselines_established": true,
+    "model_fitted": false,
+    "required_future_comparison": "paired five-session block-bootstrap differences versus ALWAYS_FLAT, ALWAYS_LONG, and TRAIN_PRIOR_PROBABILITY"
+  },
+  "failures": []
+}

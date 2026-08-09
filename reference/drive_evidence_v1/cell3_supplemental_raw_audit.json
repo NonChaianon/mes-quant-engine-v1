@@ -1,0 +1,75 @@
+{
+  "audit_written_utc": "2026-08-09T16:31:26.016383+00:00",
+  "raw_identity_binding": {
+    "sha256": "49f243a443abd199607bb51ce8d6c82928e2ba2a0ebb4a11ede10e7e0a0a46d0",
+    "size_bytes": 40078487,
+    "matches_frozen_baseline": true
+  },
+  "provenance": {
+    "expected": {
+      "dataset": "GLBX.MDP3",
+      "schema": "ohlcv-1m",
+      "stype_in": "continuous",
+      "stype_out": "instrument_id",
+      "symbol": "MES.v.0",
+      "start": "2019-04-15T00:00:00+00:00",
+      "end_exclusive": "2026-08-01T00:00:00+00:00"
+    },
+    "observed": {
+      "dataset": "GLBX.MDP3",
+      "schema": "ohlcv-1m",
+      "stype_in": "continuous",
+      "stype_out": "instrument_id",
+      "symbols": [
+        "MES.v.0"
+      ],
+      "start": "2019-04-15T00:00:00+00:00",
+      "end": "2026-08-01T00:00:00+00:00",
+      "mapping_first_symbol": "MES.v.0",
+      "mapping_last_symbol": "MES.v.0",
+      "mapping_intervals": 30
+    },
+    "checks": {
+      "dataset": true,
+      "schema": true,
+      "stype_in": true,
+      "stype_out": true,
+      "symbol_in_metadata": true,
+      "symbol_in_mapping_first": true,
+      "symbol_in_mapping_last": true,
+      "start": true,
+      "end_exclusive": true
+    },
+    "status": "PASS"
+  },
+  "zero_volume": {
+    "total_bars": 2551123,
+    "positive_volume_bars": 2551123,
+    "zero_volume_bars": 0,
+    "status": "PASS"
+  },
+  "raw_gap_audit": {
+    "total_transitions": 2551122,
+    "one_minute_transitions": 2543191,
+    "gap_gt_1_minute_events": 7931,
+    "gap_gt_1_minute_pct": 0.3108828194026001,
+    "maximum_gap_minutes": 4606,
+    "minute_alignment_violations": 0,
+    "non_integer_minute_gaps": 0,
+    "non_positive_gaps": 0,
+    "watch_gap_counts": {
+      "2": 4611,
+      "3": 586,
+      "16": 533,
+      "61": 1436
+    },
+    "gap_events_crossing_roll": 2,
+    "distribution_file": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell3_gap_distribution.csv",
+    "event_file": "/content/drive/MyDrive/Quant_Lab/Data/MES_Clean_Pipeline_V1/cell3_gap_events.parquet"
+  },
+  "roll_cross_reference": {
+    "unique_instrument_ids": 30,
+    "roll_transition_count": 29,
+    "metadata_mapping_intervals": 30
+  }
+}

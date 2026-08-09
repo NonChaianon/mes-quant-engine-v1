@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mes-quant-engine"
+version = "0.1.0"
+description = "Auditable point-in-time MES research and auto-trading engine"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+  "numpy==2.0.2",
+  "pandas==2.2.2",
+  "pyarrow==18.1.0",
+  "databento==0.83.0",
+  "databento-dbn==0.65.0",
+  "pandas-market-calendars==5.4.0",
+  "exchange-calendars==4.13.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+mes-quant-build-features = "mes_quant.cli:build_features_main"
+mes-quant-verify = "mes_quant.cli:verify_main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mes_quant"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+

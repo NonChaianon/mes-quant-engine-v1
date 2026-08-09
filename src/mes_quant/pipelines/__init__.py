@@ -1,0 +1,2 @@
+"""Thin artifact-producing orchestration."""
+
