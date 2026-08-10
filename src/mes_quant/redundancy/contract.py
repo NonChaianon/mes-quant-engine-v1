@@ -30,3 +30,33 @@ REPRESENTATIVE_TIE_BREAK = (
     "SIMPLER_INTERPRETATION",
     "LEXICAL_FEATURE_NAME",
 )
+# ------------------------------------------------------------
+# Stage B cohort / missingness policy
+# ------------------------------------------------------------
+
+COMMON_COHORT_POLICY = "FULL_29_COMPLETE_CASE_TRAIN_PER_FOLD"
+
+PAIRWISE_COVERAGE_POLICY = "REPORT_ONLY_NOT_FOR_SELECTION"
+
+MISSINGNESS_POLICY = (
+    "NO_IMPUTATION",
+    "NO_FORWARD_FILL",
+    "NO_MEDIAN_FILL",
+    "NO_SILENT_ROW_DROP",
+)
+
+# ------------------------------------------------------------
+# Operational fallback policy
+#
+# If a future model cannot produce a valid score because required
+# information is unavailable, the decision must remain in the
+# full universe and map to FLAT rather than disappearing.
+# ------------------------------------------------------------
+
+UNUSABLE_DECISION_ACTION = "FLAT"
+
+NO_SCORE_POSITION = 0
+
+COVERAGE_DENOMINATOR_POLICY = "FULL_DECISION_UNIVERSE"
+
+UNUSABLE_DECISION_MUST_REMAIN_IN_COVERAGE = True
