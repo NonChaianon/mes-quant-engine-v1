@@ -1,96 +1,2368 @@
 # Stage B — Feature redundancy and stability contract
 
-Policy status: **PROVISIONAL — lock this contract before producing Stage B artifacts**  
-Upstream status: **Cell 14 computation/data artifact LOCKED; candidate catalog PROVISIONAL**
+Policy version: `MES_V1_REDUNDANCY_1.1`
 
-## Objective
+Policy status: **PROVISIONAL_V1_1_DRAFT_R5 — FINAL PRE-LOCK CANDIDATE — NOT EXECUTABLE**
 
-Reduce the 29 Cell 14 candidates to a small, stable, explainable set without using Final Test,
-without selecting on outer-validation outcomes, and without silently filling missing values. This
-stage diagnoses redundancy and stability; it does not declare a profitable model.
+Upstream status:
 
-## Allowed inputs
+- Cell 14 computation/data artifact: **LOCKED**
+- Cell 14 29-feature candidate catalog: **PROVISIONAL**
+- Final Test 2025–2026: **SEALED**
 
-- Canonical Cell 14 Development feature artifact, content SHA256
-  `dbee5a9607f05de8460e4738fa8c288368be9afabba58fc53a1ff373fbb2074d`.
-- Cell 8 fold roles for `WF_2022`, `WF_2023`, and `WF_2024`.
+---
 
-Cells 9–13, every label/P&L/cost/path field, every 2025–2026 outcome/feature, and any full-period
-statistic are forbidden inputs. Stage B is target-blind. Label-aware incremental value begins only
-after the candidate mask freezes and belongs to Stage C.
+## 1. Why v1.1 exists
 
-## Missingness policy
+Stage B V1.0 was reopened after audit identified a policy-enforcement defect:
 
-- Full-29 complete cases are an availability diagnostic, not yet the sole modeling cohort. Current
-  coverage is `30,197 / 31,193 = 96.807%`, but missingness is strongly non-random.
-- Report excluded rows by year, partition, fold, feature, and missing reason before computing any
-  association statistic. Missingness is concentrated in early history and is not MCAR.
-- A shorter-lookback coverage sensitivity may be reported, but it must not be chosen using target
-  performance. Predeclare the compared feature cohorts before inspecting redundancy results.
-- Lock a common-cohort and operational fallback policy before correlation analysis. In later
-  economic evaluation, every unusable/no-score decision must map to FLAT/zero P&L and remain in
-  full-universe coverage metrics; it must not silently disappear.
-- Median fill, forward fill, pooled scaling, and missingness learned from future periods are
-  **REJECTED**. Any future imputation proposal requires its own point-in-time contract and
-  training-fold-only fit.
+- the Python contract reported `LOCKED_EXECUTABLE`,
+- while the governing Markdown contract still reported `PROVISIONAL`.
 
-## Train-only procedure
+Therefore executable policy could pass even though the governing research
+contract had not actually been locked.
 
-Run each analysis separately inside the training history of the three expanding walk-forward
-folds. Outer-validation rows are reporting-only and cannot choose thresholds, representatives,
-hyperparameters, or feature count.
+V1.1 corrects both:
 
-1. Build coverage and distribution diagnostics on each fold's TRAIN rows.
-2. Create a semantic-dependency ledger before empirical correlations. Resolve exact algebraic,
-   dummy, and rank identities at tolerance `<= 1e-12` separately for linear and tree branches.
-3. Compute Pearson and Spearman matrices plus pairwise sample counts on TRAIN rows.
-4. Use absolute Spearman distance `1 - |rho|` for hierarchical clustering. PCA may be reported as
-   a diagnostic only and must not become a production transform in this stage.
-5. Proposed `HARD_REDUNDANCY`: both `|Pearson| >= 0.95` and `|Spearman| >= 0.95` in every TRAIN
-   fold, or an exact semantic identity. Proposed `REVIEW`: either metric reaches `0.90` in any TRAIN
-   fold. `REVIEW` never causes an automatic drop. Freeze thresholds before execution.
-6. Choose a label-free cluster representative by this fixed priority: higher causal availability,
-   shorter/simple formula, stability across folds, then lexical feature name as deterministic
-   tie-break. Do not use label association, validation AUC, or P&L for this choice.
-7. Audit distribution/availability stability within TRAIN history by year and rolling window.
-   VIF/condition number applies only to the linear branch. Freeze the Stage B candidate mask and
-   reasons before Stage C opens labels.
+1. the research methodology, and
+2. the mechanism that binds executable policy to the governing document.
 
-Known semantic checks that the implementation must reproduce:
+No Stage B result produced under the incomplete V1.0 implementation may be
+used to KEEP or DROP a feature.
 
-- `momentum_log_60m` equals the sum of return lags 0–3 within floating tolerance.
-- `minutes_to_horizon_safe_close` is exactly determined by minutes since open and early-close flag.
-- weekday dummies sum to one; a linear model with intercept must drop a reference weekday.
-- slot sine/cosine lie on the unit circle and are a paired representation.
-- lag-0 close return and current-bar log body are empirically near-identical in every TRAIN fold.
-- the two volume ratios require review, not automatic deletion: Pearson is high but Spearman is not.
+---
 
-## Required artifacts
+## 2. Objective
+
+Stage B reduces the 29 Cell 14 candidate features to a stable, explainable,
+target-blind candidate set without:
+
+- using Final Test,
+- using labels,
+- using P&L,
+- using cost outcomes,
+- using future path outcomes,
+- selecting on outer-validation performance,
+- silently filling missing values,
+- treating low pairwise correlation as proof of independence.
+
+Stage B diagnoses:
+
+- exact semantic/algebraic redundancy,
+- exact set-level linear dependency,
+- deterministic representation relationships,
+- empirical pairwise redundancy,
+- clustering structure,
+- feature availability,
+- cohort sensitivity,
+- descriptive stability.
+
+Stage B does **not** claim profitability.
+
+Stage B also does not claim that absence of linear, rank, correlation, or
+monotonic redundancy proves general statistical independence.
+
+---
+
+## 3. Contract-document integrity gate
+
+After this policy is formally locked, the executable Python contract must pin
+the SHA256 of this exact Markdown document.
+
+Stage B production execution is allowed only when all are true:
+
+1. Python policy version equals the policy version in this document.
+2. Python policy status is `LOCKED_EXECUTABLE`.
+3. This Markdown document states the approved LOCKED status.
+4. SHA256 of the committed Markdown bytes equals the SHA256 pinned in Python.
+5. Required upstream control artifacts and hashes pass.
+6. Required semantic-registry SHA256 equals the SHA256 pinned in Python.
+7. Dedicated Stage B tests pass.
+
+Any post-lock change to this document requires:
+
+- documented defect/change reason,
+- policy version bump,
+- new Markdown SHA256,
+- Python-contract update,
+- dependent-test rerun.
+
+The document hash is an accidental-drift and reproducibility control.
+
+It is not claimed to be a security control against intentional coordinated
+modification of both policy and pinned hash.
+
+### 3.1 Contract hash byte policy
+
+The contract hash is computed from the exact committed bytes of:
+
+`docs/STAGE_B_REDUNDANCY_CONTRACT.md`
+
+The repository currently declares:
+
+`* -text`
+
+in `.gitattributes`.
+
+Git line-ending normalization is therefore disabled for tracked files under
+the current repository byte policy.
+
+Stage B V1.1 does not alter this repository-wide policy.
+
+Changing `.gitattributes` belongs to a separate repository-policy migration
+because existing frozen/source hashes are byte-sensitive.
+
+The implementation must hash raw committed file bytes.
+
+It must not perform:
+
+- newline normalization,
+- whitespace normalization,
+- Unicode normalization,
+- text re-encoding
+
+before hashing.
+
+Never pin a hash calculated from:
+
+- an uncommitted draft,
+- copied chat text,
+- an editor-transformed representation.
+
+A clean-checkout hash must reproduce the pinned hash before real-data
+execution.
+
+---
+
+## 4. Allowed inputs
+
+Stage B may read only target-independent Development inputs required for
+redundancy analysis:
+
+- canonical Cell 14 Development point-in-time feature artifact,
+- canonical Cell 14 feature registry,
+- Cell 8 walk-forward fold-role assignments,
+- upstream release/control hashes required to validate those artifacts.
+
+Cells 9–13 are forbidden inputs.
+
+Every field containing any of the following is forbidden:
+
+- target,
+- label,
+- future return,
+- future price,
+- gross P&L,
+- net P&L,
+- cost outcome,
+- execution outcome,
+- future path outcome.
+
+No 2025–2026 feature or outcome row may be opened or analyzed.
+
+Required audit count:
+
+`Final Test rows opened = 0`
+
+---
+
+## 5. Canonical feature identity and order
+
+The canonical Cell 14 feature registry is the **single source of truth** for:
+
+- candidate feature names,
+- candidate count,
+- canonical feature order,
+- formula metadata,
+- lookback metadata,
+- feature-family metadata required by Stage B.
+
+Canonical candidate count:
+
+`29`
+
+Stage B must not define an independent hard-coded 29-feature list.
+
+The production feature artifact must match the canonical registry in:
+
+- membership,
+- count,
+- order.
+
+Any mismatch is a hard failure.
+
+Every feature pair written to an artifact uses canonical orientation:
+
+`feature_a` precedes `feature_b` in canonical registry order.
+
+Prototype aliases and historical names are forbidden in production policy.
+
+Canonical 15-minute return-lag names are:
+
+- `ret_log_15m_lag0`
+- `ret_log_15m_lag1`
+- `ret_log_15m_lag2`
+- `ret_log_15m_lag3`
+
+Canonical weekday names are:
+
+- `weekday_0`
+- `weekday_1`
+- `weekday_2`
+- `weekday_3`
+- `weekday_4`
+
+---
+
+## 6. Train-only rule
+
+Every empirical Stage B analysis runs separately inside TRAIN history for
+exactly these expanding walk-forward folds:
+
+- `WF_2022`
+- `WF_2023`
+- `WF_2024`
+
+implemented through:
+
+- `role_wf_2022`
+- `role_wf_2023`
+- `role_wf_2024`
+
+Outer-validation rows are reporting-only.
+
+Outer-validation values may not select:
+
+- thresholds,
+- dependencies,
+- substitutes,
+- representatives,
+- clusters,
+- feature count,
+- KEEP/DROP decisions,
+- overlay definitions.
+
+Semantic/algebraic verification is also TRAIN-scoped.
+
+There is no all-Development semantic-check exception.
+
+---
+
+## 7. Expanding-fold dependence warning
+
+The three TRAIN folds are expanding windows.
+
+Conceptually:
+
+`WF_2022 ⊂ WF_2023 ⊂ WF_2024`
+
+Therefore they are not three independent replications.
+
+The folds share substantial historical observations.
+
+Statements such as:
+
+- "stable across three folds",
+- "passes every fold"
+
+mean robustness across expanding histories, not three independent pieces of
+evidence.
+
+The same interpretation applies to later all-fold consistency requirements,
+including empirical redundancy and zero-variance checks.
+
+---
+
+## 8. Missingness and common-cohort policy
+
+Primary empirical redundancy statistics use:
+
+`FULL_29_COMPLETE_CASE_TRAIN_PER_FOLD`
+
+Within each TRAIN fold, this cohort contains rows where all 29 canonical
+candidate features are available.
+
+It is a controlled research comparison cohort.
+
+It is **not automatically the future production/modeling cohort**.
+
+Rejected methods:
+
+- median fill,
+- forward fill,
+- silent row deletion,
+- pooled future-aware scaling,
+- future-fitted imputation.
+
+Any future imputation proposal requires a separate point-in-time policy.
+
+---
+
+## 9. Observed Development missingness context
+
+Before V1.1 lock, canonical Development coverage was inspected explicitly.
+
+Overall full-29 coverage:
+
+`30,197 / 31,193 = 96.807%`
+
+Missingness is not uniformly distributed through history and must not be
+assumed MCAR.
+
+### 9.1 Full-29 coverage by year
+
+Observed canonical Development coverage:
+
+- 2019: `2,955 / 3,632 = 81.360132%`
+- 2020: `5,300 / 5,535 = 95.754291%`
+- 2021: `5,465 / 5,532 = 98.788865%`
+- 2022: `5,510 / 5,510 = 100.000000%`
+- 2023: `5,474 / 5,476 = 99.963477%`
+- 2024: `5,493 / 5,508 = 99.727669%`
+
+The project therefore records explicitly that missingness is concentrated
+disproportionately in earlier history.
+
+### 9.2 Shared 240-minute availability condition
+
+The following five 240-minute features each contain exactly 983 missing rows:
+
+- `momentum_log_240m`
+- `realized_vol_240m`
+- `sign_entropy_240m`
+- `return_autocorr_lag1_240m`
+- `volume_ratio_prev_240m`
+
+Those 983 missing rows are the same rows for all five features:
+
+- ANY 240m feature missing = `983`
+- ALL five 240m features missing = `983`
+- partial disagreement = `0`
+
+Observed 240-minute missing rows by year:
+
+- 2019: `677`
+- 2020: `222`
+- 2021: `67`
+- 2022: `0`
+- 2023: `2`
+- 2024: `15`
+
+Observed feature-status composition on those 983 rows:
+
+- `PARTIAL_LOOKBACK_BAR`: `908`
+- `PARTIAL_LOOKBACK_BAR|SESSION_VWAP_INPUT_INVALID`: `50`
+- `MISSING_LOOKBACK_BAR|SESSION_VWAP_INPUT_INVALID`: `20`
+- `MISSING_LOOKBACK_BAR`: `5`
+
+This is interpreted as one shared 240-minute-window availability condition,
+not five independent missingness events.
+
+Stage B must preserve that distinction in its coverage audit.
+
+These observations do not authorize Stage B to:
+
+- delete early history,
+- rewrite Cell 7/8,
+- forward-fill missing windows,
+- create an arbitrary warm-up exclusion.
+
+Such upstream changes would require a separate versioned upstream review.
+
+---
+
+## 10. Fold-level coverage gate
+
+Minimum common-cohort coverage required for automatic empirical Stage B
+decisions is:
+
+`MIN_COMMON_COHORT_COVERAGE_PER_FOLD = 0.90`
+
+This threshold is explicitly data-informed.
+
+Before V1.1 lock, canonical TRAIN-only coverage was measured:
+
+- `WF_2022`: `13,720 / 14,699 = 93.339683%`
+- `WF_2023`: `19,230 / 20,209 = 95.155624%`
+- `WF_2024`: `24,704 / 25,685 = 96.180650%`
+
+All canonical TRAIN folds pass.
+
+The project does not claim that the 90% threshold was selected without prior
+knowledge of Development coverage.
+
+Provenance classification:
+
+`DATA_INFORMED_BEFORE_FORMAL_V1_1_EXECUTION`
+
+Production Stage B must recompute coverage from canonical inputs.
+
+If any canonical TRAIN fold unexpectedly falls below 90%:
+
+- Stage B fails before final decisions are released,
+- the condition is treated as upstream/reproducibility drift,
+- it is not converted into OPEN,
+- automatic empirical deletion does not continue.
+
+Because the TRAIN folds are nested, passing all three folds must not be
+described as three independent confirmations.
+
+---
+
+## 11. Within-fold yearly concentration review
+
+Fold-level coverage alone does not detect historical concentration of
+missingness.
+
+Stage B therefore also reports full-29 common-cohort coverage by calendar year
+within applicable TRAIN history.
+
+Review threshold:
+
+`LOW_YEAR_COMMON_COHORT_COVERAGE_REVIEW = 0.90`
+
+This uses the same 90% value as a **review threshold only**.
+
+It is not a yearly hard failure gate.
+
+A year below 90% must be flagged:
+
+`LOW_YEAR_COMMON_COHORT_COVERAGE_REVIEW`
+
+Canonical pre-lock Development evidence indicates that 2019 triggers this
+review flag.
+
+The flag:
+
+- does not remove the year,
+- does not change the Decision Universe,
+- does not authorize imputation,
+- does not automatically block Stage B,
+- does not automatically cause a feature DROP.
+
+Its purpose is to make cohort concentration visible before empirical
+compression decisions are accepted.
+
+### 11.1 Required yearly concentration acknowledgment
+
+A yearly concentration flag must not become an alert that is produced and
+ignored.
+
+If any TRAIN-history calendar year triggers:
+
+`LOW_YEAR_COMMON_COHORT_COVERAGE_REVIEW`
+
+the Stage B audit must set:
+
+`YEARLY_CONCENTRATION_REVIEW_REQUIRED = true`
+
+Before Stage C may open labels, an independent target-blind Stage B review
+must acknowledge:
+
+- which year or years triggered the flag,
+- observed full-29 coverage,
+- major missingness source groups,
+- whether missingness is concentrated in a known shared availability
+  condition,
+- that no year was silently deleted,
+- that no imputation or upstream rewrite was introduced.
+
+Required audit state:
+
+`YEARLY_CONCENTRATION_REVIEW_STATUS = ACKNOWLEDGED`
+
+when review is required.
+
+This acknowledgment may not use:
+
+- labels,
+- validation performance,
+- P&L,
+- Final Test,
+- future-return information.
+
+The acknowledgment records awareness of the cohort limitation.
+
+It does not permit discretionary feature selection.
+
+---
+
+## 12. Redundancy evidence hierarchy
+
+Stage B must never equate pairwise low correlation with feature independence.
+
+Evidence precedence is:
+
+1. explicit exact semantic/algebraic dependency,
+2. exact set-level linear dependency,
+3. locked empirical pairwise HARD redundancy,
+4. clustering / REVIEW evidence,
+5. descriptive stability evidence.
+
+Higher-precedence evidence governs interpretation of lower-precedence evidence.
+
+Lower-precedence evidence remains visible.
+
+A pair may legitimately be:
+
+`PAIRWISE_DISTINCT`
+
+while its containing group is:
+
+`SEMANTIC_HARD_REDUNDANCY`
+
+This is not an artifact contradiction.
+
+---
+
+## 13. Machine-readable semantic dependency registry
+
+Required semantic checks must exist in:
+
+`configs/v1/stage_b_semantic_registry_v1.json`
+
+They may not exist only as prose.
+
+The registry is a locked policy input.
+
+Required fields include at minimum:
+
+- `check_id`
+- `check_type`
+- `features`
+- `dependent_features`
+- `determining_features`
+- `scope`
+- `decision_effect`
+- `implementation_key`
+- `dependency_group`
+- `required_drop_count`
+- `protect_determining_features`
+- `rationale`
+
+`required_drop_count` may be null for empirical checks.
+
+Tests must verify:
+
+- every required check has an implementation,
+- every implementation is callable,
+- every feature name resolves to the Cell 14 registry,
+- every required check appears in the semantic ledger,
+- no required check silently disappears,
+- registry SHA matches the Python contract.
+
+---
+
+## 14. Semantic-basis protection
+
+A feature explicitly identified as a `determining_feature` of an exact
+semantic dependency may be marked:
+
+`SEMANTIC_BASIS_PROTECTED`
+
+by the locked semantic registry.
+
+For V1.1, `protect_determining_features = true` applies to exact identities
+whose Phase-A resolution deliberately removes a derived feature in order to
+retain its determining basis.
+
+Protected BASE features may:
+
+- participate in correlations,
+- appear in clustering,
+- act as retained empirical substitutes,
+
+but may **not** be automatically removed later by:
+
+- Phase-C empirical HARD reduction,
+- the BASE zero-variance deletion rule.
+
+This prevents a later approximate rule from silently undoing the information
+basis deliberately chosen by an earlier exact semantic rule.
+
+Protection applies to BASE Stage B reduction.
+
+A future model-specific overlay may impose an additional restriction only
+under its separately locked overlay policy and must record explicitly that it
+removes a BASE-protected feature.
+
+---
+
+## 15. Required semantic checks
+
+### 15.1 Momentum 60-minute telescoping identity
+
+Check type:
+
+`EXACT_LINEAR_DERIVED_IDENTITY`
+
+Canonical identity:
+
+`momentum_log_60m`
+
+equals:
+
+`ret_log_15m_lag0 + ret_log_15m_lag1 + ret_log_15m_lag2 + ret_log_15m_lag3`
+
+within locked floating-point identity tolerance.
+
+Semantic direction:
+
+dependent feature:
+
+`momentum_log_60m`
+
+determining features:
+
+- `ret_log_15m_lag0`
+- `ret_log_15m_lag1`
+- `ret_log_15m_lag2`
+- `ret_log_15m_lag3`
+
+For this dependency:
+
+- k = 5
+- retained information dimension = 4
+- required drop count = 1
+
+V1.1 resolves:
+
+- KEEP all four canonical 15-minute return lags,
+- `DROP_REDUNDANT` `momentum_log_60m`.
+
+All four determining return lags are:
+
+`SEMANTIC_BASIS_PROTECTED`
+
+for BASE reduction.
+
+No generic representative tie-break is used.
+
+---
+
+### 15.2 Realized-volatility 60-minute deterministic representation
+
+Check type:
+
+`EXACT_NONLINEAR_DERIVED_REPRESENTATION`
+
+Canonical Cell 14 definition:
+
+`realized_vol_60m`
+
+equals:
+
+`sqrt(ret_log_15m_lag0^2 + ret_log_15m_lag1^2 + ret_log_15m_lag2^2 + ret_log_15m_lag3^2)`
+
+within locked floating-point tolerance.
+
+There is:
+
+- no division by 4,
+- no sample-standard-deviation divisor,
+- no ddof adjustment,
+- no annualization factor
+
+in the canonical V1 formula.
+
+This feature contains no new raw information beyond the four return lags, but
+it is a nonlinear representation.
+
+V1.1 does not automatically drop it in BASE because representation usefulness
+can depend on later model class.
+
+Therefore:
+
+`required_drop_count = 0`
+
+The ledger must classify it as a retained deterministic nonlinear
+representation, not independent raw information.
+
+### Known estimator limitation
+
+`realized_vol_60m` is constructed from only four completed 15-minute return
+observations.
+
+It is therefore a coarse 60-minute volatility representation compared with a
+higher-frequency realized-variance construction.
+
+Stage B does not redesign this LOCKED Cell 14 feature.
+
+Estimator quality and incremental predictive usefulness belong to later
+label-aware research.
+
+The same principle applies to the longer V1 realized-volatility windows using
+their locked 15-minute-return inputs.
+
+---
+
+### 15.3 Horizon-safe-close affine identity
+
+Check type:
+
+`EXACT_AFFINE_DERIVED_IDENTITY`
+
+Canonical Cell 14 definitions imply:
+
+`minutes_to_horizon_safe_close = 330 - minutes_since_nyse_open - 180 * early_close_session`
+
+for every valid TRAIN decision.
+
+Determining features:
+
+- `minutes_since_nyse_open`
+- `early_close_session`
+
+Derived feature:
+
+- `minutes_to_horizon_safe_close`
+
+`early_close_session` is a canonical model-eligible candidate feature.
+
+Therefore the identity is information-preserving inside the canonical
+candidate set.
+
+For this dependency:
+
+- k = 3
+- retained information dimension = 2
+- required drop count = 1
+
+V1.1 resolves:
+
+- KEEP `minutes_since_nyse_open`
+- KEEP `early_close_session`
+- `DROP_REDUNDANT` `minutes_to_horizon_safe_close`
+
+Both determining features are:
+
+`SEMANTIC_BASIS_PROTECTED`
+
+for BASE reduction.
+
+This is an exact affine/functional identity.
+
+When exact integer-minute reconstruction is available, floating tolerance is
+not used as a substitute for exact functional validation.
+
+---
+
+### 15.4 Weekday one-hot affine dependency
+
+Check type:
+
+`EXACT_AFFINE_DEPENDENCY`
+
+Canonical weekday candidates:
+
+- `weekday_0`
+- `weekday_1`
+- `weekday_2`
+- `weekday_3`
+- `weekday_4`
+
+They sum to one for every valid TRAIN row.
+
+Five dummies contain four categorical dimensions.
+
+Therefore:
+
+- k = 5
+- information dimension = 4
+- required drop count = 1
+
+Stage B keeps four weekday dimensions and drops exactly one deterministic
+reference dummy.
+
+It must not collapse all five to one representative.
+
+No weekday member is predeclared as the semantic determining basis.
+
+The reference category is resolved through the deterministic exact-basis
+procedure and canonical retention rules.
+
+---
+
+### 15.5 Decision-slot cyclical representation
+
+Check type:
+
+`PAIRED_NONLINEAR_REPRESENTATION`
+
+Canonical pair:
+
+- `decision_slot_sin`
+- `decision_slot_cos`
+
+must satisfy:
+
+`decision_slot_sin^2 + decision_slot_cos^2 = 1`
+
+within floating-point tolerance.
+
+The pair is a deterministic nonlinear representation of decision-slot/session
+time.
+
+Neither component alone replaces the other.
+
+Therefore:
+
+`required_drop_count = 0`
+
+V1.1 retains both components in BASE.
+
+The ledger must not describe the pair as independent raw information.
+
+---
+
+### 15.6 Lag-0 versus current-bar log body
+
+Check type:
+
+`EMPIRICAL_NEAR_IDENTITY`
+
+Compare:
+
+- `ret_log_15m_lag0`
+- `bar_log_body_15m`
+
+inside each TRAIN fold.
+
+This is not declared exact.
+
+Its evidence is subject to:
+
+- TRAIN-only procedure,
+- common-cohort rules,
+- coverage gate,
+- cohort-sensitivity rule,
+- empirical threshold provenance.
+
+`ret_log_15m_lag0` is protected by §15.1.
+
+Therefore Phase C may not remove `ret_log_15m_lag0`.
+
+If this pair satisfies all empirical HARD requirements, the only automatic
+BASE compression direction available under V1.1 is to remove the unprotected
+candidate if all other Phase-C gates pass.
+
+---
+
+## 16. Prior expectations are not semantic gates
+
+Previous exploratory work noted that the two volume-ratio candidates appeared
+to have relatively high Pearson association without equally high Spearman
+association.
+
+Classification:
+
+`PRIOR_EXPECTATION_ONLY`
+
+This is:
+
+- not a semantic check,
+- not a gate,
+- not a forced REVIEW result.
+
+V1.1 recomputes evidence under locked procedure.
+
+New locked evidence is reported as-is even if it differs from the prior
+expectation.
+
+---
+
+## 17. Numeric identity tolerance
+
+Floating-point exact semantic identities use:
+
+`ABSOLUTE_TOLERANCE = 1e-12`
+
+This applies only to floating-point numeric identity checks.
+
+It does not automatically apply to:
+
+- exact integer functional identities,
+- categorical identities,
+- empirical near-identities.
+
+Changing the tolerance after lock requires a policy version bump.
+
+---
+
+## 18. Scope limitation of numerical diagnostics
+
+Pairwise correlation cannot identify every multi-feature dependency.
+
+Set-level diagnostics are therefore mandatory.
+
+However:
+
+- SVD,
+- numerical rank,
+- condition number,
+- Pearson correlation,
+- Spearman correlation
+
+do not identify every possible form of information redundancy.
+
+SVD/rank primarily diagnose linear dependence.
+
+Spearman primarily diagnoses monotonic association.
+
+Nonlinear deterministic relationships require semantic knowledge or later
+model-aware investigation.
+
+For example:
+
+- realized volatility is a nonlinear function of return lags,
+- decision-slot sine/cosine jointly represent one cyclical variable.
+
+Stage B must not interpret full rank or low correlation as proof of general
+feature independence.
+
+---
+
+## 19. Dual zero-variance diagnostics
+
+Zero variance is measured at two different scopes and they must not be
+conflated.
+
+### 19.1 FULL_TRAIN_ZERO_VARIANCE
+
+For each feature and TRAIN fold, compute variance using all non-missing values
+available for that feature in the full TRAIN fold.
+
+No imputation is permitted.
+
+Report:
+
+- available row count,
+- unique-value count,
+- standard deviation.
+
+This diagnostic describes the feature itself in full TRAIN history.
+
+### 19.2 COMMON_COHORT_ZERO_VARIANCE
+
+Also compute variance on:
+
+`FULL_29_COMPLETE_CASE_TRAIN_PER_FOLD`
+
+This diagnostic describes the feature after the common-cohort filter.
+
+A feature may become constant on the common cohort even when it is not
+constant in full TRAIN.
+
+Such a condition is a property of the cohort filter and must not be
+misreported as an intrinsic no-information feature.
+
+### 19.3 Automatic zero-variance BASE rule
+
+Automatic no-information deletion may rely only on:
+
+`FULL_TRAIN_ZERO_VARIANCE`
+
+A non-protected feature that has zero variance in **all three full TRAIN
+folds** may receive:
+
+`DROP_REDUNDANT`
+
+with decision basis:
+
+`ZERO_VARIANCE_NO_INFORMATION`
+
+The reason must state explicitly that this is degeneracy/no-information, not
+redundancy with another feature.
+
+A feature zero-variance only on the common cohort may not be automatically
+dropped by this rule.
+
+A feature zero-variance in only a subset of full TRAIN folds may not be
+automatically dropped by this rule.
+
+A `SEMANTIC_BASIS_PROTECTED` determining feature may not be automatically
+dropped by this BASE zero-variance rule.
+
+Its zero-variance condition remains visible as diagnostic evidence.
+
+### 19.4 Expanding-fold interpretation
+
+Because the TRAIN folds are nested expanding histories, the requirement that a
+feature be zero-variance in all three full TRAIN folds is not interpreted as
+three independent confirmations.
+
+Subject to non-empty observable values, a feature that is constant throughout
+the largest `WF_2024` TRAIN history will necessarily remain constant in its
+earlier nested TRAIN subsets.
+
+The all-three-fold rule is retained as a deterministic consistency check.
+
+It must not be described as evidence multiplied across three independent
+samples.
+
+---
+
+## 20. Standardized numerical representation
+
+Set-level numerical diagnostics operate inside each TRAIN-fold common cohort.
+
+After common-cohort zero-variance columns are identified and excluded from
+inter-feature rank counting, let the remaining matrix be:
+
+`X`
+
+For each included feature:
+
+1. compute TRAIN common-cohort mean,
+2. center,
+3. divide by common-cohort standard deviation,
+4. use float64 arithmetic.
+
+Result:
+
+`Z`
+
+Diagnostic standard deviation uses:
+
+`ddof = 0`
+
+No labels or validation information may enter this transform.
+
+This standardization is for numerical diagnosis only.
+
+It does not automatically become a production model transform.
+
+---
+
+## 21. SVD shared rank/conditioning engine
+
+Compute SVD directly on applicable `Z`.
+
+Use the same singular spectrum for:
+
+- numerical rank,
+- rank deficiency,
+- condition number.
+
+Numerical-rank tolerance:
+
+`rank_tol = max(n_rows, n_features) * eps_float64 * sigma_max`
+
+Numerical rank is the number of singular values strictly greater than
+`rank_tol`.
+
+Record:
+
+- matrix shape,
+- singular values,
+- `sigma_max`,
+- tolerance,
+- rank,
+- deficiency.
+
+---
+
+## 22. Exact set-level rank reduction
+
+Full-set SVD is reported first.
+
+Generic automatic exact-rank deletion occurs **after Phase-A semantic
+resolution**.
+
+This prevents semantic dependencies already resolved in Phase A from being
+counted and deleted again.
+
+For a remaining Phase-B dependency component:
+
+- k = remaining features
+- r = numerical rank
+
+minimum exact linearly redundant dimensions:
+
+`k - r`
+
+Stage B removes exactly the minimum number required for a rank-preserving
+basis.
+
+A general dependency does not mean "keep one representative."
+
+After removal, rank must be recomputed.
+
+A Phase-B deletion that reduces retained exact information dimension below
+`r` is forbidden.
+
+### Deterministic exact-basis construction
+
+Where semantic direction does not identify the redundant member:
+
+1. order candidates by locked retention priority,
+2. start with an empty basis,
+3. visit candidates in that order,
+4. retain a feature if it increases numerical rank,
+5. otherwise classify it exact-set redundant,
+6. verify final rank equals original Phase-B rank.
+
+### 22.1 Group-available re-verification
+
+A generic Phase-B dependency first discovered on the full-29 common cohort may
+not be called globally exact solely because it is exact on that restricted
+cohort.
+
+For each proposed generic Phase-B dependency group `G`, Stage B must construct:
+
+`GROUP_AVAILABLE_TRAIN_ROWS`
+
+separately inside every TRAIN fold.
+
+This cohort contains every TRAIN row where all features in `G` are non-missing,
+regardless of whether unrelated canonical features are missing.
+
+No imputation is allowed.
+
+Using the same locked float64 standardization and SVD tolerance, Stage B must
+recompute numerical rank for `G` on this wider group-available cohort.
+
+A generic automatic Phase-B exact deletion is permitted only when the proposed
+rank deficiency remains present on `GROUP_AVAILABLE_TRAIN_ROWS` in every TRAIN
+fold.
+
+For each fold, record:
+
+- group-available row count,
+- group numerical rank,
+- group rank deficiency,
+- singular values,
+- rank tolerance.
+
+The automatic exact drop count may not exceed the minimum supported rank
+deficiency across the three TRAIN folds.
+
+In addition, the specific proposed retained basis and deletion set must remain
+rank-preserving independently in every group-available TRAIN fold.
+
+If a dependency appears on the full-29 common cohort but does not persist on
+the group-available cohort, classify:
+
+`GROUP_COHORT_RANK_CONFLICT`
+
+No generic Phase-B automatic DROP is permitted from that dependency.
+
+Affected features remain KEEP unless another higher-precedence locked rule
+resolves them.
+
+This re-verification rule is not required to rediscover predeclared exact
+semantic identities whose algebraic form is independently defined and verified
+row-by-row in Phase A.
+
+---
+
+## 23. Ordered reduction procedure
+
+Reduction executes in this fixed order.
+
+### Phase 0 — Firewall and diagnostics
+
+Before feature decisions:
+
+- validate document hash where applicable,
+- validate semantic-registry hash where applicable,
+- validate upstream hashes,
+- validate canonical 29-feature membership/order,
+- validate lookback metadata,
+- enforce Final Test firewall,
+- enforce forbidden-input firewall,
+- compute fold coverage,
+- compute yearly concentration report,
+- compute dual zero-variance diagnostics.
+
+No deletion occurs before Phase 0 passes.
+
+### Phase A — Exact semantic resolution
+
+Resolve predeclared exact semantic/algebraic dependencies.
+
+Semantic direction takes precedence when explicitly locked.
+
+Phase A may also classify retained nonlinear deterministic representations.
+
+Only exact information-preserving BASE reductions occur here.
+
+Phase-A determining features marked protected become:
+
+`SEMANTIC_BASIS_PROTECTED`
+
+### Phase B — Exact set-level numerical resolution
+
+After Phase A, resolve remaining exact linear dependencies using SVD/rank.
+
+Every proposed generic dependency must pass §22.1 group-available
+re-verification.
+
+Every Phase-B deletion preserves exact retained information dimension on all
+required group-available TRAIN cohorts.
+
+The Phase-B basis is rank-verified.
+
+### Phase C — Empirical HARD pairwise reduction
+
+Only Phase-B retained candidates proceed to empirical compression.
+
+Phase C is explicitly:
+
+`EMPIRICAL_APPROXIMATE_COMPRESSION`
+
+A HARD empirical pair may remain algebraically full-rank.
+
+Therefore Phase C is not required to preserve Phase-B numerical rank.
+
+However:
+
+- protected features may not be dropped,
+- every deletion needs a direct retained substitute,
+- cohort-sensitivity rules must pass,
+- no transitive-chain substitution is allowed.
+
+Record:
+
+- rank before Phase C,
+- rank after Phase C,
+- rank loss,
+- number of empirical deletions,
+- direct substitute for every deletion.
+
+Any Phase-C rank loss must be classified:
+
+`EMPIRICAL_APPROXIMATE_COMPRESSION`
+
+not exact redundancy.
+
+### Phase D — REVIEW / clustering / descriptive stability
+
+Phase D is evidence/reporting only.
+
+It cannot independently DROP a feature.
+
+---
+
+## 24. Phase-C rank-loss review
+
+There is no arbitrary numerical cap on permitted Phase-C rank loss in V1.1.
+
+A cap invented after observing results would create another data-informed
+selection threshold without established justification.
+
+Instead:
+
+If:
+
+`phase_c_rank_after < phase_b_rank_before`
+
+the audit must set:
+
+`PHASE_C_RANK_LOSS_REVIEW_REQUIRED = true`
+
+Before Stage C opens labels, independent Stage B review must confirm that:
+
+- every Phase-C deletion satisfied locked HARD rules,
+- every deletion had a direct retained substitute,
+- every cohort-sensitivity gate passed,
+- no semantic-basis-protected feature was removed,
+- rank loss is labeled approximate rather than exact.
+
+Required audit status:
+
+`PHASE_C_RANK_LOSS_REVIEW_STATUS = ACKNOWLEDGED`
+
+when rank loss occurred.
+
+This review may not use labels, validation performance, P&L, or Final Test.
+
+It is an audit acknowledgment of an already locked deterministic procedure,
+not a discretionary opportunity to optimize the selected set.
+
+---
+
+## 25. Affine/intercept diagnostic
+
+Because `Z` is centered, affine dependencies can appear as linear
+dependencies.
+
+Stage B additionally reports rank for:
+
+`[1, Z]`
+
+where `1` is an intercept column.
+
+Report:
+
+- feature-space rank,
+- augmented-design rank,
+- deficiencies.
+
+This is descriptive model-design evidence.
+
+It does not override locked semantic rules.
+
+---
+
+## 26. Condition number
+
+Stage B reports at least:
+
+### Full-set condition number
+
+Before exact semantic/rank reduction, after handling common-cohort
+zero-variance columns separately.
+
+If rank deficient:
+
+`full_set_condition_number = infinity`
+
+This may be expected when known exact dependencies remain.
+
+### Exact-basis condition number
+
+After Phase A and Phase B:
+
+`exact_basis_condition_number = sigma_max / sigma_min`
+
+using SVD of the exact retained basis.
+
+If the exact retained basis is unexpectedly rank deficient:
+
+Stage B fails.
+
+Condition number alone does not DROP features in V1.1.
+
+An optional:
+
+`post_empirical_condition_number`
+
+may also be reported after Phase C but may not replace the required two
+diagnostics.
+
+---
+
+## 27. VIF
+
+Variance Inflation Factor is:
+
+`LINEAR_OVERLAY_DIAGNOSTIC`
+
+only.
+
+VIF is not a universal BASE drop rule.
+
+Any VIF threshold affecting the LINEAR overlay must be separately locked before
+Stage C opens labels.
+
+Otherwise VIF remains reporting-only.
+
+---
+
+## 28. Primary pairwise Pearson / Spearman rules
+
+Primary empirical correlations use:
+
+`FULL_29_COMPLETE_CASE_TRAIN_PER_FOLD`
+
+for each TRAIN fold.
+
+Correlations are computed for all 29 canonical candidates so semantic-dropped
+features remain auditable.
+
+Phase-C deletion is applied only to candidates retained after Phases A and B.
+
+### HARD_REDUNDANCY
+
+Primary HARD requires:
+
+`|Pearson| >= 0.95`
+
+AND:
+
+`|Spearman| >= 0.95`
+
+in **all three TRAIN folds**.
+
+Because folds are nested, this all-fold requirement is a robustness consistency
+condition across expanding histories, not three independent confirmations.
+
+### REVIEW
+
+REVIEW occurs when either:
+
+`|Pearson| >= 0.90`
+
+OR:
+
+`|Spearman| >= 0.90`
+
+in any TRAIN fold.
+
+REVIEW never independently drops a feature.
+
+---
+
+## 29. Empirical-threshold provenance
+
+HARD and REVIEW thresholds are not pristine pre-data thresholds.
+
+They existed after prior Development/TRAIN exploratory characteristics had
+already been inspected.
+
+Provenance:
+
+`LEGACY_DATA_INFORMED_BEFORE_FORMAL_V1_1_EXECUTION`
+
+The project must not claim otherwise.
+
+Known provenance sources include:
+
+- Stage B V1.0 contract,
+- pre-V1.1 Development/TRAIN exploratory work.
+
+If the precise first historical introduction cannot be reconstructed, the
+audit records that provenance as incomplete rather than inventing history.
+
+---
+
+## 30. Cohort-sensitivity analysis
+
+The full-29 common cohort is the primary comparison cohort because every
+feature is evaluated on the same TRAIN observations.
+
+However, observed historical missingness is concentrated and largely driven
+by shared 240-minute availability.
+
+Therefore every pair that would otherwise cause a Phase-C automatic DROP must
+also undergo a pairwise-available sensitivity calculation.
+
+Sensitivity cohort:
+
+`PAIRWISE_AVAILABLE_TRAIN_ROWS`
+
+For a candidate pair, this cohort contains all TRAIN rows where both pair
+members are non-missing, regardless of whether unrelated features are missing.
+
+No imputation is allowed.
+
+For each fold report:
+
+- primary common-cohort Pearson,
+- primary common-cohort Spearman,
+- primary common-cohort rows,
+- pairwise-available Pearson,
+- pairwise-available Spearman,
+- pairwise-available rows.
+
+### 30.1 Sensitivity support
+
+A primary Phase-C HARD relation receives:
+
+`COHORT_SENSITIVITY_SUPPORTED`
+
+only if the pairwise-available sensitivity cohort also satisfies:
+
+`|Pearson| >= 0.95 AND |Spearman| >= 0.95`
+
+in all three TRAIN folds.
+
+### 30.2 Sensitivity conflict
+
+If primary common-cohort evidence satisfies HARD but pairwise-available
+evidence fails the complete all-fold HARD requirement, classify:
+
+`COHORT_SENSITIVITY_CONFLICT`
+
+Automatic Phase-C DROP is vetoed.
+
+The unprotected candidate remains:
+
+`KEEP`
+
+with decision basis:
+
+`EMPIRICAL_DROP_VETOED_COHORT_SENSITIVITY`
+
+This is deterministic.
+
+No human discretionary feature choice is introduced.
+
+Sensitivity evidence does not create a DROP when the primary common cohort
+does not already satisfy HARD.
+
+Sensitivity is therefore a robustness veto, not an alternative
+feature-selection search.
+
+### 30.3 Mathematically unavailable sensitivity statistic
+
+A required pairwise sensitivity statistic is considered mathematically
+unavailable in a TRAIN fold only when at least one of these machine-detectable
+conditions is true:
+
+1. `pairwise_available_rows < 2`,
+2. either pair member has zero variance on the pairwise-available cohort,
+3. Pearson returns a non-finite value,
+4. Spearman returns a non-finite value.
+
+No qualitative category such as:
+
+`insufficiently variable`
+
+is permitted in V1.1.
+
+No minimum unique-value threshold, mode-share threshold, or other discretionary
+empirical variability threshold is introduced.
+
+If any required TRAIN fold has an unavailable sensitivity statistic under the
+rules above, classify:
+
+`COHORT_SENSITIVITY_UNAVAILABLE`
+
+The pair cannot qualify for automatic Phase-C empirical deletion.
+
+Automatic DROP is vetoed.
+
+Sensitivity unavailability may not itself create a DROP.
+
+---
+
+## 31. Correlation sample-count semantics
+
+Primary correlation artifact uses:
+
+`common_cohort_rows`
+
+for the actual primary correlation cohort.
+
+Sensitivity rows use:
+
+`pairwise_available_rows`
+
+Group-level rank re-verification uses:
+
+`group_available_rows`
+
+These counts must not be conflated.
+
+The ambiguous field name:
+
+`sample_count`
+
+is forbidden unless its cohort definition is explicit.
+
+---
+
+## 32. Hierarchical clustering
+
+Clustering runs separately inside each TRAIN fold.
+
+Input:
+
+`Spearman rho`
+
+Distance:
+
+`1 - |rho|`
+
+Linkage:
+
+`complete`
+
+Cut distance:
+
+`0.10`
+
+The 0.10 cut corresponds specifically to:
+
+`|Spearman| >= 0.90`
+
+which is only the Spearman arm of REVIEW.
+
+It is not the complete REVIEW set because REVIEW uses:
+
+`Pearson OR Spearman`
+
+A Pearson-only REVIEW pair may therefore be absent from clustering.
+
+That is intentional.
+
+Clustering is:
+
+`REVIEW_EVIDENCE_ONLY`
+
+and cannot independently DROP features.
+
+---
+
+## 33. Deterministic empirical pairwise reduction
+
+Phase-C candidates are processed in deterministic retention order.
+
+`SEMANTIC_BASIS_PROTECTED` features are retained before unprotected candidates
+and cannot be empirical-drop targets.
+
+Protected features may serve as direct substitutes for an unprotected
+candidate.
+
+For every unprotected candidate:
+
+- if no already-retained feature is directly HARD with it under all locked
+  primary and sensitivity rules, retain it;
+- if a direct retained substitute satisfies all rules, candidate may receive
+  `DROP_REDUNDANT`;
+- record the exact direct substitute.
+
+Transitive chaining is forbidden.
+
+A HARD B and B HARD C does not imply A HARD C.
+
+---
+
+## 34. Retention priority
+
+Target-blind deterministic priority:
+
+1. explicit semantic dependency direction,
+2. `SEMANTIC_BASIS_PROTECTED` status,
+3. higher point-in-time availability,
+4. shorter canonical lookback where modes are comparable,
+5. canonical feature order.
+
+Canonical order is the final total-order tie-break.
+
+### 34.1 Point-in-time availability
+
+For each feature:
+
+`fold_availability = non-missing TRAIN rows / total TRAIN rows`
+
+before the full-29 common-cohort filter.
+
+Availability score:
+
+`minimum fold_availability across the three TRAIN folds`
+
+Higher minimum availability wins.
+
+### 34.2 Lookback metadata
+
+Lookback comes only from canonical Cell 14 metadata:
+
+- `lookback_bars`
+- `lookback_minutes`
+- `lookback_mode`
+- `lookback_start_rule`
+
+Missing required metadata is a Stage B failure.
+
+Do not infer lookback from feature names.
+
+### 34.2A Canonical zero-lookback semantics
+
+The canonical Cell 14 registry represents non-rolling current/context features
+using valid machine-readable metadata rather than null lookback metadata.
+
+Under the locked upstream Cell 14 registry, such features may have:
+
+- `lookback_mode = FIXED`
+- `lookback_bars = 0`
+- `lookback_minutes = 0`
+
+For these features, zero lookback means:
+
+`NO HISTORICAL ROLLING LOOKBACK REQUIRED`
+
+It does not mean:
+
+- missing metadata,
+- zero-quality metadata,
+- undefined lookback mode.
+
+Calendar/context candidates such as weekday indicators and session-time
+transforms therefore pass the metadata firewall when their canonical
+zero-lookback fields are present and valid.
+
+Stage B must not invent a third lookback mode merely because a feature is
+calendar-derived.
+
+Stage B consumes canonical upstream metadata exactly as defined.
+
+Missing required metadata remains a hard failure.
+
+Canonical zero-valued metadata does not.
+
+### 34.3 Locked lookback-mode comparability
+
+V1.1 uses these deterministic rules:
+
+| Mode A | Mode B | Comparison rule |
+|---|---|---|
+| `FIXED` | `FIXED` | lower canonical `lookback_minutes` is preferred |
+| `SESSION_TO_DATE` | `SESSION_TO_DATE` | compare canonical `lookback_minutes` only when `lookback_start_rule` is identical; otherwise NON_COMPARABLE |
+| `FIXED` | `SESSION_TO_DATE` | NON_COMPARABLE |
+| `SESSION_TO_DATE` | `FIXED` | NON_COMPARABLE |
+
+For:
+
+`NON_COMPARABLE`
+
+the lookback criterion makes no decision and the procedure moves directly to
+canonical feature order.
+
+No implementation discretion is permitted.
+
+A `FIXED` feature with `lookback_minutes = 0` is a valid canonical
+zero-lookback feature and participates in FIXED-vs-FIXED comparison as zero.
+
+### 34.4 Stability
+
+TRAIN-history stability is descriptive in V1.1.
+
+It is not an automatic retention tie-break because no sufficiently precise
+stability metric has been locked.
+
+### 34.5 Protected-basis priority is intentional
+
+`SEMANTIC_BASIS_PROTECTED` status deliberately precedes empirical availability
+and lookback criteria.
+
+This means an exact determining feature may be retained over an empirically
+more available approximate substitute.
+
+That behavior is intentional.
+
+V1.1 prioritizes preservation of the explicitly selected exact semantic basis
+over later approximate empirical compression.
+
+This consequence must not be described as an accidental side effect of the
+tie-break order.
+
+---
+
+## 35. Evidence versus final decision
+
+Evidence and final decisions remain separate.
+
+Required decision-registry fields include at minimum:
+
+- `feature`
+- `base_decision`
+- `decision_basis`
+- `dependency_group`
+- `semantic_basis_protected`
+- `required_drop_count`
+- `chosen_representative_or_basis`
+- `direct_substitute`
+- `group_cohort_rank_status`
+- `cohort_sensitivity_status`
+- `linear_overlay_decision`
+- `tree_overlay_decision`
+- `reason`
+
+Allowed BASE decisions:
+
+- `KEEP`
+- `DROP_REDUNDANT`
+- `OPEN`
+
+Decision basis must distinguish:
+
+- exact semantic redundancy,
+- exact set-level linear redundancy,
+- zero-variance/no-information degeneration,
+- empirical approximate compression,
+- empirical drop vetoed by cohort sensitivity,
+- generic exact drop vetoed by group-cohort conflict.
+
+---
+
+## 36. OPEN gate
+
+`OPEN` means target-blind policy is insufficient to produce a reproducible
+KEEP/DROP decision.
+
+Stage C may not open labels until:
+
+`OPEN count = 0`
+
+OPEN may not be resolved using:
+
+- labels,
+- AUC,
+- validation performance,
+- P&L,
+- Final Test,
+- future-return association.
+
+Upstream hash, coverage, firewall, or integrity failure is not converted into
+OPEN.
+
+It stops Stage B before decisions are released.
+
+Deterministic vetoes such as:
+
+- `GROUP_COHORT_RANK_CONFLICT`,
+- `COHORT_SENSITIVITY_CONFLICT`,
+- `COHORT_SENSITIVITY_UNAVAILABLE`
+
+do not require OPEN when the locked policy already specifies KEEP as the
+result.
+
+---
+
+## 37. BASE and overlays
+
+Stage B produces one model-agnostic:
+
+`BASE`
+
+Only two model-specific overlays are permitted:
+
+- `LINEAR_OVERLAY`
+- `TREE_OVERLAY`
+
+Maximum unique Stage-C feature masks:
+
+`3`
+
+namely:
+
+1. BASE,
+2. BASE + LINEAR restrictions,
+3. BASE + TREE restrictions.
+
+Identical masks are deduplicated.
+
+No additional mask may be created after labels are visible.
+
+Any overlay removal of a `SEMANTIC_BASIS_PROTECTED` BASE feature must be
+explicitly recorded.
+
+An overlay may not reintroduce a BASE `DROP_REDUNDANT` derived feature as a
+substitute without a new predeclared mask policy.
+
+---
+
+## 38. Stability and serial dependence
+
+Stage B observations are time-series observations containing:
+
+- serial dependence,
+- overlapping rolling windows,
+- expanding-fold overlap.
+
+Raw row count is not iid effective sample size.
+
+V1.1 does not use naive iid:
+
+- p-values,
+- confidence intervals,
+- significance tests
+
+to select features.
+
+Primary stability evidence is descriptive.
+
+Any later inferential uncertainty method must be separately predeclared and
+serial-dependence aware.
+
+The +60-minute label-overlap problem belongs to later label-aware stages.
+
+Stage B remains target-blind.
+
+---
+
+## 39. Production gate boundary
+
+Production artifact-reading entry point:
+
+`run_stage_b(...)`
+
+All production Stage B artifact access must pass through this entry point.
+
+Mathematical analyzer helpers must:
+
+- not independently read production artifacts,
+- remain pure calculations,
+- be private/internal where practical,
+- not provide alternative public production entry paths.
+
+Tests must verify that no public artifact-reading path bypasses the Stage B
+firewall.
+
+The pre-lock Phase-0 dry-run defined later is a separate target-blind
+validation procedure and is not a production feature-selection entry point.
+
+---
+
+## 40. Gate coverage
+
+Before production analysis, the firewall validates:
+
+- Markdown SHA,
+- semantic-registry SHA,
+- policy version,
+- policy status,
+- upstream hashes,
+- canonical registry hash,
+- exactly 29 candidates,
+- feature membership,
+- feature order,
+- required lookback metadata,
+- allowed input cells,
+- forbidden fields,
+- Final Test firewall,
+- fold definitions,
+- fold coverage floor.
+
+The gated production run then governs:
+
+- coverage,
+- yearly concentration reporting,
+- missingness,
+- semantic checks,
+- dual zero-variance diagnostics,
+- SVD/rank,
+- group-available rank re-verification,
+- condition numbers,
+- primary correlations,
+- pairwise cohort sensitivity,
+- clustering,
+- BASE decisions,
+- overlays.
+
+---
+
+## 41. Required policy/control files
+
+Stage B V1.1 requires:
+
+- `docs/STAGE_B_REDUNDANCY_CONTRACT.md`
+- `configs/v1/stage_b_semantic_registry_v1.json`
+- `src/mes_quant/redundancy/contract.py`
+
+Python must pin SHA256 for:
+
+- governing Markdown,
+- semantic registry.
+
+No real-data Stage B production execution may occur while controls disagree.
+
+---
+
+## 42. Required output artifacts
+
+Required outputs:
 
 - `stage_b_feature_coverage_v1.csv`
 - `stage_b_semantic_dependency_ledger_v1.csv`
 - `stage_b_fold_correlations_v1.parquet`
+- `stage_b_set_level_diagnostics_v1.csv`
 - `stage_b_redundancy_clusters_v1.csv`
 - `stage_b_feature_decision_registry_v1.csv`
 - `stage_b_redundancy_audit.json`
 
-The decision registry must mark every candidate `KEEP`, `DROP_REDUNDANT`, or `OPEN`, name its
-cluster/representative, and record a human-readable reason. No artifact may overwrite Cell 14.
+No Stage B artifact may overwrite Cell 14.
 
-## Acceptance gates
+Artifacts require:
 
-- Exact Cell 14 release/control hashes pass before reading features.
-- Exactly three expanding TRAIN scopes are analyzed; outer-validation values never affect choices.
-- Final Test rows and outcomes opened = `0`.
-- No target column or Cells 9–13 artifact enters any Stage B input.
-- Deterministic row order, seeds, thresholds, clusters, decisions, and hashes.
-- Coverage and missingness reported before empirical redundancy choices.
-- Correlation/cluster results are stable enough to explain every retained/dropped candidate.
-- An independent audit reproduces the selected set and all artifact hashes.
+- deterministic ordering,
+- policy version,
+- upstream/control hashes,
+- output hash.
 
-## Implementation handoff
+The correlation artifact must contain both:
 
-Create the locked constants/config first in `src/mes_quant/redundancy/contract.py`, then pure
-calculations in `src/mes_quant/redundancy/analyzer.py`, thin orchestration in
-`src/mes_quant/pipelines/redundancy_pipeline.py`, and tests in `tests/test_redundancy.py`.
-Do not add a new monolithic Colab cell.
+- primary common-cohort evidence,
+- required pairwise-available sensitivity evidence
+
+with explicit cohort names and row counts.
+
+Set-level diagnostics must distinguish:
+
+- full-29 common cohort,
+- group-available verification cohort,
+- exact retained basis.
+
+---
+
+## 43. Required audit metadata
+
+`stage_b_redundancy_audit.json` includes at minimum:
+
+- Stage B policy version,
+- Markdown SHA256,
+- semantic-registry SHA256,
+- locked Markdown Git commit,
+- Python policy status,
+- Cell 14 artifact hashes,
+- Cell 14 registry hash,
+- canonical candidate count,
+- feature-order validation,
+- lookback metadata validation,
+- common-cohort coverage by fold,
+- full-29 yearly coverage,
+- yearly low-coverage flags,
+- `YEARLY_CONCENTRATION_REVIEW_REQUIRED`,
+- `YEARLY_CONCENTRATION_REVIEW_STATUS`,
+- shared 240m missingness summary,
+- fold coverage-gate result,
+- Final Test rows opened,
+- forbidden inputs opened,
+- empirical-threshold provenance,
+- coverage-threshold provenance,
+- semantic-registry completeness,
+- protected semantic-basis features,
+- full-TRAIN zero-variance diagnostics,
+- common-cohort zero-variance diagnostics,
+- Phase-A decisions,
+- generic Phase-B group-available verification results,
+- `GROUP_COHORT_RANK_CONFLICT` count,
+- Phase-B rank,
+- Phase-C rank,
+- Phase-C rank loss,
+- Phase-C rank-loss review requirement/status,
+- primary HARD pair count,
+- cohort-sensitivity supported count,
+- cohort-sensitivity conflict count,
+- cohort-sensitivity unavailable count,
+- empirical drops vetoed by cohort sensitivity,
+- full-set condition number,
+- exact-basis condition number,
+- clustering metric,
+- clustering linkage,
+- clustering cut,
+- OPEN count,
+- BASE feature count,
+- LINEAR overlay feature count,
+- TREE overlay feature count,
+- unique Stage-C mask count,
+- hashes of every output artifact.
+
+---
+
+## 44. Required tests before real-data execution
+
+Real Stage B production execution is forbidden until
+`tests/test_redundancy.py`
+covers at minimum:
+
+### Contract / firewall
+
+- Markdown SHA mismatch fails.
+- Semantic-registry SHA mismatch fails.
+- Policy-version mismatch fails.
+- Policy-status mismatch fails.
+- Hashing uses raw bytes.
+- Final Test rejected.
+- Forbidden input rejected.
+- Alternate production entry bypass rejected.
+
+### Canonical feature control
+
+- exactly 29 features,
+- membership enforced,
+- order enforced,
+- prototype aliases rejected,
+- required lookback metadata enforced,
+- canonical zero-lookback metadata accepted,
+- deterministic pair orientation.
+
+### TRAIN scope
+
+- exactly three TRAIN folds,
+- semantic checks TRAIN-only,
+- outer-validation cannot affect decisions,
+- nested folds not treated as independent replications.
+
+### Coverage and missingness
+
+- canonical fold coverage recomputed,
+- 90% fold floor enforced,
+- below-floor production run stops,
+- yearly coverage reported,
+- yearly below-90 condition creates REVIEW flag,
+- required yearly review acknowledgment enforced,
+- shared 240m missingness not counted as five independent missingness events.
+
+### Semantic registry
+
+- registry completeness,
+- all implementations callable,
+- all names canonical,
+- momentum telescoping identity,
+- `momentum_log_60m` dropped,
+- four return lags protected,
+- four return lags still retained after Phase C,
+- realized-vol exact nonlinear identity,
+- realized-vol BASE drop count = 0,
+- horizon-safe-close affine identity,
+- safe-close derived feature dropped,
+- `minutes_since_nyse_open` protected,
+- `early_close_session` protected,
+- weekday affine dependency,
+- exactly one weekday reference dropped,
+- slot unit-circle identity,
+- slot pair retained,
+- empirical near-identity not classified exact.
+
+### Dual zero variance
+
+- full-TRAIN zero variance computed independently,
+- common-cohort zero variance computed independently,
+- common-cohort-only zero variance cannot trigger BASE drop,
+- all-fold full-TRAIN zero variance can trigger no-information drop for an
+  unprotected feature,
+- protected determining feature cannot be zero-variance auto-dropped,
+- nested-fold zero-variance result is not labeled independent replication.
+
+### Rank / SVD
+
+- deterministic `Z` construction,
+- `ddof=0`,
+- deterministic rank tolerance,
+- exact rank deficiency detected,
+- `k-r` rule after Phase A,
+- exact basis preserves rank,
+- intercept diagnostic,
+- full-set condition number,
+- exact-basis condition number.
+
+### Generic Phase-B group verification
+
+- generic dependency discovered on common cohort is recomputed on
+  `GROUP_AVAILABLE_TRAIN_ROWS`,
+- group-available row count is explicit,
+- dependency persisting in all folds may remain exact evidence,
+- common-cohort-only dependency creates `GROUP_COHORT_RANK_CONFLICT`,
+- group conflict vetoes generic Phase-B DROP,
+- proposed retained basis preserves supported rank in every required fold,
+- Phase-B exact drop count does not exceed minimum supported deficiency.
+
+### Ordered phases
+
+- Phase 0 precedes decisions,
+- Phase A before B,
+- B before C,
+- C before D,
+- protected Phase-A basis cannot be removed by Phase C,
+- Phase-C rank reduction labeled approximate,
+- rank-loss review required when rank decreases,
+- Phase D cannot DROP.
+
+### Pairwise and cohort sensitivity
+
+- HARD = Pearson AND Spearman,
+- REVIEW = Pearson OR Spearman,
+- HARD required in all folds,
+- primary cohort is full-29 common cohort,
+- pairwise sensitivity uses only pairwise-available TRAIN rows,
+- primary HARD + sensitivity HARD permits eligible compression,
+- primary HARD + sensitivity failure creates
+  `COHORT_SENSITIVITY_CONFLICT`,
+- conflict vetoes DROP,
+- conflict leaves candidate KEEP,
+- sensitivity alone cannot create DROP,
+- `pairwise_available_rows < 2` creates sensitivity unavailable,
+- pairwise zero variance creates sensitivity unavailable,
+- non-finite Pearson creates sensitivity unavailable,
+- non-finite Spearman creates sensitivity unavailable,
+- no qualitative `insufficiently variable` rule exists,
+- protected lag cannot be empirical-drop target,
+- unprotected direct substitute can be dropped against protected retained
+  feature,
+- chain correlation cannot create unsupported substitution.
+
+### Clustering
+
+- distance = `1 - |Spearman|`,
+- complete linkage,
+- cut = 0.10,
+- Pearson-only REVIEW need not cluster,
+- clustering cannot independently DROP.
+
+### Retention and lookback
+
+- availability deterministic,
+- canonical `FIXED / 0 minutes` accepted,
+- fixed-vs-fixed shorter lookback deterministic,
+- fixed-vs-session-to-date NON_COMPARABLE,
+- session-to-date comparison rule deterministic,
+- protected status precedes availability intentionally,
+- canonical order final tie-break.
+
+### Decisions / overlays
+
+- allowed BASE states exactly KEEP/DROP_REDUNDANT/OPEN,
+- decision basis distinguishes exact/degenerate/empirical/veto mechanisms,
+- Stage C blocked when OPEN > 0,
+- max overlays = 2,
+- max unique masks = 3,
+- no label-aware overlay construction.
+
+### Reproducibility
+
+- deterministic row ordering,
+- deterministic artifact ordering,
+- equivalent locked inputs reproduce identical artifact hashes.
+
+---
+
+## 45. Acceptance gates
+
+Real-data Stage B decisions may be released only when:
+
+- V1.1 policy controls are formally locked,
+- Markdown hash passes,
+- semantic-registry hash passes,
+- locked Git commit recorded,
+- Cell 14 hashes pass,
+- exactly 29 features pass,
+- canonical order passes,
+- canonical zero-lookback metadata is accepted correctly,
+- required lookback metadata passes,
+- three TRAIN folds verified,
+- all fold coverage >= 90%,
+- yearly concentration report produced,
+- yearly concentration review acknowledged when required,
+- Final Test rows opened = 0,
+- forbidden target/outcome inputs opened = 0,
+- semantic registry complete,
+- protected basis identified,
+- dual zero-variance diagnostics complete,
+- Phase A exact decisions complete,
+- every generic Phase-B candidate dependency passes
+  `GROUP_AVAILABLE_TRAIN_ROWS` re-verification,
+- no unresolved `GROUP_COHORT_RANK_CONFLICT` causes an exact DROP,
+- Phase B exact basis is rank-preserving in every required verification cohort,
+- Phase C cohort-sensitivity gates complete,
+- no subjective empirical variability criterion is used,
+- no protected feature removed in Phase C,
+- every empirical deletion has a direct substitute,
+- Phase-C rank loss recorded,
+- Phase-C rank-loss review acknowledged when required,
+- clustering policy passes,
+- deterministic tests pass,
+- Stage B dedicated tests pass,
+- OPEN count = 0,
+- independent audit reproduces decisions and hashes.
+
+---
+
+## 46. Final pre-lock, lock, and implementation order
+
+1. Independently audit this R5 V1.1 contract while it remains PROVISIONAL.
+
+2. Resolve any remaining methodological defect before lock.
+
+3. Perform a target-blind **Phase-0 pre-lock dry-run** against the canonical
+   Cell 14 Development artifact and canonical feature registry.
+
+   The dry-run may inspect only:
+
+   - canonical feature names,
+   - canonical feature order,
+   - feature count,
+   - registry metadata,
+   - lookback metadata,
+   - TRAIN fold-role columns,
+   - common-cohort coverage,
+   - yearly coverage concentration,
+   - full-TRAIN zero variance,
+   - common-cohort zero variance.
+
+   The dry-run must not:
+
+   - read labels,
+   - read P&L,
+   - read cost outcomes,
+   - read future path outcomes,
+   - read Final Test rows,
+   - compute feature-selection correlations,
+   - compute Stage-B SVD feature reduction,
+   - make KEEP/DROP decisions.
+
+4. Record the pre-lock result as:
+
+   `PHASE_0_PRELOCK_DRY_RUN = PASS`
+
+   before policy promotion.
+
+5. If the dry-run reveals that a contract assumption does not match the
+   canonical upstream artifact or registry:
+
+   - keep the contract PROVISIONAL,
+   - correct the contract,
+   - repeat independent review where necessary,
+   - repeat the dry-run.
+
+   Do not lock a known-invalid assumption merely to preserve the current
+   version.
+
+6. Build the provisional machine-readable semantic registry:
+
+   `configs/v1/stage_b_semantic_registry_v1.json`
+
+   from the dry-run-validated contract.
+
+7. Audit the Markdown contract and semantic registry together.
+
+8. Promote the approved Markdown contract and semantic registry to their
+   locked statuses.
+
+9. Commit the exact locked Markdown and semantic-registry bytes.
+
+10. Compute SHA256 from those committed bytes.
+
+11. Update:
+
+    `src/mes_quant/redundancy/contract.py`
+
+    to V1.1 and pin both hashes.
+
+12. Build/expand:
+
+    `tests/test_redundancy.py`
+
+    before real-data Stage B execution.
+
+13. Correct:
+
+    `src/mes_quant/redundancy/analyzer.py`
+
+    to implement the locked contract.
+
+14. Add thin production orchestration with:
+
+    `run_stage_b(...)`
+
+15. Run synthetic Stage B tests.
+
+16. Run the complete repository test and lint suite.
+
+17. Verify contract/control hashes from a clean checkout.
+
+18. Only then execute Stage B on canonical real Development data.
+
+19. Produce final Stage B artifacts twice.
+
+20. Verify deterministic artifact hashes.
+
+21. Perform independent Stage B output audit.
+
+22. Confirm:
+
+    - `OPEN count = 0`
+    - yearly concentration review acknowledged when required
+    - Phase-C rank-loss review acknowledged when required
+    - generic Phase-B cohort conflicts handled deterministically
+    - cohort-sensitivity conflicts handled deterministically
+    - no protected semantic-basis feature was removed improperly.
+
+23. Only then permit Stage C to open labels.
+
+Do not return to a new monolithic Colab cell.
+
+Do not use any incomplete Stage B V1.0 result for feature selection.
