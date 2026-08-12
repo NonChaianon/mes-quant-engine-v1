@@ -8098,7 +8098,1139 @@ class StageBPhase0ProductionOrchestrationSpecificationTests(
             source,
         )
 
+class StageBPhaseADecisionBridgeRedSpecificationTests(
+    unittest.TestCase
+):
+    """Issue #2 RED contract for the missing Phase-A decision bridge."""
 
+    FOLD_COLUMNS = (
+        "role_wf_2022",
+        "role_wf_2023",
+        "role_wf_2024",
+    )
+
+    METADATA_FIELDS = (
+        "feature",
+        "lookback_mode",
+        "lookback_bars",
+        "lookback_minutes",
+        "lookback_start_rule",
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from mes_quant.redundancy import analyzer
+
+        cls.analyzer = analyzer
+        cls.semantic_registry = json.loads(
+            (
+                PROJECT_ROOT
+                / contract.SEMANTIC_REGISTRY_PATH
+            ).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        canonical = (
+            StageBCanonicalRegistryCompatibilitySpecificationTests
+            ._canonical_registry_frame()
+            .rename(
+                columns={
+                    "feature_name": "feature",
+                }
+            )
+        )
+
+        cls.canonical_rows = canonical.to_dict(
+            orient="records"
+        )
+        cls.canonical_features = tuple(
+            canonical["feature"].tolist()
+        )
+        cls.canonical_metadata = tuple(
+            tuple(
+                row[field]
+                for field in cls.METADATA_FIELDS
+            )
+            for row in cls.canonical_rows
+        )
+
+    @classmethod
+    def _phase0_state(cls):
+        validation = dict(
+            cls.analyzer._validate_canonical_feature_registry(
+                registry_rows=cls.canonical_rows,
+                artifact_feature_order=list(
+                    cls.canonical_features
+                ),
+            )
+        )
+
+        # Model the Group-A GREEN output so the remaining RED specs
+        # isolate the still-missing Phase-A decision bridge.
+        validation[
+            "canonical_feature_metadata"
+        ] = cls.canonical_metadata
+
+        return {
+            "phase0_boundary_valid": True,
+            "final_test_rows_opened": 0,
+            "canonical_features": cls.canonical_features,
+            "registry_validation": validation,
+        }
+
+    @classmethod
+    def _semantic_frame(
+        cls,
+        *,
+        one_fold_lacks_weekday_dimension=False,
+    ):
+        import numpy as np
+        import pandas as pd
+
+        rows = 50
+        index = np.arange(
+            rows,
+            dtype="float64",
+        )
+        lag0 = (
+            np.sin(index / 5.0)
+            / 100.0
+        )
+        lag1 = (
+            np.cos(index / 7.0)
+            / 120.0
+        )
+        lag2 = (
+            ((index % 11.0) - 5.0)
+            / 900.0
+        )
+        lag3 = (
+            ((index % 7.0) - 3.0)
+            / 700.0
+        )
+        weekday = (
+            index.astype("int64")
+            % 5
+        )
+        slot_angle = (
+            2.0
+            * np.pi
+            * (
+                index % 22.0
+            )
+            / 22.0
+        )
+        minutes_since_open = (
+            index.astype("int64")
+            % 20
+        ) * 15
+        early_close = (
+            index.astype("int64")
+            % 13
+            == 0
+        ).astype("int64")
+
+        data = {
+            feature: (
+                index
+                + float(position)
+            )
+            for position, feature in enumerate(
+                cls.canonical_features
+            )
+        }
+        data.update(
+            {
+                "ret_log_15m_lag0": lag0,
+                "ret_log_15m_lag1": lag1,
+                "ret_log_15m_lag2": lag2,
+                "ret_log_15m_lag3": lag3,
+                "momentum_log_60m": (
+                    lag0
+                    + lag1
+                    + lag2
+                    + lag3
+                ),
+                "realized_vol_60m": np.sqrt(
+                    lag0**2
+                    + lag1**2
+                    + lag2**2
+                    + lag3**2
+                ),
+                "bar_log_body_15m": (
+                    lag0
+                    + np.sin(index / 3.0)
+                    / 100000.0
+                ),
+                "minutes_since_nyse_open": (
+                    minutes_since_open
+                ),
+                "early_close_session": early_close,
+                "minutes_to_horizon_safe_close": (
+                    330
+                    - minutes_since_open
+                    - 180 * early_close
+                ),
+                "decision_slot_sin": np.sin(
+                    slot_angle
+                ),
+                "decision_slot_cos": np.cos(
+                    slot_angle
+                ),
+            }
+        )
+
+        for category in range(5):
+            data[
+                f"weekday_{category}"
+            ] = (
+                weekday == category
+            ).astype("int64")
+
+        frame = pd.DataFrame(
+            data,
+            columns=list(
+                cls.canonical_features
+            ),
+        )
+
+        for fold in cls.FOLD_COLUMNS:
+            frame[fold] = "TRAIN"
+
+        if one_fold_lacks_weekday_dimension:
+            frame.loc[
+                frame["weekday_4"].eq(1),
+                cls.FOLD_COLUMNS[0],
+            ] = "VALIDATION"
+
+        return frame
+
+    @classmethod
+    def _run_phase_a(
+        cls,
+        *,
+        semantic_registry=None,
+        one_fold_lacks_weekday_dimension=False,
+    ):
+        registry = (
+            cls.semantic_registry
+            if semantic_registry is None
+            else semantic_registry
+        )
+
+        return cls._run_phase_a_with_frame(
+            feature_frame=cls._semantic_frame(
+                one_fold_lacks_weekday_dimension=(
+                    one_fold_lacks_weekday_dimension
+                ),
+            ),
+            semantic_registry=registry,
+        )
+
+    @classmethod
+    def _run_phase_a_with_frame(
+        cls,
+        *,
+        feature_frame,
+        semantic_registry=None,
+    ):
+        registry = (
+            cls.semantic_registry
+            if semantic_registry is None
+            else semantic_registry
+        )
+
+        return cls.analyzer._run_stage_b_phase_a(
+            feature_frame=feature_frame,
+            semantic_registry=registry,
+            phase0=cls._phase0_state(),
+        )
+
+    def _relationship(
+        self,
+        result,
+        check_id,
+    ):
+        self.assertIn(
+            "phase_a_relationship_decisions",
+            result,
+            "Phase A does not expose relationship decisions.",
+        )
+        matches = [
+            relationship
+            for relationship in result[
+                "phase_a_relationship_decisions"
+            ]
+            if relationship["check_id"] == check_id
+        ]
+        self.assertEqual(
+            len(matches),
+            1,
+            f"Expected one relationship record for {check_id}.",
+        )
+        return matches[0]
+
+    def test_phase0_exposes_exact_immutable_canonical_metadata(
+        self,
+    ):
+        import inspect
+
+        result = (
+            self.analyzer._validate_canonical_feature_registry(
+                registry_rows=self.canonical_rows,
+                artifact_feature_order=list(
+                    self.canonical_features
+                ),
+            )
+        )
+
+        self.assertIn(
+            "canonical_feature_metadata",
+            result,
+            (
+                "Phase 0 validation does not expose the "
+                "canonical downstream metadata snapshot."
+            ),
+        )
+        snapshot = result[
+            "canonical_feature_metadata"
+        ]
+        self.assertIsInstance(
+            snapshot,
+            tuple,
+        )
+        self.assertEqual(
+            snapshot,
+            self.canonical_metadata,
+        )
+        self.assertTrue(
+            any(
+                mode == "FIXED"
+                and bars == 0
+                and minutes == 0
+                for (
+                    _,
+                    mode,
+                    bars,
+                    minutes,
+                    _,
+                ) in snapshot
+            )
+        )
+        self.assertIn(
+            (
+                "session_vwap_proxy_deviation",
+                "SESSION_TO_DATE",
+                22,
+                330,
+                "NYSE_SESSION_OPEN",
+            ),
+            snapshot,
+        )
+
+        source = inspect.getsource(
+            self.analyzer._validate_canonical_feature_registry
+        )
+        for feature in self.canonical_features:
+            self.assertNotIn(
+                repr(feature),
+                source,
+                (
+                    "Canonical metadata must flow from the "
+                    "validated rows, not a duplicated feature-name table."
+                ),
+            )
+
+    def test_unknown_decision_effect_fails_closed(
+        self,
+    ):
+        import copy
+
+        candidate = copy.deepcopy(
+            self.semantic_registry
+        )
+        candidate["semantic_checks"][0][
+            "decision_effect"
+        ] = "UNKNOWN_PHASE_A_DECISION_EFFECT"
+
+        with self.assertRaises(
+            (ValueError, RuntimeError),
+            msg=(
+                "An unknown semantic decision_effect must "
+                "fail closed before Phase A releases state."
+            ),
+        ):
+            self._run_phase_a(
+                semantic_registry=candidate
+            )
+
+    def test_known_decision_effect_mutation_changes_resolution(
+        self,
+    ):
+        import copy
+
+        candidate = copy.deepcopy(
+            self.semantic_registry
+        )
+        momentum = candidate[
+            "semantic_checks"
+        ][0]
+        momentum[
+            "check_type"
+        ] = "EXACT_NONLINEAR_DERIVED_REPRESENTATION"
+        momentum[
+            "decision_effect"
+        ] = "RETAIN_DERIVED_NONLINEAR_REPRESENTATION"
+        momentum[
+            "required_drop_count"
+        ] = 0
+
+        relationship = self._relationship(
+            self._run_phase_a(
+                semantic_registry=candidate
+            ),
+            "SEM_MOMENTUM_60M",
+        )
+
+        self.assertIn(
+            "momentum_log_60m",
+            relationship["retained_features"],
+        )
+        self.assertNotIn(
+            "momentum_log_60m",
+            relationship["dropped_features"],
+        )
+        self.assertEqual(
+            relationship["decision_effect"],
+            momentum["decision_effect"],
+        )
+
+    def test_phase_a_state_is_complete_canonical_and_registry_ordered(
+        self,
+    ):
+        result = self._run_phase_a()
+
+        self.assertTrue(
+            result[
+                "phase_a_semantic_valid"
+            ]
+        )
+        self.assertTrue(
+            result[
+                "phase_a_exact_decisions_complete"
+            ]
+        )
+        retained = tuple(
+            result[
+                "phase_a_retained_features"
+            ]
+        )
+        dropped = tuple(
+            result[
+                "phase_a_dropped_features"
+            ]
+        )
+        relationships = tuple(
+            result[
+                "phase_a_relationship_decisions"
+            ]
+        )
+        expected_check_ids = tuple(
+            entry["check_id"]
+            for entry in self.semantic_registry[
+                "semantic_checks"
+            ]
+        )
+        expected_effects = tuple(
+            entry["decision_effect"]
+            for entry in self.semantic_registry[
+                "semantic_checks"
+            ]
+        )
+
+        self.assertEqual(
+            tuple(
+                relationship["check_id"]
+                for relationship in relationships
+            ),
+            expected_check_ids,
+        )
+        self.assertEqual(
+            tuple(
+                relationship["decision_effect"]
+                for relationship in relationships
+            ),
+            expected_effects,
+        )
+
+        required_fields = {
+            "check_id",
+            "dependency_group",
+            "check_type",
+            "decision_effect",
+            "required_drop_count",
+            "features",
+            "retained_features",
+            "dropped_features",
+        }
+        for entry, relationship in zip(
+            self.semantic_registry[
+                "semantic_checks"
+            ],
+            relationships,
+            strict=True,
+        ):
+            self.assertTrue(
+                required_fields.issubset(
+                    relationship
+                )
+            )
+            self.assertEqual(
+                tuple(
+                    relationship["features"]
+                ),
+                tuple(entry["features"]),
+            )
+            self.assertEqual(
+                relationship[
+                    "required_drop_count"
+                ],
+                entry["required_drop_count"],
+            )
+
+        relationship_drops = {
+            feature
+            for relationship in relationships
+            for feature in relationship[
+                "dropped_features"
+            ]
+        }
+        expected_dropped = tuple(
+            feature
+            for feature in self.canonical_features
+            if feature in relationship_drops
+        )
+        expected_retained = tuple(
+            feature
+            for feature in self.canonical_features
+            if feature not in relationship_drops
+        )
+        self.assertEqual(
+            dropped,
+            expected_dropped,
+        )
+        self.assertEqual(
+            retained,
+            expected_retained,
+        )
+        self.assertEqual(
+            set(retained).intersection(dropped),
+            set(),
+        )
+        self.assertEqual(
+            result["final_test_rows_opened"],
+            0,
+        )
+
+    def test_relationship_order_follows_mutated_registry_order(
+        self,
+    ):
+        import copy
+
+        candidate = copy.deepcopy(
+            self.semantic_registry
+        )
+        candidate[
+            "semantic_checks"
+        ] = list(
+            reversed(
+                candidate[
+                    "semantic_checks"
+                ]
+            )
+        )
+        result = self._run_phase_a(
+            semantic_registry=candidate
+        )
+
+        self.assertEqual(
+            tuple(
+                relationship["check_id"]
+                for relationship in result[
+                    "phase_a_relationship_decisions"
+                ]
+            ),
+            tuple(
+                entry["check_id"]
+                for entry in candidate[
+                    "semantic_checks"
+                ]
+            ),
+        )
+
+    def test_momentum_decision_drops_derived_and_protects_basis(
+        self,
+    ):
+        result = self._run_phase_a()
+        relationship = self._relationship(
+            result,
+            "SEM_MOMENTUM_60M",
+        )
+        determining = (
+            "ret_log_15m_lag0",
+            "ret_log_15m_lag1",
+            "ret_log_15m_lag2",
+            "ret_log_15m_lag3",
+        )
+
+        self.assertEqual(
+            tuple(
+                relationship["dropped_features"]
+            ),
+            ("momentum_log_60m",),
+        )
+        self.assertEqual(
+            tuple(
+                relationship["retained_features"]
+            ),
+            determining,
+        )
+        self.assertEqual(
+            relationship["required_drop_count"],
+            1,
+        )
+        self.assertTrue(
+            set(determining).issubset(
+                result["protected_features"]
+            )
+        )
+        self.assertTrue(
+            all(
+                relationship["feature_states"][feature]
+                == "SEMANTIC_BASIS_PROTECTED"
+                for feature in determining
+            )
+        )
+
+    def test_realized_vol_decision_keeps_nonlinear_representation(
+        self,
+    ):
+        relationship = self._relationship(
+            self._run_phase_a(),
+            "SEM_REALIZED_VOL_60M",
+        )
+
+        self.assertIn(
+            "realized_vol_60m",
+            relationship["retained_features"],
+        )
+        self.assertNotIn(
+            "realized_vol_60m",
+            relationship["dropped_features"],
+        )
+        self.assertEqual(
+            relationship["required_drop_count"],
+            0,
+        )
+
+    def test_horizon_decision_drops_derived_and_protects_basis(
+        self,
+    ):
+        result = self._run_phase_a()
+        relationship = self._relationship(
+            result,
+            "SEM_HORIZON_SAFE_CLOSE",
+        )
+        determining = (
+            "minutes_since_nyse_open",
+            "early_close_session",
+        )
+
+        self.assertEqual(
+            tuple(
+                relationship["dropped_features"]
+            ),
+            ("minutes_to_horizon_safe_close",),
+        )
+        self.assertEqual(
+            tuple(
+                relationship["retained_features"]
+            ),
+            determining,
+        )
+        self.assertEqual(
+            relationship["required_drop_count"],
+            1,
+        )
+        self.assertTrue(
+            set(determining).issubset(
+                result["protected_features"]
+            )
+        )
+
+    def test_weekday_decision_keeps_four_dimensions_by_locked_priority(
+        self,
+    ):
+        result = self._run_phase_a()
+        relationship = self._relationship(
+            result,
+            "SEM_WEEKDAY_ONEHOT",
+        )
+        weekdays = tuple(
+            f"weekday_{index}"
+            for index in range(5)
+        )
+        retained = tuple(
+            relationship["retained_features"]
+        )
+        dropped = tuple(
+            relationship["dropped_features"]
+        )
+
+        self.assertEqual(
+            len(retained),
+            4,
+        )
+        self.assertEqual(
+            len(dropped),
+            1,
+        )
+        self.assertEqual(
+            set(retained).union(dropped),
+            set(weekdays),
+        )
+        self.assertEqual(
+            relationship[
+                "information_dimension"
+            ],
+            4,
+        )
+        self.assertTrue(
+            set(weekdays).isdisjoint(
+                result["protected_features"]
+            )
+        )
+
+        priority = relationship[
+            "retention_priority_evidence"
+        ]
+        self.assertEqual(
+            tuple(
+                priority["ordered_features"]
+            ),
+            weekdays,
+        )
+        self.assertIn(
+            "minimum_train_fold_availability",
+            priority,
+        )
+        self.assertIn(
+            "canonical_lookback_metadata",
+            priority,
+        )
+        self.assertIn(
+            "canonical_feature_order",
+            priority,
+        )
+
+    def test_decision_slot_cycle_keeps_both_components(
+        self,
+    ):
+        relationship = self._relationship(
+            self._run_phase_a(),
+            "SEM_DECISION_SLOT_CYCLE",
+        )
+        pair = (
+            "decision_slot_sin",
+            "decision_slot_cos",
+        )
+
+        self.assertEqual(
+            tuple(
+                relationship["retained_features"]
+            ),
+            pair,
+        )
+        self.assertEqual(
+            tuple(
+                relationship["dropped_features"]
+            ),
+            (),
+        )
+        self.assertEqual(
+            relationship["required_drop_count"],
+            0,
+        )
+
+    def test_empirical_relation_remains_evidence_only_until_phase_c(
+        self,
+    ):
+        result = self._run_phase_a()
+        relationship = self._relationship(
+            result,
+            "EMP_LAG0_BAR_BODY",
+        )
+
+        self.assertEqual(
+            tuple(
+                relationship["dropped_features"]
+            ),
+            (),
+        )
+        self.assertEqual(
+            relationship["required_drop_count"],
+            None,
+        )
+        self.assertIn(
+            "bar_log_body_15m",
+            relationship["unresolved_features"],
+        )
+        self.assertIn(
+            "ret_log_15m_lag0",
+            result["protected_features"],
+        )
+        self.assertFalse(
+            relationship.get(
+                "phase_c_executed",
+                False,
+            )
+        )
+
+    def test_weekday_releases_one_basis_robust_in_all_train_folds(
+        self,
+    ):
+        relationship = self._relationship(
+            self._run_phase_a(),
+            "SEM_WEEKDAY_ONEHOT",
+        )
+        retained = tuple(
+            relationship["retained_features"]
+        )
+        diagnostics = relationship[
+            "fold_rank_diagnostics"
+        ]
+
+        self.assertEqual(
+            tuple(diagnostics),
+            self.FOLD_COLUMNS,
+        )
+        self.assertEqual(
+            len(retained),
+            4,
+        )
+        for fold in self.FOLD_COLUMNS:
+            self.assertEqual(
+                tuple(
+                    diagnostics[fold][
+                        "retained_features"
+                    ]
+                ),
+                retained,
+            )
+            self.assertEqual(
+                diagnostics[fold][
+                    "original_rank"
+                ],
+                4,
+            )
+            self.assertEqual(
+                diagnostics[fold][
+                    "retained_rank"
+                ],
+                4,
+            )
+
+    def test_weekday_fails_closed_if_any_train_fold_loses_dimension(
+        self,
+    ):
+        with self.assertRaises(
+            RuntimeError,
+            msg=(
+                "One global weekday basis must fail closed "
+                "when any required TRAIN fold cannot preserve "
+                "the four-dimensional semantic group."
+            ),
+        ):
+            self._run_phase_a(
+                one_fold_lacks_weekday_dimension=True
+            )
+
+    def test_validation_rows_cannot_influence_phase_a_basis_choice(
+        self,
+    ):
+        import numpy as np
+
+        baseline = self._semantic_frame()
+        validation_rows = baseline.index[-10:]
+        for fold in self.FOLD_COLUMNS:
+            baseline.loc[
+                validation_rows,
+                fold,
+            ] = "VALIDATION"
+
+        mutated_validation = baseline.copy()
+        mutated_validation.loc[
+            validation_rows,
+            [
+                "weekday_0",
+                "weekday_1",
+                "weekday_2",
+                "weekday_3",
+            ],
+        ] = np.nan
+
+        baseline_relationship = self._relationship(
+            self._run_phase_a_with_frame(
+                feature_frame=baseline
+            ),
+            "SEM_WEEKDAY_ONEHOT",
+        )
+        mutated_relationship = self._relationship(
+            self._run_phase_a_with_frame(
+                feature_frame=mutated_validation
+            ),
+            "SEM_WEEKDAY_ONEHOT",
+        )
+
+        for field in (
+            "retained_features",
+            "dropped_features",
+            "retention_priority_evidence",
+        ):
+            self.assertEqual(
+                baseline_relationship[field],
+                mutated_relationship[field],
+                (
+                    "Validation-only values must not influence "
+                    "Phase-A semantic basis decisions."
+                ),
+            )
+
+
+class StageBExactBasisPrimitiveRedSpecificationTests(
+    unittest.TestCase
+):
+    """Issue #2 RED contract for the future pure exact-basis primitive."""
+
+    @staticmethod
+    def _helper():
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_select_rank_preserving_exact_basis",
+            None,
+        )
+        if not callable(helper):
+            raise RuntimeError(
+                "Missing pure exact-basis primitive: "
+                "analyzer._select_rank_preserving_exact_basis"
+            )
+        return helper
+
+    def test_exact_basis_primitive_has_pure_locked_interface(
+        self,
+    ):
+        import inspect
+
+        helper = self._helper()
+        signature = inspect.signature(
+            helper
+        )
+
+        self.assertEqual(
+            tuple(signature.parameters),
+            (
+                "frame",
+                "feature_columns",
+                "retention_order",
+            ),
+        )
+        self.assertTrue(
+            all(
+                parameter.kind
+                is inspect.Parameter.KEYWORD_ONLY
+                for parameter in signature.parameters.values()
+            )
+        )
+
+        source = inspect.getsource(
+            helper
+        )
+        self.assertIn(
+            "build_standardized_matrix(",
+            source,
+        )
+        self.assertIn(
+            "compute_svd_diagnostics(",
+            source,
+        )
+        self.assertNotIn(
+            "np.linalg.svd(",
+            source,
+        )
+
+        forbidden = (
+            "read_parquet",
+            "read_csv",
+            "read_bytes",
+            "read_text",
+            "to_parquet",
+            "to_csv",
+            "open(",
+            "get_train_mask(",
+            "role_wf_",
+            "fillna(",
+            "ffill(",
+            "bfill(",
+            "interpolate(",
+            "dropna(",
+            "target",
+            "label",
+            "future_return",
+            "pnl",
+            "model_score",
+        )
+        for operation in forbidden:
+            self.assertNotIn(
+                operation,
+                source.lower(),
+            )
+
+    def test_exact_basis_drops_low_priority_linear_redundancy(
+        self,
+    ):
+        import pandas as pd
+
+        frame = pd.DataFrame(
+            {
+                "a": [
+                    -3.0,
+                    -2.0,
+                    -1.0,
+                    0.0,
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                ],
+                "b": [
+                    2.0,
+                    -1.0,
+                    4.0,
+                    0.5,
+                    -3.0,
+                    1.5,
+                    5.0,
+                    -2.0,
+                ],
+            },
+            dtype="float64",
+        )
+        frame["c"] = (
+            frame["a"]
+            + frame["b"]
+        )
+
+        result = self._helper()(
+            frame=frame,
+            feature_columns=[
+                "a",
+                "b",
+                "c",
+            ],
+            retention_order=[
+                "a",
+                "b",
+                "c",
+            ],
+        )
+
+        self.assertEqual(
+            result["original_rank"],
+            2,
+        )
+        self.assertEqual(
+            tuple(
+                result["retained_features"]
+            ),
+            ("a", "b"),
+        )
+        self.assertEqual(
+            tuple(
+                result["dropped_features"]
+            ),
+            ("c",),
+        )
+        self.assertEqual(
+            result[
+                "redundant_dimension_count"
+            ],
+            1,
+        )
+        self.assertEqual(
+            result["final_retained_rank"],
+            2,
+        )
+
+    def test_exact_basis_preserves_four_one_hot_dimensions(
+        self,
+    ):
+        import numpy as np
+        import pandas as pd
+
+        categories = np.tile(
+            np.arange(5),
+            10,
+        )
+        features = [
+            f"weekday_{index}"
+            for index in range(5)
+        ]
+        frame = pd.DataFrame(
+            {
+                feature: (
+                    categories == index
+                ).astype("float64")
+                for index, feature in enumerate(
+                    features
+                )
+            }
+        )
+
+        result = self._helper()(
+            frame=frame,
+            feature_columns=features,
+            retention_order=features,
+        )
+
+        self.assertEqual(
+            result["original_rank"],
+            4,
+        )
+        self.assertEqual(
+            tuple(
+                result["retained_features"]
+            ),
+            tuple(features[:4]),
+        )
+        self.assertEqual(
+            tuple(
+                result["dropped_features"]
+            ),
+            (features[4],),
+        )
+        self.assertEqual(
+            result[
+                "redundant_dimension_count"
+            ],
+            1,
+        )
+        self.assertEqual(
+            result["final_retained_rank"],
+            result["original_rank"],
+        )
 
 
 if __name__ == "__main__":
