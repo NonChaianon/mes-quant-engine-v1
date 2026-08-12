@@ -35,6 +35,24 @@ _REQUIRED_SEMANTIC_FIELDS = {
 }
 
 
+_SUPPORTED_PHASE_A_DECISION_EFFECTS = {
+    "DROP_DEPENDENT_KEEP_DETERMINING",
+    "RETAIN_DERIVED_NONLINEAR_REPRESENTATION",
+    "DROP_ONE_DETERMINISTIC_REFERENCE_KEEP_FOUR_DIMENSIONS",
+    "RETAIN_BOTH_PAIRED_REPRESENTATION",
+    "PHASE_C_HARD_MAY_DROP_ONLY_UNPROTECTED_MEMBER",
+}
+
+
+_CANONICAL_METADATA_FIELDS = (
+    "feature",
+    "lookback_mode",
+    "lookback_bars",
+    "lookback_minutes",
+    "lookback_start_rule",
+)
+
+
 def _expected_check_type_shape(
     check_type: str,
 ) -> tuple[bool, bool, int | None]:
@@ -127,6 +145,9 @@ def validate_semantic_registry(
         dependent = entry["dependent_features"]
         determining = entry["determining_features"]
         scope = entry["scope"]
+        decision_effect = entry[
+            "decision_effect"
+        ]
         implementation_key = entry["implementation_key"]
         dependency_group = entry["dependency_group"]
         drop_count = entry["required_drop_count"]
@@ -142,6 +163,10 @@ def validate_semantic_registry(
                 implementation_key,
             ),
             (
+                "decision_effect",
+                decision_effect,
+            ),
+            (
                 "dependency_group",
                 dependency_group,
             ),
@@ -150,6 +175,15 @@ def validate_semantic_registry(
                 raise ValueError(
                     f"{name} must be a non-empty string."
                 )
+
+        if (
+            decision_effect
+            not in _SUPPORTED_PHASE_A_DECISION_EFFECTS
+        ):
+            raise ValueError(
+                "Unsupported Phase A decision_effect: "
+                f"{decision_effect!r}"
+            )
 
         if "|" in dependency_group:
             raise ValueError(
@@ -1112,6 +1146,187 @@ def compute_svd_diagnostics(
 
 
 
+def _select_rank_preserving_exact_basis(
+    *,
+    frame,
+    feature_columns,
+    retention_order,
+):
+    """Select one deterministic basis using the locked rank machinery."""
+
+    if not isinstance(
+        frame,
+        pd.DataFrame,
+    ):
+        raise TypeError(
+            "frame must be a pandas DataFrame."
+        )
+
+    if not isinstance(
+        feature_columns,
+        (list, tuple),
+    ):
+        raise TypeError(
+            "feature_columns must be a list or tuple."
+        )
+
+    if not isinstance(
+        retention_order,
+        (list, tuple),
+    ):
+        raise TypeError(
+            "retention_order must be a list or tuple."
+        )
+
+    candidates = list(
+        feature_columns
+    )
+    ordered_candidates = list(
+        retention_order
+    )
+
+    if not candidates:
+        raise ValueError(
+            "feature_columns must not be empty."
+        )
+
+    if (
+        len(candidates)
+        != len(set(candidates))
+    ):
+        raise ValueError(
+            "feature_columns contains duplicates."
+        )
+
+    if (
+        len(ordered_candidates)
+        != len(set(ordered_candidates))
+    ):
+        raise ValueError(
+            "retention_order contains duplicates."
+        )
+
+    if (
+        len(ordered_candidates)
+        != len(candidates)
+        or set(ordered_candidates)
+        != set(candidates)
+    ):
+        raise ValueError(
+            "retention_order must contain each candidate exactly once."
+        )
+
+    original_matrix = build_standardized_matrix(
+        frame=frame,
+        feature_columns=candidates,
+    )
+    original_diagnostics = compute_svd_diagnostics(
+        original_matrix
+    )
+    original_rank = int(
+        original_diagnostics[
+            "rank"
+        ]
+    )
+
+    if original_rank <= 0:
+        raise RuntimeError(
+            "Exact-basis candidate rank must be positive."
+        )
+
+    retained: list[str] = []
+    redundant: list[str] = []
+    current_rank = 0
+
+    for candidate in ordered_candidates:
+        proposed = [
+            *retained,
+            candidate,
+        ]
+        proposed_matrix = build_standardized_matrix(
+            frame=frame,
+            feature_columns=proposed,
+        )
+        proposed_diagnostics = compute_svd_diagnostics(
+            proposed_matrix
+        )
+        proposed_rank = int(
+            proposed_diagnostics[
+                "rank"
+            ]
+        )
+
+        if proposed_rank > current_rank:
+            retained.append(
+                candidate
+            )
+            current_rank = proposed_rank
+        else:
+            redundant.append(
+                candidate
+            )
+
+    if not retained:
+        raise RuntimeError(
+            "Exact-basis selection retained no features."
+        )
+
+    final_matrix = build_standardized_matrix(
+        frame=frame,
+        feature_columns=retained,
+    )
+    final_diagnostics = compute_svd_diagnostics(
+        final_matrix
+    )
+    final_rank = int(
+        final_diagnostics[
+            "rank"
+        ]
+    )
+    required_redundant_count = int(
+        len(candidates)
+        - original_rank
+    )
+
+    if len(redundant) != required_redundant_count:
+        raise RuntimeError(
+            "Exact-basis redundant count does not equal k-r."
+        )
+
+    if len(retained) != original_rank:
+        raise RuntimeError(
+            "Exact-basis retained count does not equal rank."
+        )
+
+    if final_rank != original_rank:
+        raise RuntimeError(
+            "Exact-basis final rank does not preserve original rank."
+        )
+
+    return {
+        "feature_count": len(
+            candidates
+        ),
+        "original_rank": original_rank,
+        "retained_features": tuple(
+            retained
+        ),
+        "dropped_features": tuple(
+            redundant
+        ),
+        "redundant_dimension_count": (
+            required_redundant_count
+        ),
+        "final_retained_rank": final_rank,
+        "original_svd_diagnostics": (
+            original_diagnostics
+        ),
+        "final_svd_diagnostics": (
+            final_diagnostics
+        ),
+    }
+
+
 # STEP_14C_GROUP_RANK_AND_PHASE_C_RUNTIME_V1_1
 
 
@@ -1957,15 +2172,13 @@ def _validate_canonical_feature_registry(
             "must contain exactly 29 rows."
         )
 
-    required_fields = {
-        "feature",
-        "lookback_mode",
-        "lookback_bars",
-        "lookback_minutes",
-        "lookback_start_rule",
-    }
+    metadata_fields = _CANONICAL_METADATA_FIELDS
+    required_fields = set(
+        metadata_fields
+    )
 
     canonical_order: list[str] = []
+    canonical_metadata: list[tuple[object, ...]] = []
 
     for index, row in enumerate(
         registry_rows
@@ -2115,6 +2328,13 @@ def _validate_canonical_feature_registry(
                     "requires a non-empty start rule."
                 )
 
+        canonical_metadata.append(
+            tuple(
+                row[field]
+                for field in metadata_fields
+            )
+        )
+
     if (
         len(canonical_order)
         != len(set(canonical_order))
@@ -2159,6 +2379,9 @@ def _validate_canonical_feature_registry(
         "candidate_count": 29,
         "canonical_feature_order": tuple(
             canonical_order
+        ),
+        "canonical_feature_metadata": tuple(
+            canonical_metadata
         ),
         "membership_exact": True,
         "order_exact": True,
@@ -6627,6 +6850,722 @@ def _validate_stage_b_release_manifest_binding(
 
 
 
+def _phase_a_canonical_metadata(
+    *,
+    phase0,
+):
+    """Read the immutable canonical metadata already validated by Phase 0."""
+
+    canonical_features = phase0.get(
+        "canonical_features"
+    )
+    registry_validation = phase0.get(
+        "registry_validation"
+    )
+
+    if not isinstance(
+        canonical_features,
+        tuple,
+    ):
+        raise TypeError(
+            "Phase 0 canonical_features must be an immutable tuple."
+        )
+
+    if not isinstance(
+        registry_validation,
+        dict,
+    ):
+        raise TypeError(
+            "Phase 0 registry validation is unavailable."
+        )
+
+    metadata_snapshot = registry_validation.get(
+        "canonical_feature_metadata"
+    )
+
+    if not isinstance(
+        metadata_snapshot,
+        tuple,
+    ):
+        raise TypeError(
+            "Phase 0 canonical metadata snapshot is unavailable."
+        )
+
+    if len(metadata_snapshot) != len(canonical_features):
+        raise RuntimeError(
+            "Phase 0 canonical metadata length mismatch."
+        )
+
+    field_names = _CANONICAL_METADATA_FIELDS
+    metadata_by_feature: dict[str, dict[str, object]] = {}
+
+    for index, metadata_row in enumerate(
+        metadata_snapshot
+    ):
+        if (
+            not isinstance(metadata_row, tuple)
+            or len(metadata_row) != len(field_names)
+        ):
+            raise RuntimeError(
+                "Phase 0 canonical metadata row is invalid."
+            )
+
+        row = dict(
+            zip(
+                field_names,
+                metadata_row,
+                strict=True,
+            )
+        )
+        feature = row[
+            "feature"
+        ]
+
+        if feature != canonical_features[index]:
+            raise RuntimeError(
+                "Phase 0 canonical metadata order mismatch."
+            )
+
+        if feature in metadata_by_feature:
+            raise RuntimeError(
+                "Phase 0 canonical metadata contains duplicates."
+            )
+
+        metadata_by_feature[
+            feature
+        ] = row
+
+    return (
+        canonical_features,
+        metadata_snapshot,
+        metadata_by_feature,
+    )
+
+
+def _minimum_train_fold_availability(
+    *,
+    feature_frame,
+    features,
+    fold_role_columns,
+):
+    """Compute point-in-time availability from TRAIN rows in every fold."""
+
+    availability_by_fold: dict[
+        str,
+        dict[str, float],
+    ] = {}
+
+    for fold_role_column in fold_role_columns:
+        train_mask = get_train_mask(
+            feature_frame,
+            fold_role_column,
+        )
+
+        if not bool(train_mask.any()):
+            raise RuntimeError(
+                "Phase A requires non-empty TRAIN rows in every fold."
+            )
+
+        train_frame = feature_frame.loc[
+            train_mask,
+            list(features),
+        ]
+        fold_availability = train_frame.notna().mean(
+            axis=0
+        )
+        availability_by_fold[
+            fold_role_column
+        ] = {
+            feature: float(
+                fold_availability[
+                    feature
+                ]
+            )
+            for feature in features
+        }
+
+    minimum_availability = {
+        feature: min(
+            availability_by_fold[fold][feature]
+            for fold in fold_role_columns
+        )
+        for feature in features
+    }
+
+    return (
+        minimum_availability,
+        availability_by_fold,
+    )
+
+
+def _order_exact_basis_candidates(
+    *,
+    features,
+    canonical_features,
+    protected_features,
+    minimum_availability,
+    metadata_by_feature,
+):
+    """Apply the locked deterministic retention priority without scores."""
+
+    feature_set = set(
+        features
+    )
+    canonical_group = [
+        feature
+        for feature in canonical_features
+        if feature in feature_set
+    ]
+
+    if (
+        len(canonical_group) != len(features)
+        or set(canonical_group) != feature_set
+    ):
+        raise RuntimeError(
+            "Exact semantic group is not canonical."
+        )
+
+    protected_set = set(
+        protected_features
+    )
+    partitions = (
+        [
+            feature
+            for feature in canonical_group
+            if feature in protected_set
+        ],
+        [
+            feature
+            for feature in canonical_group
+            if feature not in protected_set
+        ],
+    )
+    ordered: list[str] = []
+    canonical_position = {
+        feature: index
+        for index, feature in enumerate(
+            canonical_features
+        )
+    }
+
+    for partition in partitions:
+        availability_levels = sorted(
+            {
+                minimum_availability[
+                    feature
+                ]
+                for feature in partition
+            },
+            reverse=True,
+        )
+
+        for availability in availability_levels:
+            block = [
+                feature
+                for feature in partition
+                if minimum_availability[feature]
+                == availability
+            ]
+            reordered_block = list(
+                block
+            )
+            comparable_groups: dict[
+                tuple[object, ...],
+                list[str],
+            ] = {}
+
+            for feature in block:
+                metadata = metadata_by_feature[
+                    feature
+                ]
+                mode = metadata[
+                    "lookback_mode"
+                ]
+
+                if mode == "FIXED":
+                    comparable_key = (
+                        mode,
+                    )
+                elif mode == "SESSION_TO_DATE":
+                    comparable_key = (
+                        mode,
+                        metadata[
+                            "lookback_start_rule"
+                        ],
+                    )
+                else:
+                    raise RuntimeError(
+                        "Unsupported canonical lookback mode."
+                    )
+
+                comparable_groups.setdefault(
+                    comparable_key,
+                    [],
+                ).append(
+                    feature
+                )
+
+            for comparable_features in (
+                comparable_groups.values()
+            ):
+                positions = [
+                    index
+                    for index, feature in enumerate(
+                        block
+                    )
+                    if feature in comparable_features
+                ]
+                ranked_features = sorted(
+                    comparable_features,
+                    key=lambda feature: (
+                        metadata_by_feature[feature][
+                            "lookback_bars"
+                        ],
+                        metadata_by_feature[feature][
+                            "lookback_minutes"
+                        ],
+                        canonical_position[
+                            feature
+                        ],
+                    ),
+                )
+
+                for position, feature in zip(
+                    positions,
+                    ranked_features,
+                    strict=True,
+                ):
+                    reordered_block[
+                        position
+                    ] = feature
+
+            ordered.extend(
+                reordered_block
+            )
+
+    if (
+        len(ordered) != len(features)
+        or set(ordered) != feature_set
+    ):
+        raise RuntimeError(
+            "Exact semantic retention order is incomplete."
+        )
+
+    return tuple(
+        ordered
+    )
+
+
+def _resolve_undirected_exact_basis(
+    *,
+    feature_frame,
+    entry,
+    canonical_features,
+    protected_features,
+    metadata_by_feature,
+    fold_role_columns,
+):
+    """Release one exact basis and verify it inside every TRAIN fold."""
+
+    features = tuple(
+        entry[
+            "features"
+        ]
+    )
+    required_drop_count = entry[
+        "required_drop_count"
+    ]
+
+    if (
+        not isinstance(required_drop_count, int)
+        or isinstance(required_drop_count, bool)
+        or required_drop_count <= 0
+    ):
+        raise RuntimeError(
+            "Undirected exact basis requires a positive drop count."
+        )
+
+    (
+        minimum_availability,
+        availability_by_fold,
+    ) = _minimum_train_fold_availability(
+        feature_frame=feature_frame,
+        features=features,
+        fold_role_columns=fold_role_columns,
+    )
+    retention_order = _order_exact_basis_candidates(
+        features=features,
+        canonical_features=canonical_features,
+        protected_features=protected_features,
+        minimum_availability=minimum_availability,
+        metadata_by_feature=metadata_by_feature,
+    )
+
+    train_union = pd.Series(
+        False,
+        index=feature_frame.index,
+        dtype="bool",
+    )
+
+    for fold_role_column in fold_role_columns:
+        train_union = (
+            train_union
+            | get_train_mask(
+                feature_frame,
+                fold_role_column,
+            )
+        )
+
+    global_train_frame = feature_frame.loc[
+        train_union,
+        list(features),
+    ]
+
+    try:
+        basis = _select_rank_preserving_exact_basis(
+            frame=global_train_frame,
+            feature_columns=list(features),
+            retention_order=list(
+                retention_order
+            ),
+        )
+    except (
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise RuntimeError(
+            "Global exact semantic basis is invalid."
+        ) from exc
+
+    information_dimension = int(
+        len(features)
+        - required_drop_count
+    )
+
+    if (
+        basis[
+            "original_rank"
+        ] != information_dimension
+        or basis[
+            "final_retained_rank"
+        ] != information_dimension
+        or len(
+            basis[
+                "dropped_features"
+            ]
+        ) != required_drop_count
+    ):
+        raise RuntimeError(
+            "Global exact semantic basis has the wrong dimension."
+        )
+
+    retained_features = tuple(
+        basis[
+            "retained_features"
+        ]
+    )
+    fold_rank_diagnostics: dict[
+        str,
+        dict[str, object],
+    ] = {}
+
+    for fold_role_column in fold_role_columns:
+        train_mask = get_train_mask(
+            feature_frame,
+            fold_role_column,
+        )
+        train_frame = feature_frame.loc[
+            train_mask
+        ]
+
+        try:
+            original_matrix = build_standardized_matrix(
+                frame=train_frame,
+                feature_columns=list(
+                    features
+                ),
+            )
+            original_diagnostics = compute_svd_diagnostics(
+                original_matrix
+            )
+            retained_matrix = build_standardized_matrix(
+                frame=train_frame,
+                feature_columns=list(
+                    retained_features
+                ),
+            )
+            retained_diagnostics = compute_svd_diagnostics(
+                retained_matrix
+            )
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise RuntimeError(
+                "Exact semantic basis failed in a TRAIN fold."
+            ) from exc
+
+        original_rank = int(
+            original_diagnostics[
+                "rank"
+            ]
+        )
+        retained_rank = int(
+            retained_diagnostics[
+                "rank"
+            ]
+        )
+
+        if (
+            original_rank != information_dimension
+            or retained_rank != information_dimension
+        ):
+            raise RuntimeError(
+                "Exact semantic basis does not preserve TRAIN-fold rank."
+            )
+
+        fold_rank_diagnostics[
+            fold_role_column
+        ] = {
+            "retained_features": retained_features,
+            "original_rank": original_rank,
+            "retained_rank": retained_rank,
+            "original_svd_diagnostics": (
+                original_diagnostics
+            ),
+            "retained_svd_diagnostics": (
+                retained_diagnostics
+            ),
+        }
+
+    canonical_lookback_metadata = {
+        feature: (
+            metadata_by_feature[feature][
+                "lookback_mode"
+            ],
+            metadata_by_feature[feature][
+                "lookback_bars"
+            ],
+            metadata_by_feature[feature][
+                "lookback_minutes"
+            ],
+            metadata_by_feature[feature][
+                "lookback_start_rule"
+            ],
+        )
+        for feature in features
+    }
+
+    return {
+        "retained_features": retained_features,
+        "dropped_features": tuple(
+            basis[
+                "dropped_features"
+            ]
+        ),
+        "information_dimension": (
+            information_dimension
+        ),
+        "fold_rank_diagnostics": (
+            fold_rank_diagnostics
+        ),
+        "retention_priority_evidence": {
+            "explicit_semantic_direction": False,
+            "protected_features": tuple(
+                feature
+                for feature in retention_order
+                if feature in set(
+                    protected_features
+                )
+            ),
+            "minimum_train_fold_availability": (
+                minimum_availability
+            ),
+            "train_fold_availability": (
+                availability_by_fold
+            ),
+            "canonical_lookback_metadata": (
+                canonical_lookback_metadata
+            ),
+            "canonical_feature_order": tuple(
+                feature
+                for feature in canonical_features
+                if feature in set(features)
+            ),
+            "ordered_features": retention_order,
+        },
+    }
+
+
+def _resolve_phase_a_relationship(
+    *,
+    feature_frame,
+    entry,
+    canonical_features,
+    protected_features,
+    metadata_by_feature,
+    fold_role_columns,
+):
+    """Resolve one relationship solely from its registry decision effect."""
+
+    features = tuple(
+        entry[
+            "features"
+        ]
+    )
+    dependent_features = tuple(
+        entry[
+            "dependent_features"
+        ]
+    )
+    determining_features = tuple(
+        entry[
+            "determining_features"
+        ]
+    )
+    decision_effect = entry[
+        "decision_effect"
+    ]
+    required_drop_count = entry[
+        "required_drop_count"
+    ]
+    retained_features: tuple[str, ...]
+    dropped_features: tuple[str, ...]
+    unresolved_features: tuple[str, ...] = ()
+    extra_evidence: dict[str, object] = {}
+
+    if decision_effect == "DROP_DEPENDENT_KEEP_DETERMINING":
+        if set(features) != (
+            set(dependent_features)
+            | set(determining_features)
+        ):
+            raise RuntimeError(
+                "Directed semantic relationship is incomplete."
+            )
+
+        retained_features = determining_features
+        dropped_features = dependent_features
+    elif decision_effect == "RETAIN_DERIVED_NONLINEAR_REPRESENTATION":
+        retained_features = features
+        dropped_features = ()
+    elif decision_effect == "DROP_ONE_DETERMINISTIC_REFERENCE_KEEP_FOUR_DIMENSIONS":
+        exact_basis = _resolve_undirected_exact_basis(
+            feature_frame=feature_frame,
+            entry=entry,
+            canonical_features=canonical_features,
+            protected_features=protected_features,
+            metadata_by_feature=metadata_by_feature,
+            fold_role_columns=fold_role_columns,
+        )
+        retained_features = tuple(
+            exact_basis[
+                "retained_features"
+            ]
+        )
+        dropped_features = tuple(
+            exact_basis[
+                "dropped_features"
+            ]
+        )
+        extra_evidence = {
+            key: value
+            for key, value in exact_basis.items()
+            if key not in {
+                "retained_features",
+                "dropped_features",
+            }
+        }
+    elif decision_effect == "RETAIN_BOTH_PAIRED_REPRESENTATION":
+        retained_features = features
+        dropped_features = ()
+    elif decision_effect == "PHASE_C_HARD_MAY_DROP_ONLY_UNPROTECTED_MEMBER":
+        retained_features = features
+        dropped_features = ()
+        unresolved_features = tuple(
+            feature
+            for feature in features
+            if feature not in set(
+                protected_features
+            )
+        )
+        extra_evidence = {
+            "phase_c_executed": False,
+        }
+    else:
+        raise RuntimeError(
+            "Unsupported Phase A decision_effect: "
+            f"{decision_effect!r}"
+        )
+
+    if required_drop_count is None:
+        if dropped_features:
+            raise RuntimeError(
+                "Evidence-only relationship attempted a Phase A drop."
+            )
+    elif (
+        not isinstance(required_drop_count, int)
+        or isinstance(required_drop_count, bool)
+        or len(dropped_features)
+        != required_drop_count
+    ):
+        raise RuntimeError(
+            "Resolved relationship violates required_drop_count."
+        )
+
+    if set(dropped_features) & set(protected_features):
+        raise RuntimeError(
+            "Phase A attempted to drop a protected semantic basis feature."
+        )
+
+    if (
+        set(retained_features)
+        | set(dropped_features)
+    ) != set(features):
+        raise RuntimeError(
+            "Resolved relationship does not cover all participating features."
+        )
+
+    feature_states: dict[str, str] = {}
+
+    for feature in features:
+        if feature in set(dropped_features):
+            state = "SEMANTIC_DROPPED"
+        elif feature in set(protected_features):
+            state = "SEMANTIC_BASIS_PROTECTED"
+        elif feature in set(unresolved_features):
+            state = "EMPIRICAL_UNRESOLVED_UNTIL_PHASE_C"
+        else:
+            state = "SEMANTIC_RETAINED"
+
+        feature_states[
+            feature
+        ] = state
+
+    return {
+        "check_id": entry[
+            "check_id"
+        ],
+        "dependency_group": entry[
+            "dependency_group"
+        ],
+        "check_type": entry[
+            "check_type"
+        ],
+        "decision_effect": decision_effect,
+        "required_drop_count": (
+            required_drop_count
+        ),
+        "features": features,
+        "retained_features": retained_features,
+        "dropped_features": dropped_features,
+        "unresolved_features": unresolved_features,
+        "feature_states": feature_states,
+        **extra_evidence,
+    }
+
+
 # STEP_14G3B3F5_PHASE0_ORCHESTRATOR
 
 def _run_stage_b_phase_a(
@@ -6673,6 +7612,13 @@ def _run_stage_b_phase_a(
 
     protected_features = derive_protected_features(
         semantic_registry
+    )
+    (
+        canonical_features,
+        _,
+        metadata_by_feature,
+    ) = _phase_a_canonical_metadata(
+        phase0=phase0
     )
 
     exact_check_types = {
@@ -6755,8 +7701,63 @@ def _run_stage_b_phase_a(
             fold_role_column
         ] = tuple(fold_results)
 
+    relationship_decisions = tuple(
+        _resolve_phase_a_relationship(
+            feature_frame=feature_frame,
+            entry=entry,
+            canonical_features=canonical_features,
+            protected_features=protected_features,
+            metadata_by_feature=metadata_by_feature,
+            fold_role_columns=tuple(
+                _contract.FOLD_ROLE_COLUMNS
+            ),
+        )
+        for entry in semantic_registry[
+            "semantic_checks"
+        ]
+    )
+    dropped_feature_set = {
+        feature
+        for relationship in relationship_decisions
+        for feature in relationship[
+            "dropped_features"
+        ]
+    }
+    dropped_features = tuple(
+        feature
+        for feature in canonical_features
+        if feature in dropped_feature_set
+    )
+    retained_features = tuple(
+        feature
+        for feature in canonical_features
+        if feature not in dropped_feature_set
+    )
+
+    if dropped_feature_set.difference(
+        canonical_features
+    ):
+        raise RuntimeError(
+            "Phase A resolved a non-canonical dropped feature."
+        )
+
+    if set(dropped_features) & set(protected_features):
+        raise RuntimeError(
+            "Phase A resolved a protected feature as dropped."
+        )
+
     return {
         "phase_a_semantic_valid": True,
+        "phase_a_exact_decisions_complete": True,
+        "phase_a_retained_features": (
+            retained_features
+        ),
+        "phase_a_dropped_features": (
+            dropped_features
+        ),
+        "phase_a_relationship_decisions": (
+            relationship_decisions
+        ),
         "semantic_results_by_fold": (
             semantic_results_by_fold
         ),
