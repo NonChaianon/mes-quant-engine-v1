@@ -1,0 +1,2 @@
+# Every frozen hash and source hash is byte-sensitive; never rewrite line endings.
+* -text

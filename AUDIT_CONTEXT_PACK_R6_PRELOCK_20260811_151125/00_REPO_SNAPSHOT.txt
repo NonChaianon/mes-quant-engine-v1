@@ -1,0 +1,28 @@
+MES QUANT ENGINE ? AUDITOR SNAPSHOT
+
+PACK TYPE:
+PRE-LOCK R6 AUDIT CONTEXT
+
+BRANCH:
+stage-b-r6-prelock
+
+HEAD:
+2ad2784b8cbaf468284010b95efe768af8e90e41
+
+R5 BASELINE:
+2ad2784b8cbaf468284010b95efe768af8e90e41
+
+MARKDOWN SHA256:
+5b3a7b38714eba2c871db1a2efb1eb5f6a3c59fa9361e3c543c5940dd286f295
+
+SEMANTIC REGISTRY SHA256:
+558f6d2f23f918acad5bda365cb71d6f2ad6710777e9bc9159c1fe26f77544b6
+
+GIT STATUS AT PACK CREATION:
+M docs/STAGE_B_REDUNDANCY_CONTRACT.md
+?? STAGE_B_R5_TO_R6.diff
+?? configs/v1/stage_b_semantic_registry_v1.json
+
+IMPORTANT:
+This is a PRE-LOCK snapshot.
+No file in this pack by itself authorizes real-data Stage B production execution.

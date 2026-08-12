@@ -1,0 +1,7798 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import unittest
+from pathlib import Path
+
+from mes_quant.redundancy import contract
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def sha256_raw(path: Path) -> str:
+    """Hash exact file bytes without text/newline normalization."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+class StageBLockedControlTests(unittest.TestCase):
+    def test_v11_control_provenance_is_pinned(self) -> None:
+        self.assertEqual(
+            contract.POLICY_VERSION,
+            "MES_V1_REDUNDANCY_1.1",
+        )
+        self.assertEqual(
+            contract.LOCKED_CONTROL_COMMIT,
+            "bd9e38c11e01bae18a5ffa0a6a0405a008273d27",
+        )
+        self.assertEqual(
+            contract.MARKDOWN_CONTRACT_PATH,
+            "docs/STAGE_B_REDUNDANCY_CONTRACT.md",
+        )
+        self.assertEqual(
+            contract.SEMANTIC_REGISTRY_PATH,
+            "configs/v1/stage_b_semantic_registry_v1.json",
+        )
+
+    def test_raw_locked_control_bytes_match_python_pins(self) -> None:
+        markdown = PROJECT_ROOT / contract.MARKDOWN_CONTRACT_PATH
+        registry = PROJECT_ROOT / contract.SEMANTIC_REGISTRY_PATH
+
+        self.assertTrue(markdown.is_file())
+        self.assertTrue(registry.is_file())
+
+        self.assertEqual(
+            sha256_raw(markdown),
+            contract.MARKDOWN_CONTRACT_SHA256,
+        )
+        self.assertEqual(
+            sha256_raw(registry),
+            contract.SEMANTIC_REGISTRY_SHA256,
+        )
+
+    def test_locked_control_statuses_and_binding_agree(self) -> None:
+        markdown = (
+            PROJECT_ROOT / contract.MARKDOWN_CONTRACT_PATH
+        ).read_text(encoding="utf-8")
+
+        registry = json.loads(
+            (
+                PROJECT_ROOT / contract.SEMANTIC_REGISTRY_PATH
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertIn(
+            "Policy status: **LOCKED_EXECUTABLE**",
+            markdown,
+        )
+        self.assertEqual(
+            registry["registry_status"],
+            "LOCKED_EXECUTABLE",
+        )
+        self.assertEqual(
+            registry["policy_version"],
+            contract.POLICY_VERSION,
+        )
+        self.assertEqual(
+            registry["source_contract"],
+            contract.MARKDOWN_CONTRACT_PATH,
+        )
+
+    def test_repository_byte_policy_disables_text_normalization(self) -> None:
+        attributes = (
+            PROJECT_ROOT / ".gitattributes"
+        ).read_text(encoding="utf-8")
+
+        lines = [
+            line.strip()
+            for line in attributes.splitlines()
+            if line.strip()
+            and not line.lstrip().startswith("#")
+        ]
+
+        self.assertIn("* -text", lines)
+
+    def test_stale_duplicate_policy_constants_do_not_return(self) -> None:
+        self.assertFalse(
+            hasattr(contract, "REPRESENTATIVE_TIE_BREAK")
+        )
+        self.assertFalse(
+            hasattr(contract, "PAIRWISE_COVERAGE_POLICY")
+        )
+
+
+class StageBSemanticRegistryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.registry = json.loads(
+            (
+                PROJECT_ROOT / contract.SEMANTIC_REGISTRY_PATH
+            ).read_text(encoding="utf-8")
+        )
+        cls.checks = cls.registry["semantic_checks"]
+
+    def test_registry_schema_uniqueness_and_required_fields(self) -> None:
+        required_top_level = {
+            "policy_version",
+            "registry_status",
+            "source_contract",
+            "semantic_checks",
+        }
+
+        self.assertTrue(
+            required_top_level.issubset(self.registry)
+        )
+        self.assertEqual(len(self.checks), 6)
+
+        required_fields = {
+            "check_id",
+            "check_type",
+            "features",
+            "dependent_features",
+            "determining_features",
+            "scope",
+            "decision_effect",
+            "implementation_key",
+            "dependency_group",
+            "required_drop_count",
+            "protect_determining_features",
+            "rationale",
+        }
+
+        check_ids = []
+        implementation_keys = []
+        dependency_groups = []
+
+        for entry in self.checks:
+            with self.subTest(
+                check_id=entry.get("check_id")
+            ):
+                self.assertTrue(
+                    required_fields.issubset(entry)
+                )
+
+                self.assertIsInstance(
+                    entry["features"],
+                    list,
+                )
+                self.assertGreater(
+                    len(entry["features"]),
+                    0,
+                )
+
+                self.assertIsInstance(
+                    entry["dependent_features"],
+                    list,
+                )
+                self.assertIsInstance(
+                    entry["determining_features"],
+                    list,
+                )
+                self.assertIsInstance(
+                    entry["protect_determining_features"],
+                    bool,
+                )
+
+                self.assertNotIn(
+                    "|",
+                    entry["dependency_group"],
+                )
+
+                self.assertTrue(
+                    set(entry["dependent_features"])
+                    .issubset(entry["features"])
+                )
+                self.assertTrue(
+                    set(entry["determining_features"])
+                    .issubset(entry["features"])
+                )
+
+                self.assertIsInstance(
+                    entry["decision_effect"],
+                    str,
+                )
+                self.assertTrue(
+                    entry["decision_effect"]
+                )
+
+                self.assertIsInstance(
+                    entry["rationale"],
+                    str,
+                )
+                self.assertTrue(
+                    entry["rationale"]
+                )
+
+                check_ids.append(
+                    entry["check_id"]
+                )
+                implementation_keys.append(
+                    entry["implementation_key"]
+                )
+                dependency_groups.append(
+                    entry["dependency_group"]
+                )
+
+        self.assertEqual(
+            len(check_ids),
+            len(set(check_ids)),
+        )
+        self.assertEqual(
+            len(implementation_keys),
+            len(set(implementation_keys)),
+        )
+        self.assertEqual(
+            len(dependency_groups),
+            len(set(dependency_groups)),
+        )
+
+    def test_check_type_structural_invariants(self) -> None:
+        # This table verifies ?13.2 structure.
+        # It is test expectation, not analyzer/runtime policy.
+        invariants = {
+            "EXACT_LINEAR_DERIVED_IDENTITY": (
+                True,
+                True,
+                1,
+            ),
+            "EXACT_NONLINEAR_DERIVED_REPRESENTATION": (
+                True,
+                True,
+                0,
+            ),
+            "EXACT_AFFINE_DERIVED_IDENTITY": (
+                True,
+                True,
+                1,
+            ),
+            "EXACT_AFFINE_DEPENDENCY": (
+                False,
+                False,
+                1,
+            ),
+            "PAIRED_NONLINEAR_REPRESENTATION": (
+                False,
+                False,
+                0,
+            ),
+            "EMPIRICAL_NEAR_IDENTITY": (
+                False,
+                False,
+                None,
+            ),
+        }
+
+        for entry in self.checks:
+            check_type = entry["check_type"]
+
+            with self.subTest(
+                check_id=entry["check_id"],
+                check_type=check_type,
+            ):
+                self.assertIn(
+                    check_type,
+                    invariants,
+                )
+
+                (
+                    dependent_nonempty,
+                    determining_nonempty,
+                    required_drop_count,
+                ) = invariants[check_type]
+
+                self.assertEqual(
+                    bool(entry["dependent_features"]),
+                    dependent_nonempty,
+                )
+                self.assertEqual(
+                    bool(entry["determining_features"]),
+                    determining_nonempty,
+                )
+                self.assertEqual(
+                    entry["required_drop_count"],
+                    required_drop_count,
+                )
+
+    def test_every_semantic_check_is_train_per_fold(self) -> None:
+        for entry in self.checks:
+            with self.subTest(
+                check_id=entry["check_id"]
+            ):
+                self.assertEqual(
+                    entry["scope"],
+                    "TRAIN_PER_FOLD",
+                )
+
+    def test_protected_set_derivation_matches_v11_safety_sentinel(self) -> None:
+        protected = []
+
+        for entry in self.checks:
+            if entry["protect_determining_features"]:
+                for feature in entry["determining_features"]:
+                    if feature not in protected:
+                        protected.append(feature)
+
+        expected = [
+            "ret_log_15m_lag0",
+            "ret_log_15m_lag1",
+            "ret_log_15m_lag2",
+            "ret_log_15m_lag3",
+            "minutes_since_nyse_open",
+            "early_close_session",
+        ]
+
+        self.assertEqual(
+            protected,
+            expected,
+        )
+
+        forbidden = {
+            "weekday_0",
+            "weekday_1",
+            "weekday_2",
+            "weekday_3",
+            "weekday_4",
+            "momentum_log_60m",
+            "realized_vol_60m",
+            "minutes_to_horizon_safe_close",
+        }
+
+        self.assertTrue(
+            forbidden.isdisjoint(protected)
+        )
+
+
+# STEP_13C_SEMANTIC_RUNTIME_SPEC_V1
+
+class StageBSemanticRuntimeSpecificationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        from mes_quant.redundancy import analyzer
+
+        cls.analyzer = analyzer
+
+        cls.registry = json.loads(
+            (
+                PROJECT_ROOT
+                / contract.SEMANTIC_REGISTRY_PATH
+            ).read_text(encoding="utf-8")
+        )
+
+        cls.checks = cls.registry["semantic_checks"]
+
+    def test_registry_implementation_keys_resolve_to_callables(self) -> None:
+        for entry in self.checks:
+            implementation_key = entry["implementation_key"]
+
+            with self.subTest(
+                check_id=entry["check_id"],
+                implementation_key=implementation_key,
+            ):
+                implementation = getattr(
+                    self.analyzer,
+                    implementation_key,
+                    None,
+                )
+
+                self.assertTrue(
+                    callable(implementation),
+                    (
+                        "Missing callable analyzer implementation for "
+                        f"{implementation_key}"
+                    ),
+                )
+
+    def test_unknown_check_type_fails_closed(self) -> None:
+        import copy
+
+        validator = getattr(
+            self.analyzer,
+            "validate_semantic_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validator),
+            "analyzer.validate_semantic_registry must exist",
+        )
+
+        candidate = copy.deepcopy(self.registry)
+
+        candidate["semantic_checks"][0][
+            "check_type"
+        ] = "UNKNOWN_STAGE_B_CHECK_TYPE"
+
+        try:
+            validator(candidate)
+        except (ValueError, RuntimeError):
+            pass
+        else:
+            self.fail(
+                "Unknown check_type must fail closed."
+            )
+
+    def test_reserved_dependency_group_delimiter_is_rejected(self) -> None:
+        import copy
+
+        validator = getattr(
+            self.analyzer,
+            "validate_semantic_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validator),
+            "analyzer.validate_semantic_registry must exist",
+        )
+
+        candidate = copy.deepcopy(self.registry)
+
+        candidate["semantic_checks"][0][
+            "dependency_group"
+        ] = "INVALID|GROUP"
+
+        try:
+            validator(candidate)
+        except (ValueError, RuntimeError):
+            pass
+        else:
+            self.fail(
+                "Reserved dependency_group delimiter must fail closed."
+            )
+
+    def test_check_type_drop_count_violation_is_rejected(self) -> None:
+        import copy
+
+        validator = getattr(
+            self.analyzer,
+            "validate_semantic_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validator),
+            "analyzer.validate_semantic_registry must exist",
+        )
+
+        candidate = copy.deepcopy(self.registry)
+
+        momentum = next(
+            entry
+            for entry in candidate["semantic_checks"]
+            if entry["check_id"] == "SEM_MOMENTUM_60M"
+        )
+
+        momentum["required_drop_count"] = 0
+
+        try:
+            validator(candidate)
+        except (ValueError, RuntimeError):
+            pass
+        else:
+            self.fail(
+                "Invalid check-type structural invariant must fail closed."
+            )
+
+    def test_protected_features_are_derived_from_registry(self) -> None:
+        import copy
+
+        derive = getattr(
+            self.analyzer,
+            "derive_protected_features",
+            None,
+        )
+
+        self.assertTrue(
+            callable(derive),
+            "analyzer.derive_protected_features must exist",
+        )
+
+        protected = list(
+            derive(self.registry)
+        )
+
+        expected = [
+            "ret_log_15m_lag0",
+            "ret_log_15m_lag1",
+            "ret_log_15m_lag2",
+            "ret_log_15m_lag3",
+            "minutes_since_nyse_open",
+            "early_close_session",
+        ]
+
+        self.assertEqual(
+            protected,
+            expected,
+        )
+
+        # Prove runtime derivation is registry-driven rather
+        # than an independent hard-coded protected list.
+        candidate = copy.deepcopy(self.registry)
+
+        safe_close = next(
+            entry
+            for entry in candidate["semantic_checks"]
+            if entry["check_id"]
+            == "SEM_HORIZON_SAFE_CLOSE"
+        )
+
+        safe_close[
+            "protect_determining_features"
+        ] = False
+
+        mutated = list(
+            derive(candidate)
+        )
+
+        self.assertEqual(
+            mutated,
+            [
+                "ret_log_15m_lag0",
+                "ret_log_15m_lag1",
+                "ret_log_15m_lag2",
+                "ret_log_15m_lag3",
+            ],
+        )
+
+
+
+# STEP_13D1_ZERO_VARIANCE_AND_SVD_SPEC_V1
+
+class StageBZeroVarianceAndSVDSpecificationTests(unittest.TestCase):
+    def test_dual_zero_variance_scopes_are_not_conflated(self) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "compute_zero_variance_diagnostics",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer.compute_zero_variance_diagnostics must exist",
+        )
+
+        df = pd.DataFrame(
+            {
+                "role_wf_2022": [
+                    "TRAIN",
+                    "TRAIN",
+                    "TRAIN",
+                    "TRAIN",
+                ],
+                "x": [1.0, 2.0, 1.0, 4.0],
+                "z": [10.0, None, 20.0, None],
+            }
+        )
+
+        result = compute(
+            df=df,
+            fold_role_column="role_wf_2022",
+            feature_columns=["x", "z"],
+        )
+
+        x = result.loc[
+            result["feature"].eq("x")
+        ].iloc[0]
+
+        self.assertEqual(
+            int(x["full_train_available_rows"]),
+            4,
+        )
+
+        self.assertFalse(
+            bool(x["full_train_zero_variance"])
+        )
+
+        self.assertEqual(
+            int(x["common_cohort_rows"]),
+            2,
+        )
+
+        self.assertTrue(
+            bool(x["common_cohort_zero_variance"])
+        )
+
+    def test_zero_variance_drop_uses_full_train_only(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_zero_variance_base_decision",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_zero_variance_base_decision must exist",
+        )
+
+        keep = resolve(
+            full_train_zero_by_fold={
+                "role_wf_2022": False,
+                "role_wf_2023": False,
+                "role_wf_2024": False,
+            },
+            common_cohort_zero_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            semantic_basis_protected=False,
+        )
+
+        self.assertEqual(
+            keep["base_decision"],
+            "KEEP",
+        )
+
+        drop = resolve(
+            full_train_zero_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            common_cohort_zero_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            semantic_basis_protected=False,
+        )
+
+        self.assertEqual(
+            drop["base_decision"],
+            "DROP_REDUNDANT",
+        )
+
+        self.assertEqual(
+            drop["decision_basis"],
+            "ZERO_VARIANCE_NO_INFORMATION",
+        )
+
+    def test_protected_feature_cannot_be_zero_variance_auto_dropped(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_zero_variance_base_decision",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_zero_variance_base_decision must exist",
+        )
+
+        result = resolve(
+            full_train_zero_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            common_cohort_zero_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            semantic_basis_protected=True,
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_standardized_matrix_is_float64_and_uses_ddof_zero(self) -> None:
+        import numpy as np
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        build = getattr(
+            analyzer,
+            "build_standardized_matrix",
+            None,
+        )
+
+        self.assertTrue(
+            callable(build),
+            "analyzer.build_standardized_matrix must exist",
+        )
+
+        frame = pd.DataFrame(
+            {
+                "a": [1.0, 2.0, 3.0, 4.0],
+                "b": [10.0, 20.0, 30.0, 40.0],
+            }
+        )
+
+        z = build(
+            frame=frame,
+            feature_columns=["a", "b"],
+        )
+
+        self.assertEqual(
+            z.dtype,
+            np.dtype("float64"),
+        )
+
+        np.testing.assert_allclose(
+            z.mean(axis=0),
+            np.zeros(2),
+            atol=1e-12,
+        )
+
+        np.testing.assert_allclose(
+            z.std(axis=0, ddof=0),
+            np.ones(2),
+            atol=1e-12,
+        )
+
+    def test_svd_detects_exact_linear_rank_deficiency(self) -> None:
+        import numpy as np
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        build = getattr(
+            analyzer,
+            "build_standardized_matrix",
+            None,
+        )
+
+        diagnose = getattr(
+            analyzer,
+            "compute_svd_diagnostics",
+            None,
+        )
+
+        self.assertTrue(
+            callable(build),
+            "analyzer.build_standardized_matrix must exist",
+        )
+
+        self.assertTrue(
+            callable(diagnose),
+            "analyzer.compute_svd_diagnostics must exist",
+        )
+
+        frame = pd.DataFrame(
+            {
+                "a": [1.0, 2.0, 4.0, 8.0, 16.0],
+                "b": [2.0, 5.0, 3.0, 9.0, 7.0],
+            }
+        )
+
+        frame["c"] = (
+            frame["a"]
+            + frame["b"]
+        )
+
+        z = build(
+            frame=frame,
+            feature_columns=["a", "b", "c"],
+        )
+
+        result = diagnose(z)
+
+        self.assertEqual(
+            tuple(result["matrix_shape"]),
+            (5, 3),
+        )
+
+        self.assertEqual(
+            result["rank"],
+            2,
+        )
+
+        self.assertEqual(
+            result["deficiency"],
+            1,
+        )
+
+        singular_values = np.asarray(
+            result["singular_values"],
+            dtype="float64",
+        )
+
+        sigma_max = float(
+            singular_values[0]
+        )
+
+        expected_tol = (
+            max(5, 3)
+            * np.finfo(np.float64).eps
+            * sigma_max
+        )
+
+        self.assertAlmostEqual(
+            result["rank_tolerance"],
+            expected_tol,
+            places=20,
+        )
+
+
+
+
+# STEP_13D2_GROUP_RANK_AND_PHASE_C_SPEC_V1
+
+class StageBGroupRankAndPhaseCSensitivitySpecificationTests(
+    unittest.TestCase
+):
+    def test_group_common_only_dependency_creates_conflict(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_generic_group_rank_verification",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_generic_group_rank_verification must exist",
+        )
+
+        result = resolve(
+            common_deficiency_by_fold={
+                "role_wf_2022": 1,
+                "role_wf_2023": 1,
+                "role_wf_2024": 1,
+            },
+            group_available_deficiency_by_fold={
+                "role_wf_2022": 1,
+                "role_wf_2023": 0,
+                "role_wf_2024": 1,
+            },
+            retained_basis_rank_preserved_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            proposed_drop_count=1,
+        )
+
+        self.assertEqual(
+            result["group_cohort_rank_status"],
+            "GROUP_COHORT_RANK_CONFLICT",
+        )
+
+        self.assertFalse(
+            result["drop_allowed"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_group_rank_persistence_can_support_exact_drop(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_generic_group_rank_verification",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_generic_group_rank_verification must exist",
+        )
+
+        result = resolve(
+            common_deficiency_by_fold={
+                "role_wf_2022": 1,
+                "role_wf_2023": 1,
+                "role_wf_2024": 1,
+            },
+            group_available_deficiency_by_fold={
+                "role_wf_2022": 1,
+                "role_wf_2023": 1,
+                "role_wf_2024": 1,
+            },
+            retained_basis_rank_preserved_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            proposed_drop_count=1,
+        )
+
+        self.assertTrue(
+            result["drop_allowed"]
+        )
+
+        self.assertEqual(
+            result["minimum_supported_deficiency"],
+            1,
+        )
+
+    def test_group_exact_drop_count_cannot_exceed_supported_deficiency(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_generic_group_rank_verification",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_generic_group_rank_verification must exist",
+        )
+
+        result = resolve(
+            common_deficiency_by_fold={
+                "role_wf_2022": 2,
+                "role_wf_2023": 2,
+                "role_wf_2024": 2,
+            },
+            group_available_deficiency_by_fold={
+                "role_wf_2022": 2,
+                "role_wf_2023": 1,
+                "role_wf_2024": 2,
+            },
+            retained_basis_rank_preserved_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            proposed_drop_count=2,
+        )
+
+        self.assertEqual(
+            result["minimum_supported_deficiency"],
+            1,
+        )
+
+        self.assertFalse(
+            result["drop_allowed"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_group_drop_requires_retained_basis_rank_preservation(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_generic_group_rank_verification",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_generic_group_rank_verification must exist",
+        )
+
+        result = resolve(
+            common_deficiency_by_fold={
+                "role_wf_2022": 1,
+                "role_wf_2023": 1,
+                "role_wf_2024": 1,
+            },
+            group_available_deficiency_by_fold={
+                "role_wf_2022": 1,
+                "role_wf_2023": 1,
+                "role_wf_2024": 1,
+            },
+            retained_basis_rank_preserved_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": False,
+                "role_wf_2024": True,
+            },
+            proposed_drop_count=1,
+        )
+
+        self.assertFalse(
+            result["drop_allowed"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_primary_hard_plus_sensitivity_hard_is_supported(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "classify_cohort_sensitivity",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer.classify_cohort_sensitivity must exist",
+        )
+
+        result = classify(
+            primary_hard_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            pairwise_stats_by_fold={
+                "role_wf_2022": {
+                    "pairwise_available_rows": 100,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.97,
+                    "spearman": 0.96,
+                },
+                "role_wf_2023": {
+                    "pairwise_available_rows": 120,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.98,
+                    "spearman": 0.97,
+                },
+                "role_wf_2024": {
+                    "pairwise_available_rows": 140,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.96,
+                    "spearman": 0.95,
+                },
+            },
+        )
+
+        self.assertEqual(
+            result["cohort_sensitivity_status"],
+            "COHORT_SENSITIVITY_SUPPORTED",
+        )
+
+        self.assertTrue(
+            result["empirical_drop_eligible"]
+        )
+
+    def test_primary_hard_with_sensitivity_failure_is_conflict(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "classify_cohort_sensitivity",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer.classify_cohort_sensitivity must exist",
+        )
+
+        result = classify(
+            primary_hard_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+            pairwise_stats_by_fold={
+                "role_wf_2022": {
+                    "pairwise_available_rows": 100,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.97,
+                    "spearman": 0.97,
+                },
+                "role_wf_2023": {
+                    "pairwise_available_rows": 100,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.96,
+                    "spearman": 0.94,
+                },
+                "role_wf_2024": {
+                    "pairwise_available_rows": 100,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.98,
+                    "spearman": 0.98,
+                },
+            },
+        )
+
+        self.assertEqual(
+            result["cohort_sensitivity_status"],
+            "COHORT_SENSITIVITY_CONFLICT",
+        )
+
+        self.assertFalse(
+            result["empirical_drop_eligible"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+        self.assertEqual(
+            result["decision_basis"],
+            "EMPIRICAL_DROP_VETOED_COHORT_SENSITIVITY",
+        )
+
+    def test_sensitivity_unavailable_is_machine_detected(self) -> None:
+        import math
+
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "classify_cohort_sensitivity",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer.classify_cohort_sensitivity must exist",
+        )
+
+        base = {
+            "pairwise_available_rows": 100,
+            "feature_a_zero_variance": False,
+            "feature_b_zero_variance": False,
+            "pearson": 0.99,
+            "spearman": 0.99,
+        }
+
+        mutations = [
+            {
+                "pairwise_available_rows": 1,
+            },
+            {
+                "feature_a_zero_variance": True,
+            },
+            {
+                "feature_b_zero_variance": True,
+            },
+            {
+                "pearson": math.nan,
+            },
+            {
+                "spearman": math.nan,
+            },
+        ]
+
+        for mutation in mutations:
+            with self.subTest(
+                mutation=mutation
+            ):
+                stats = {
+                    fold: dict(
+                        base,
+                        **mutation,
+                    )
+                    for fold in [
+                        "role_wf_2022",
+                        "role_wf_2023",
+                        "role_wf_2024",
+                    ]
+                }
+
+                result = classify(
+                    primary_hard_by_fold={
+                        "role_wf_2022": True,
+                        "role_wf_2023": True,
+                        "role_wf_2024": True,
+                    },
+                    pairwise_stats_by_fold=stats,
+                )
+
+                self.assertEqual(
+                    result["cohort_sensitivity_status"],
+                    "COHORT_SENSITIVITY_UNAVAILABLE",
+                )
+
+                self.assertFalse(
+                    result["empirical_drop_eligible"]
+                )
+
+                self.assertEqual(
+                    result["base_decision"],
+                    "KEEP",
+                )
+
+    def test_sensitivity_alone_cannot_create_empirical_drop(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "classify_cohort_sensitivity",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer.classify_cohort_sensitivity must exist",
+        )
+
+        result = classify(
+            primary_hard_by_fold={
+                "role_wf_2022": True,
+                "role_wf_2023": False,
+                "role_wf_2024": True,
+            },
+            pairwise_stats_by_fold={
+                fold: {
+                    "pairwise_available_rows": 100,
+                    "feature_a_zero_variance": False,
+                    "feature_b_zero_variance": False,
+                    "pearson": 0.99,
+                    "spearman": 0.99,
+                }
+                for fold in [
+                    "role_wf_2022",
+                    "role_wf_2023",
+                    "role_wf_2024",
+                ]
+            },
+        )
+
+        self.assertFalse(
+            result["empirical_drop_eligible"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_protected_candidate_cannot_be_phase_c_drop_target(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_phase_c_direct_substitute",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_phase_c_direct_substitute must exist",
+        )
+
+        result = resolve(
+            candidate="protected_a",
+            retained_features=["retained_b"],
+            protected_features={"protected_a"},
+            pair_status_by_retained={
+                "retained_b": "COHORT_SENSITIVITY_SUPPORTED",
+            },
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+        self.assertIsNone(
+            result["direct_substitute"]
+        )
+
+    def test_protected_retained_feature_may_directly_substitute_candidate(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_phase_c_direct_substitute",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_phase_c_direct_substitute must exist",
+        )
+
+        result = resolve(
+            candidate="bar_body",
+            retained_features=[
+                "ret_log_15m_lag0",
+            ],
+            protected_features={
+                "ret_log_15m_lag0",
+            },
+            pair_status_by_retained={
+                "ret_log_15m_lag0": (
+                    "COHORT_SENSITIVITY_SUPPORTED"
+                ),
+            },
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "DROP_REDUNDANT",
+        )
+
+        self.assertEqual(
+            result["direct_substitute"],
+            "ret_log_15m_lag0",
+        )
+
+    def test_nonretained_transitive_feature_cannot_create_substitution(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "resolve_phase_c_direct_substitute",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer.resolve_phase_c_direct_substitute must exist",
+        )
+
+        # A is retained.
+        #
+        # B is NOT retained but has a supported relation to C.
+        # That cannot be used to infer that retained A substitutes C.
+        result = resolve(
+            candidate="feature_c",
+            retained_features=[
+                "feature_a",
+            ],
+            protected_features=set(),
+            pair_status_by_retained={
+                "feature_a": "DISTINCT",
+                "feature_b": (
+                    "COHORT_SENSITIVITY_SUPPORTED"
+                ),
+            },
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+        self.assertIsNone(
+            result["direct_substitute"]
+        )
+
+
+
+
+# STEP_13E1_PHASE0_FIREWALL_SPEC_V1
+
+class StageBPhase0FirewallSpecificationTests(
+    unittest.TestCase
+):
+    @staticmethod
+    def _registry_rows():
+        rows = []
+
+        for i in range(29):
+            rows.append(
+                {
+                    "feature": f"feature_{i:02d}",
+                    "lookback_mode": "FIXED",
+                    "lookback_bars": 1,
+                    "lookback_minutes": 15,
+                    "lookback_start_rule": None,
+                }
+            )
+
+        # Canonical zero-lookback semantics are valid.
+        rows[0] = {
+            "feature": "ret_log_15m_lag0",
+            "lookback_mode": "FIXED",
+            "lookback_bars": 0,
+            "lookback_minutes": 0,
+            "lookback_start_rule": None,
+        }
+
+        # Exercise the only other allowed V1.1 mode.
+        rows[1] = {
+            "feature": "session_vwap_proxy_deviation",
+            "lookback_mode": "SESSION_TO_DATE",
+            "lookback_bars": 22,
+            "lookback_minutes": 330,
+            "lookback_start_rule": "NYSE_SESSION_START",
+        }
+
+        return rows
+
+    def test_markdown_raw_byte_hash_mismatch_fails(self) -> None:
+        import hashlib
+
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_control_binding",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_control_binding must exist",
+        )
+
+        markdown = b"locked markdown bytes\r\n"
+        registry = b'{"locked":true}\n'
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                markdown_bytes=markdown + b"DRIFT",
+                semantic_registry_bytes=registry,
+                expected_markdown_sha256=hashlib.sha256(
+                    markdown
+                ).hexdigest(),
+                expected_registry_sha256=hashlib.sha256(
+                    registry
+                ).hexdigest(),
+                python_policy_version="MES_V1_REDUNDANCY_1.1",
+                python_policy_status="LOCKED_EXECUTABLE",
+                markdown_policy_version="MES_V1_REDUNDANCY_1.1",
+                markdown_policy_status="LOCKED_EXECUTABLE",
+                registry_policy_version="MES_V1_REDUNDANCY_1.1",
+                registry_status="LOCKED_EXECUTABLE",
+                registry_source_contract=(
+                    "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
+                ),
+            )
+
+    def test_semantic_registry_raw_byte_hash_mismatch_fails(self) -> None:
+        import hashlib
+
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_control_binding",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_control_binding must exist",
+        )
+
+        markdown = b"locked markdown bytes\r\n"
+        registry = b'{"locked":true}\n'
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                markdown_bytes=markdown,
+                semantic_registry_bytes=registry + b"DRIFT",
+                expected_markdown_sha256=hashlib.sha256(
+                    markdown
+                ).hexdigest(),
+                expected_registry_sha256=hashlib.sha256(
+                    registry
+                ).hexdigest(),
+                python_policy_version="MES_V1_REDUNDANCY_1.1",
+                python_policy_status="LOCKED_EXECUTABLE",
+                markdown_policy_version="MES_V1_REDUNDANCY_1.1",
+                markdown_policy_status="LOCKED_EXECUTABLE",
+                registry_policy_version="MES_V1_REDUNDANCY_1.1",
+                registry_status="LOCKED_EXECUTABLE",
+                registry_source_contract=(
+                    "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
+                ),
+            )
+
+    def test_policy_version_and_status_mismatches_fail_closed(self) -> None:
+        import hashlib
+
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_control_binding",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_control_binding must exist",
+        )
+
+        markdown = b"markdown"
+        registry = b"registry"
+
+        base = {
+            "markdown_bytes": markdown,
+            "semantic_registry_bytes": registry,
+            "expected_markdown_sha256": hashlib.sha256(
+                markdown
+            ).hexdigest(),
+            "expected_registry_sha256": hashlib.sha256(
+                registry
+            ).hexdigest(),
+            "python_policy_version": "MES_V1_REDUNDANCY_1.1",
+            "python_policy_status": "LOCKED_EXECUTABLE",
+            "markdown_policy_version": "MES_V1_REDUNDANCY_1.1",
+            "markdown_policy_status": "LOCKED_EXECUTABLE",
+            "registry_policy_version": "MES_V1_REDUNDANCY_1.1",
+            "registry_status": "LOCKED_EXECUTABLE",
+            "registry_source_contract": (
+                "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
+            ),
+        }
+
+        mutations = [
+            {
+                "python_policy_version": "MES_V1_REDUNDANCY_BAD",
+            },
+            {
+                "python_policy_status": "PROVISIONAL",
+            },
+            {
+                "markdown_policy_status": "PROVISIONAL",
+            },
+            {
+                "registry_status": "PROVISIONAL",
+            },
+            {
+                "registry_policy_version": "MES_V1_REDUNDANCY_BAD",
+            },
+            {
+                "registry_source_contract": "wrong.md",
+            },
+        ]
+
+        for mutation in mutations:
+            with self.subTest(
+                mutation=mutation
+            ):
+                args = dict(base)
+                args.update(mutation)
+
+                with self.assertRaises(
+                    (ValueError, RuntimeError)
+                ):
+                    validate(**args)
+
+    def test_exactly_29_membership_and_order_are_enforced(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_canonical_feature_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_canonical_feature_registry must exist",
+        )
+
+        registry = self._registry_rows()
+
+        canonical_order = [
+            row["feature"]
+            for row in registry
+        ]
+
+        result = validate(
+            registry_rows=registry,
+            artifact_feature_order=canonical_order,
+        )
+
+        self.assertEqual(
+            result["candidate_count"],
+            29,
+        )
+
+        bad_order = list(
+            canonical_order
+        )
+
+        bad_order[2], bad_order[3] = (
+            bad_order[3],
+            bad_order[2],
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                registry_rows=registry,
+                artifact_feature_order=bad_order,
+            )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                registry_rows=registry[:-1],
+                artifact_feature_order=canonical_order[:-1],
+            )
+
+    def test_prototype_alias_is_rejected_by_exact_membership(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_canonical_feature_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_canonical_feature_registry must exist",
+        )
+
+        registry = self._registry_rows()
+
+        artifact_order = [
+            row["feature"]
+            for row in registry
+        ]
+
+        artifact_order[0] = "log_return_lag_0"
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                registry_rows=registry,
+                artifact_feature_order=artifact_order,
+            )
+
+    def test_canonical_zero_lookback_metadata_is_valid(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_canonical_feature_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_canonical_feature_registry must exist",
+        )
+
+        registry = self._registry_rows()
+
+        result = validate(
+            registry_rows=registry,
+            artifact_feature_order=[
+                row["feature"]
+                for row in registry
+            ],
+        )
+
+        self.assertTrue(
+            result["lookback_metadata_valid"]
+        )
+
+    def test_missing_required_lookback_metadata_fails(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_canonical_feature_registry",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_canonical_feature_registry must exist",
+        )
+
+        registry = self._registry_rows()
+
+        del registry[5][
+            "lookback_minutes"
+        ]
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                registry_rows=registry,
+                artifact_feature_order=[
+                    row["feature"]
+                    for row in registry
+                ],
+            )
+
+    def test_forbidden_fields_cells_and_final_test_are_rejected(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_forbidden_inputs",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_forbidden_inputs must exist",
+        )
+
+        clean = validate(
+            opened_fields=[
+                "ts_event",
+                "ret_log_15m_lag0",
+                "weekday_0",
+            ],
+            opened_cells=[8, 14],
+            final_test_rows_opened=0,
+        )
+
+        self.assertEqual(
+            clean["final_test_rows_opened"],
+            0,
+        )
+
+        for field in [
+            "label",
+            "future_return_60m",
+            "future_price",
+            "gross_pnl",
+            "net_pnl",
+            "execution_outcome",
+        ]:
+            with self.subTest(
+                field=field
+            ):
+                with self.assertRaises(
+                    (ValueError, RuntimeError)
+                ):
+                    validate(
+                        opened_fields=[field],
+                        opened_cells=[8, 14],
+                        final_test_rows_opened=0,
+                    )
+
+        for cell in [9, 10, 11, 12, 13]:
+            with self.subTest(
+                cell=cell
+            ):
+                with self.assertRaises(
+                    (ValueError, RuntimeError)
+                ):
+                    validate(
+                        opened_fields=["ts_event"],
+                        opened_cells=[8, 14, cell],
+                        final_test_rows_opened=0,
+                    )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                opened_fields=["ts_event"],
+                opened_cells=[8, 14],
+                final_test_rows_opened=1,
+            )
+
+    def test_exact_three_folds_and_90_percent_floor_are_enforced(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_fold_coverage",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_fold_coverage must exist",
+        )
+
+        result = validate(
+            fold_complete_rows={
+                "role_wf_2022": 95,
+                "role_wf_2023": 96,
+                "role_wf_2024": 97,
+            },
+            fold_train_rows={
+                "role_wf_2022": 100,
+                "role_wf_2023": 100,
+                "role_wf_2024": 100,
+            },
+            yearly_coverage={
+                2019: 0.95,
+                2020: 0.96,
+                2021: 0.97,
+                2022: 0.98,
+                2023: 0.99,
+                2024: 1.00,
+            },
+            yearly_review_acknowledged=False,
+        )
+
+        self.assertTrue(
+            result["fold_coverage_gate_pass"]
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                fold_complete_rows={
+                    "role_wf_2022": 89,
+                    "role_wf_2023": 96,
+                    "role_wf_2024": 97,
+                },
+                fold_train_rows={
+                    "role_wf_2022": 100,
+                    "role_wf_2023": 100,
+                    "role_wf_2024": 100,
+                },
+                yearly_coverage={
+                    2019: 0.95,
+                },
+                yearly_review_acknowledged=False,
+            )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                fold_complete_rows={
+                    "role_wf_2022": 95,
+                    "role_wf_2023": 96,
+                },
+                fold_train_rows={
+                    "role_wf_2022": 100,
+                    "role_wf_2023": 100,
+                },
+                yearly_coverage={
+                    2019: 0.95,
+                },
+                yearly_review_acknowledged=False,
+            )
+
+    def test_yearly_below_90_requires_review_acknowledgment(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_fold_coverage",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_fold_coverage must exist",
+        )
+
+        kwargs = {
+            "fold_complete_rows": {
+                "role_wf_2022": 95,
+                "role_wf_2023": 96,
+                "role_wf_2024": 97,
+            },
+            "fold_train_rows": {
+                "role_wf_2022": 100,
+                "role_wf_2023": 100,
+                "role_wf_2024": 100,
+            },
+            "yearly_coverage": {
+                2019: 0.81,
+                2020: 0.96,
+                2021: 0.98,
+            },
+        }
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                **kwargs,
+                yearly_review_acknowledged=False,
+            )
+
+        result = validate(
+            **kwargs,
+            yearly_review_acknowledged=True,
+        )
+
+        self.assertTrue(
+            result[
+                "YEARLY_CONCENTRATION_REVIEW_REQUIRED"
+            ]
+        )
+
+        self.assertEqual(
+            result[
+                "YEARLY_CONCENTRATION_REVIEW_STATUS"
+            ],
+            "ACKNOWLEDGED",
+        )
+
+    def test_pair_orientation_follows_canonical_registry_order(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        orient = getattr(
+            analyzer,
+            "_canonical_orient_pair",
+            None,
+        )
+
+        self.assertTrue(
+            callable(orient),
+            "analyzer._canonical_orient_pair must exist",
+        )
+
+        canonical = [
+            "feature_a",
+            "feature_b",
+            "feature_c",
+        ]
+
+        self.assertEqual(
+            orient(
+                feature_x="feature_c",
+                feature_y="feature_a",
+                canonical_order=canonical,
+            ),
+            (
+                "feature_a",
+                "feature_c",
+            ),
+        )
+
+        self.assertEqual(
+            orient(
+                feature_x="feature_a",
+                feature_y="feature_c",
+                canonical_order=canonical,
+            ),
+            (
+                "feature_a",
+                "feature_c",
+            ),
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            orient(
+                feature_x="unknown_feature",
+                feature_y="feature_a",
+                canonical_order=canonical,
+            )
+
+
+
+
+# STEP_13E2_RETENTION_AND_DECISION_REGISTRY_SPEC_V1
+
+class StageBRetentionAndDecisionRegistrySpecificationTests(
+    unittest.TestCase
+):
+    @staticmethod
+    def _fold_availability(
+        a: float,
+        b: float,
+        c: float,
+    ):
+        return {
+            "role_wf_2022": a,
+            "role_wf_2023": b,
+            "role_wf_2024": c,
+        }
+
+    @staticmethod
+    def _candidate(
+        *,
+        feature,
+        protected=False,
+        availability=(1.0, 1.0, 1.0),
+        mode="FIXED",
+        minutes=60,
+        start_rule=None,
+    ):
+        return {
+            "feature": feature,
+            "semantic_basis_protected": protected,
+            "fold_availability": {
+                "role_wf_2022": availability[0],
+                "role_wf_2023": availability[1],
+                "role_wf_2024": availability[2],
+            },
+            "lookback_mode": mode,
+            "lookback_minutes": minutes,
+            "lookback_start_rule": start_rule,
+        }
+
+    def test_minimum_fold_availability_uses_worst_train_fold(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "_minimum_fold_availability",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer._minimum_fold_availability must exist",
+        )
+
+        result = compute(
+            self._fold_availability(
+                0.99,
+                0.93,
+                0.97,
+            )
+        )
+
+        self.assertAlmostEqual(
+            result,
+            0.93,
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            compute(
+                {
+                    "role_wf_2022": 0.99,
+                    "role_wf_2023": 0.93,
+                }
+            )
+
+    def test_protected_status_precedes_availability_and_lookback(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        prefer = getattr(
+            analyzer,
+            "_prefer_retention_candidate",
+            None,
+        )
+
+        self.assertTrue(
+            callable(prefer),
+            "analyzer._prefer_retention_candidate must exist",
+        )
+
+        protected = self._candidate(
+            feature="protected_feature",
+            protected=True,
+            availability=(0.91, 0.91, 0.91),
+            mode="FIXED",
+            minutes=240,
+        )
+
+        unprotected = self._candidate(
+            feature="unprotected_feature",
+            protected=False,
+            availability=(1.0, 1.0, 1.0),
+            mode="FIXED",
+            minutes=0,
+        )
+
+        winner = prefer(
+            candidate_a=unprotected,
+            candidate_b=protected,
+            canonical_order=[
+                "unprotected_feature",
+                "protected_feature",
+            ],
+        )
+
+        self.assertEqual(
+            winner,
+            "protected_feature",
+        )
+
+    def test_higher_minimum_availability_wins_when_protection_ties(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        prefer = getattr(
+            analyzer,
+            "_prefer_retention_candidate",
+            None,
+        )
+
+        self.assertTrue(
+            callable(prefer),
+            "analyzer._prefer_retention_candidate must exist",
+        )
+
+        a = self._candidate(
+            feature="feature_a",
+            availability=(0.96, 0.96, 0.96),
+            minutes=120,
+        )
+
+        b = self._candidate(
+            feature="feature_b",
+            availability=(0.99, 0.94, 0.99),
+            minutes=15,
+        )
+
+        winner = prefer(
+            candidate_a=a,
+            candidate_b=b,
+            canonical_order=[
+                "feature_a",
+                "feature_b",
+            ],
+        )
+
+        self.assertEqual(
+            winner,
+            "feature_a",
+        )
+
+    def test_fixed_lookback_prefers_shorter_and_accepts_zero(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        compare = getattr(
+            analyzer,
+            "_compare_lookback_preference",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compare),
+            "analyzer._compare_lookback_preference must exist",
+        )
+
+        zero = {
+            "lookback_mode": "FIXED",
+            "lookback_minutes": 0,
+            "lookback_start_rule": None,
+        }
+
+        sixty = {
+            "lookback_mode": "FIXED",
+            "lookback_minutes": 60,
+            "lookback_start_rule": None,
+        }
+
+        self.assertEqual(
+            compare(
+                metadata_a=zero,
+                metadata_b=sixty,
+            ),
+            "A",
+        )
+
+        self.assertEqual(
+            compare(
+                metadata_a=sixty,
+                metadata_b=zero,
+            ),
+            "B",
+        )
+
+    def test_session_to_date_comparison_requires_same_start_rule(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        compare = getattr(
+            analyzer,
+            "_compare_lookback_preference",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compare),
+            "analyzer._compare_lookback_preference must exist",
+        )
+
+        a = {
+            "lookback_mode": "SESSION_TO_DATE",
+            "lookback_minutes": 120,
+            "lookback_start_rule": "NYSE_SESSION_START",
+        }
+
+        b = {
+            "lookback_mode": "SESSION_TO_DATE",
+            "lookback_minutes": 330,
+            "lookback_start_rule": "NYSE_SESSION_START",
+        }
+
+        self.assertEqual(
+            compare(
+                metadata_a=a,
+                metadata_b=b,
+            ),
+            "A",
+        )
+
+        b_different_start = dict(
+            b
+        )
+
+        b_different_start[
+            "lookback_start_rule"
+        ] = "OTHER_START"
+
+        self.assertEqual(
+            compare(
+                metadata_a=a,
+                metadata_b=b_different_start,
+            ),
+            "NON_COMPARABLE",
+        )
+
+    def test_fixed_vs_session_to_date_goes_to_canonical_tiebreak(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        prefer = getattr(
+            analyzer,
+            "_prefer_retention_candidate",
+            None,
+        )
+
+        self.assertTrue(
+            callable(prefer),
+            "analyzer._prefer_retention_candidate must exist",
+        )
+
+        fixed = self._candidate(
+            feature="canonical_first",
+            mode="FIXED",
+            minutes=240,
+        )
+
+        session = self._candidate(
+            feature="canonical_second",
+            mode="SESSION_TO_DATE",
+            minutes=15,
+            start_rule="NYSE_SESSION_START",
+        )
+
+        winner = prefer(
+            candidate_a=session,
+            candidate_b=fixed,
+            canonical_order=[
+                "canonical_first",
+                "canonical_second",
+            ],
+        )
+
+        self.assertEqual(
+            winner,
+            "canonical_first",
+        )
+
+    def test_canonical_order_is_final_total_order_tiebreak(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        prefer = getattr(
+            analyzer,
+            "_prefer_retention_candidate",
+            None,
+        )
+
+        self.assertTrue(
+            callable(prefer),
+            "analyzer._prefer_retention_candidate must exist",
+        )
+
+        a = self._candidate(
+            feature="feature_a",
+        )
+
+        b = self._candidate(
+            feature="feature_b",
+        )
+
+        self.assertEqual(
+            prefer(
+                candidate_a=b,
+                candidate_b=a,
+                canonical_order=[
+                    "feature_a",
+                    "feature_b",
+                ],
+            ),
+            "feature_a",
+        )
+
+    def test_relationship_id_serialization_is_deterministic(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        serialize = getattr(
+            analyzer,
+            "_serialize_relationship_ids",
+            None,
+        )
+
+        self.assertTrue(
+            callable(serialize),
+            "analyzer._serialize_relationship_ids must exist",
+        )
+
+        ordered_universe = [
+            "GROUP_A",
+            "GROUP_B",
+            "GROUP_C",
+        ]
+
+        self.assertEqual(
+            serialize(
+                identifiers=[
+                    "GROUP_C",
+                    "GROUP_A",
+                ],
+                ordered_universe=ordered_universe,
+            ),
+            "GROUP_A|GROUP_C",
+        )
+
+        self.assertEqual(
+            serialize(
+                identifiers=[],
+                ordered_universe=ordered_universe,
+            ),
+            "",
+        )
+
+        for identifiers in [
+            ["GROUP_A", "GROUP_A"],
+            ["UNKNOWN"],
+            ["INVALID|GROUP"],
+        ]:
+            with self.subTest(
+                identifiers=identifiers
+            ):
+                with self.assertRaises(
+                    (ValueError, RuntimeError)
+                ):
+                    serialize(
+                        identifiers=identifiers,
+                        ordered_universe=ordered_universe,
+                    )
+
+    def test_feature_decision_registry_requires_locked_schema(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_feature_decision_registry_row",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_feature_decision_registry_row must exist",
+        )
+
+        row = {
+            "feature": "feature_a",
+            "base_decision": "KEEP",
+            "decision_basis": "NO_LOCKED_DROP_RULE",
+            "semantic_dependency_groups": "",
+            "exact_set_dependency_groups": "",
+            "empirical_pair_ids": "",
+            "semantic_basis_protected": False,
+            "chosen_representative_or_basis": "feature_a",
+            "direct_substitute": None,
+            "group_cohort_rank_status": None,
+            "cohort_sensitivity_status": None,
+            "linear_overlay_decision": "KEEP",
+            "tree_overlay_decision": "KEEP",
+            "reason": "Retained by locked target-blind procedure.",
+        }
+
+        result = validate(
+            row=row,
+        )
+
+        self.assertTrue(
+            result["decision_registry_row_valid"]
+        )
+
+        # required_drop_count must NOT be required
+        # as a feature-level scalar.
+        self.assertNotIn(
+            "required_drop_count",
+            result["required_fields"],
+        )
+
+        for bad_state in [
+            "DROP",
+            "REVIEW",
+            "UNKNOWN",
+        ]:
+            with self.subTest(
+                bad_state=bad_state
+            ):
+                bad = dict(row)
+                bad[
+                    "base_decision"
+                ] = bad_state
+
+                with self.assertRaises(
+                    (ValueError, RuntimeError)
+                ):
+                    validate(
+                        row=bad,
+                    )
+
+    def test_feature_decision_registry_rejects_bad_multi_id_strings(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_feature_decision_registry_row",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_feature_decision_registry_row must exist",
+        )
+
+        base = {
+            "feature": "feature_a",
+            "base_decision": "KEEP",
+            "decision_basis": "NO_LOCKED_DROP_RULE",
+            "semantic_dependency_groups": "",
+            "exact_set_dependency_groups": "",
+            "empirical_pair_ids": "",
+            "semantic_basis_protected": False,
+            "chosen_representative_or_basis": "feature_a",
+            "direct_substitute": None,
+            "group_cohort_rank_status": None,
+            "cohort_sensitivity_status": None,
+            "linear_overlay_decision": "KEEP",
+            "tree_overlay_decision": "KEEP",
+            "reason": "Target-blind retention.",
+        }
+
+        for value in [
+            "|GROUP_A",
+            "GROUP_A|",
+            "GROUP_A||GROUP_B",
+            "GROUP_A|GROUP_A",
+        ]:
+            with self.subTest(
+                value=value
+            ):
+                row = dict(
+                    base
+                )
+
+                row[
+                    "semantic_dependency_groups"
+                ] = value
+
+                with self.assertRaises(
+                    (ValueError, RuntimeError)
+                ):
+                    validate(
+                        row=row,
+                    )
+
+    def test_stage_c_is_blocked_by_open_decisions(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_c_readiness",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_c_readiness must exist",
+        )
+
+        decisions = [
+            {
+                "feature": "a",
+                "base_decision": "KEEP",
+            },
+            {
+                "feature": "b",
+                "base_decision": "OPEN",
+            },
+        ]
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                decision_rows=decisions,
+                yearly_review_required=False,
+                yearly_review_status="NOT_REQUIRED",
+                phase_c_rank_loss_review_required=False,
+                phase_c_rank_loss_review_status="NOT_REQUIRED",
+            )
+
+    def test_deterministic_veto_keep_does_not_create_open(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_c_readiness",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_c_readiness must exist",
+        )
+
+        decisions = [
+            {
+                "feature": "a",
+                "base_decision": "KEEP",
+                "decision_basis": "GROUP_COHORT_RANK_CONFLICT",
+            },
+            {
+                "feature": "b",
+                "base_decision": "KEEP",
+                "decision_basis": (
+                    "EMPIRICAL_DROP_VETOED_COHORT_SENSITIVITY"
+                ),
+            },
+        ]
+
+        result = validate(
+            decision_rows=decisions,
+            yearly_review_required=False,
+            yearly_review_status="NOT_REQUIRED",
+            phase_c_rank_loss_review_required=False,
+            phase_c_rank_loss_review_status="NOT_REQUIRED",
+        )
+
+        self.assertEqual(
+            result["open_count"],
+            0,
+        )
+
+        self.assertTrue(
+            result["stage_c_ready"]
+        )
+
+    def test_required_target_blind_acknowledgments_gate_stage_c(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_c_readiness",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_c_readiness must exist",
+        )
+
+        decisions = [
+            {
+                "feature": "a",
+                "base_decision": "KEEP",
+            },
+        ]
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                decision_rows=decisions,
+                yearly_review_required=True,
+                yearly_review_status="PENDING",
+                phase_c_rank_loss_review_required=False,
+                phase_c_rank_loss_review_status="NOT_REQUIRED",
+            )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                decision_rows=decisions,
+                yearly_review_required=False,
+                yearly_review_status="NOT_REQUIRED",
+                phase_c_rank_loss_review_required=True,
+                phase_c_rank_loss_review_status="PENDING",
+            )
+
+        result = validate(
+            decision_rows=decisions,
+            yearly_review_required=True,
+            yearly_review_status="ACKNOWLEDGED",
+            phase_c_rank_loss_review_required=True,
+            phase_c_rank_loss_review_status="ACKNOWLEDGED",
+        )
+
+        self.assertTrue(
+            result["stage_c_ready"]
+        )
+
+
+
+
+# STEP_13F1_PRIMARY_EMPIRICAL_SPEC_V1
+
+class StageBPrimaryEmpiricalSpecificationTests(
+    unittest.TestCase
+):
+    @staticmethod
+    def _stats(
+        pearson,
+        spearman,
+        rows=100,
+    ):
+        return {
+            "pairwise_available_rows": rows,
+            "feature_a_zero_variance": False,
+            "feature_b_zero_variance": False,
+            "pearson": pearson,
+            "spearman": spearman,
+        }
+
+    def test_empirical_pair_stats_compute_complete_case_correlations(
+        self,
+    ) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "_compute_empirical_pair_stats",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer._compute_empirical_pair_stats must exist",
+        )
+
+        frame = pd.DataFrame(
+            {
+                "feature_a": [
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                ],
+                "feature_b": [
+                    10.0,
+                    20.0,
+                    30.0,
+                    40.0,
+                    50.0,
+                ],
+            }
+        )
+
+        result = compute(
+            frame=frame,
+            feature_a="feature_a",
+            feature_b="feature_b",
+        )
+
+        self.assertEqual(
+            result["pairwise_available_rows"],
+            5,
+        )
+
+        self.assertFalse(
+            result["feature_a_zero_variance"]
+        )
+
+        self.assertFalse(
+            result["feature_b_zero_variance"]
+        )
+
+        self.assertAlmostEqual(
+            result["pearson"],
+            1.0,
+            places=12,
+        )
+
+        self.assertAlmostEqual(
+            result["spearman"],
+            1.0,
+            places=12,
+        )
+
+    def test_empirical_pair_stats_use_only_pair_complete_rows(
+        self,
+    ) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "_compute_empirical_pair_stats",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer._compute_empirical_pair_stats must exist",
+        )
+
+        frame = pd.DataFrame(
+            {
+                "feature_a": [
+                    1.0,
+                    2.0,
+                    None,
+                    4.0,
+                ],
+                "feature_b": [
+                    2.0,
+                    4.0,
+                    6.0,
+                    None,
+                ],
+            }
+        )
+
+        result = compute(
+            frame=frame,
+            feature_a="feature_a",
+            feature_b="feature_b",
+        )
+
+        self.assertEqual(
+            result["pairwise_available_rows"],
+            2,
+        )
+
+        self.assertAlmostEqual(
+            result["pearson"],
+            1.0,
+            places=12,
+        )
+
+        self.assertAlmostEqual(
+            result["spearman"],
+            1.0,
+            places=12,
+        )
+
+    def test_primary_hard_requires_both_metrics_in_every_fold(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_primary_empirical_pair",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_primary_empirical_pair must exist",
+        )
+
+        stats = {
+            "role_wf_2022": self._stats(
+                0.97,
+                0.97,
+            ),
+            "role_wf_2023": self._stats(
+                0.98,
+                0.94,
+            ),
+            "role_wf_2024": self._stats(
+                0.96,
+                0.96,
+            ),
+        }
+
+        result = classify(
+            stats_by_fold=stats,
+        )
+
+        self.assertEqual(
+            result["primary_classification"],
+            "REVIEW",
+        )
+
+        self.assertFalse(
+            result["primary_hard_all_folds"]
+        )
+
+        self.assertFalse(
+            result["empirical_drop_eligible"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_primary_hard_uses_absolute_correlation(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_primary_empirical_pair",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_primary_empirical_pair must exist",
+        )
+
+        stats = {
+            "role_wf_2022": self._stats(
+                -0.97,
+                -0.96,
+            ),
+            "role_wf_2023": self._stats(
+                -0.98,
+                -0.97,
+            ),
+            "role_wf_2024": self._stats(
+                -0.96,
+                -0.95,
+            ),
+        }
+
+        result = classify(
+            stats_by_fold=stats,
+        )
+
+        self.assertEqual(
+            result["primary_classification"],
+            "HARD",
+        )
+
+        self.assertTrue(
+            result["primary_hard_all_folds"]
+        )
+
+        self.assertEqual(
+            result["primary_hard_by_fold"],
+            {
+                "role_wf_2022": True,
+                "role_wf_2023": True,
+                "role_wf_2024": True,
+            },
+        )
+
+        # Primary HARD alone is not sufficient to DROP.
+        self.assertFalse(
+            result["empirical_drop_eligible"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+        self.assertEqual(
+            result["decision_basis"],
+            "PRIMARY_HARD_REQUIRES_PAIRWISE_SENSITIVITY",
+        )
+
+    def test_primary_review_uses_either_metric_on_any_fold(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_primary_empirical_pair",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_primary_empirical_pair must exist",
+        )
+
+        stats = {
+            "role_wf_2022": self._stats(
+                0.40,
+                0.40,
+            ),
+            "role_wf_2023": self._stats(
+                0.91,
+                0.50,
+            ),
+            "role_wf_2024": self._stats(
+                0.30,
+                0.30,
+            ),
+        }
+
+        result = classify(
+            stats_by_fold=stats,
+        )
+
+        self.assertEqual(
+            result["primary_classification"],
+            "REVIEW",
+        )
+
+        self.assertFalse(
+            result["primary_hard_all_folds"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_primary_distinct_when_all_metrics_below_review_threshold(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_primary_empirical_pair",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_primary_empirical_pair must exist",
+        )
+
+        stats = {
+            "role_wf_2022": self._stats(
+                0.89,
+                0.88,
+            ),
+            "role_wf_2023": self._stats(
+                0.50,
+                0.60,
+            ),
+            "role_wf_2024": self._stats(
+                -0.89,
+                -0.89,
+            ),
+        }
+
+        result = classify(
+            stats_by_fold=stats,
+        )
+
+        self.assertEqual(
+            result["primary_classification"],
+            "DISTINCT",
+        )
+
+        self.assertFalse(
+            result["primary_hard_all_folds"]
+        )
+
+        self.assertFalse(
+            result["empirical_drop_eligible"]
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+    def test_hard_and_review_threshold_boundaries_are_inclusive(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_primary_empirical_pair",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_primary_empirical_pair must exist",
+        )
+
+        hard_stats = {
+            fold: self._stats(
+                0.95,
+                -0.95,
+            )
+            for fold in [
+                "role_wf_2022",
+                "role_wf_2023",
+                "role_wf_2024",
+            ]
+        }
+
+        hard = classify(
+            stats_by_fold=hard_stats,
+        )
+
+        self.assertEqual(
+            hard["primary_classification"],
+            "HARD",
+        )
+
+        review_stats = {
+            "role_wf_2022": self._stats(
+                0.90,
+                0.20,
+            ),
+            "role_wf_2023": self._stats(
+                0.20,
+                0.20,
+            ),
+            "role_wf_2024": self._stats(
+                0.20,
+                0.20,
+            ),
+        }
+
+        review = classify(
+            stats_by_fold=review_stats,
+        )
+
+        self.assertEqual(
+            review["primary_classification"],
+            "REVIEW",
+        )
+
+
+
+
+# STEP_13F2_SPEARMAN_COMPLETE_LINKAGE_CLUSTERING_SPEC_V1
+
+class StageBSpearmanCompleteLinkageClusteringSpecificationTests(
+    unittest.TestCase
+):
+    def test_spearman_distance_is_one_minus_absolute_rho(self) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "_spearman_distance_matrix",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer._spearman_distance_matrix must exist",
+        )
+
+        corr = pd.DataFrame(
+            [
+                [1.00, 0.95, -0.80],
+                [0.95, 1.00, -0.50],
+                [-0.80, -0.50, 1.00],
+            ],
+            index=["a", "b", "c"],
+            columns=["a", "b", "c"],
+        )
+
+        distance = compute(
+            spearman_correlation=corr,
+            canonical_order=["a", "b", "c"],
+        )
+
+        self.assertAlmostEqual(
+            float(distance.loc["a", "b"]),
+            0.05,
+            places=12,
+        )
+
+        self.assertAlmostEqual(
+            float(distance.loc["a", "c"]),
+            0.20,
+            places=12,
+        )
+
+        self.assertAlmostEqual(
+            float(distance.loc["a", "a"]),
+            0.0,
+            places=12,
+        )
+
+    def test_perfect_negative_spearman_has_zero_distance(self) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "_spearman_distance_matrix",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer._spearman_distance_matrix must exist",
+        )
+
+        corr = pd.DataFrame(
+            [
+                [1.0, -1.0],
+                [-1.0, 1.0],
+            ],
+            index=["a", "b"],
+            columns=["a", "b"],
+        )
+
+        distance = compute(
+            spearman_correlation=corr,
+            canonical_order=["a", "b"],
+        )
+
+        self.assertAlmostEqual(
+            float(distance.loc["a", "b"]),
+            0.0,
+            places=12,
+        )
+
+    def test_complete_linkage_prevents_transitive_chain_merge(self) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        cluster = getattr(
+            analyzer,
+            "_complete_linkage_clusters",
+            None,
+        )
+
+        self.assertTrue(
+            callable(cluster),
+            "analyzer._complete_linkage_clusters must exist",
+        )
+
+        # A-B = 0.05
+        # B-C = 0.05
+        # A-C = 0.20
+        #
+        # Single linkage could chain A-B-C together.
+        # Complete linkage must NOT because the maximum
+        # distance inside A-B-C would exceed 0.10.
+        distance = pd.DataFrame(
+            [
+                [0.00, 0.05, 0.20],
+                [0.05, 0.00, 0.05],
+                [0.20, 0.05, 0.00],
+            ],
+            index=["a", "b", "c"],
+            columns=["a", "b", "c"],
+        )
+
+        result = cluster(
+            distance_matrix=distance,
+            canonical_order=["a", "b", "c"],
+            cut_distance=0.10,
+        )
+
+        self.assertEqual(
+            result,
+            (
+                ("a", "b"),
+                ("c",),
+            ),
+        )
+
+    def test_complete_linkage_cut_boundary_is_inclusive(self) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        cluster = getattr(
+            analyzer,
+            "_complete_linkage_clusters",
+            None,
+        )
+
+        self.assertTrue(
+            callable(cluster),
+            "analyzer._complete_linkage_clusters must exist",
+        )
+
+        distance = pd.DataFrame(
+            [
+                [0.00, 0.10],
+                [0.10, 0.00],
+            ],
+            index=["a", "b"],
+            columns=["a", "b"],
+        )
+
+        result = cluster(
+            distance_matrix=distance,
+            canonical_order=["a", "b"],
+            cut_distance=0.10,
+        )
+
+        self.assertEqual(
+            result,
+            (
+                ("a", "b"),
+            ),
+        )
+
+    def test_cluster_output_is_deterministic_in_canonical_order(self) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        cluster = getattr(
+            analyzer,
+            "_complete_linkage_clusters",
+            None,
+        )
+
+        self.assertTrue(
+            callable(cluster),
+            "analyzer._complete_linkage_clusters must exist",
+        )
+
+        canonical = [
+            "feature_a",
+            "feature_b",
+            "feature_c",
+            "feature_d",
+        ]
+
+        distance = pd.DataFrame(
+            [
+                [0.00, 0.04, 0.80, 0.80],
+                [0.04, 0.00, 0.80, 0.80],
+                [0.80, 0.80, 0.00, 0.03],
+                [0.80, 0.80, 0.03, 0.00],
+            ],
+            index=canonical,
+            columns=canonical,
+        )
+
+        result = cluster(
+            distance_matrix=distance,
+            canonical_order=canonical,
+            cut_distance=0.10,
+        )
+
+        self.assertEqual(
+            result,
+            (
+                ("feature_a", "feature_b"),
+                ("feature_c", "feature_d"),
+            ),
+        )
+
+    def test_cluster_evidence_is_review_only_and_never_auto_drop(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_cluster_review_evidence",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_cluster_review_evidence must exist",
+        )
+
+        result = classify(
+            cluster_members=(
+                "feature_a",
+                "feature_b",
+                "feature_c",
+            ),
+        )
+
+        self.assertTrue(
+            result["review_required"]
+        )
+
+        self.assertEqual(
+            result["classification"],
+            "CLUSTER_REVIEW",
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+        self.assertFalse(
+            result["drop_allowed"]
+        )
+
+        self.assertFalse(
+            result["empirical_drop_eligible"]
+        )
+
+    def test_singleton_cluster_does_not_require_cluster_review(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        classify = getattr(
+            analyzer,
+            "_classify_cluster_review_evidence",
+            None,
+        )
+
+        self.assertTrue(
+            callable(classify),
+            "analyzer._classify_cluster_review_evidence must exist",
+        )
+
+        result = classify(
+            cluster_members=(
+                "feature_a",
+            ),
+        )
+
+        self.assertFalse(
+            result["review_required"]
+        )
+
+        self.assertEqual(
+            result["classification"],
+            "CLUSTER_SINGLETON",
+        )
+
+        self.assertEqual(
+            result["base_decision"],
+            "KEEP",
+        )
+
+        self.assertFalse(
+            result["drop_allowed"]
+        )
+
+
+
+
+# STEP_13G1_PRODUCTION_OUTPUT_SERIALIZATION_SPEC_V1
+
+class StageBProductionOutputSerializationSpecificationTests(
+    unittest.TestCase
+):
+    EXPECTED_OUTPUTS = (
+        "stage_b_feature_coverage_v1.csv",
+        "stage_b_semantic_dependency_ledger_v1.csv",
+        "stage_b_fold_correlations_v1.parquet",
+        "stage_b_set_level_diagnostics_v1.csv",
+        "stage_b_redundancy_clusters_v1.csv",
+        "stage_b_feature_decision_registry_v1.csv",
+        "stage_b_redundancy_audit.json",
+    )
+
+    def test_required_output_artifact_names_are_exact_and_ordered(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        get_names = getattr(
+            analyzer,
+            "_required_stage_b_output_filenames",
+            None,
+        )
+
+        self.assertTrue(
+            callable(get_names),
+            "analyzer._required_stage_b_output_filenames must exist",
+        )
+
+        self.assertEqual(
+            get_names(),
+            self.EXPECTED_OUTPUTS,
+        )
+
+    def test_serialization_policy_identifiers_are_explicit(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import contract
+
+        self.assertTrue(
+            hasattr(
+                contract,
+                "STAGE_B_CSV_SERIALIZATION_POLICY_ID",
+            ),
+            "CSV serialization policy identifier must exist",
+        )
+
+        self.assertTrue(
+            hasattr(
+                contract,
+                "STAGE_B_JSON_SERIALIZATION_POLICY_ID",
+            ),
+            "JSON serialization policy identifier must exist",
+        )
+
+        self.assertTrue(
+            hasattr(
+                contract,
+                "STAGE_B_AUDIT_HASH_POLICY_ID",
+            ),
+            "Audit hash policy identifier must exist",
+        )
+
+        for name in [
+            "STAGE_B_CSV_SERIALIZATION_POLICY_ID",
+            "STAGE_B_JSON_SERIALIZATION_POLICY_ID",
+            "STAGE_B_AUDIT_HASH_POLICY_ID",
+        ]:
+            value = getattr(
+                contract,
+                name,
+            )
+
+            self.assertIsInstance(
+                value,
+                str,
+            )
+
+            self.assertTrue(
+                value,
+            )
+
+    def test_csv_serialization_is_utf8_lf_schema_and_row_deterministic(
+        self,
+    ) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        serialize = getattr(
+            analyzer,
+            "_serialize_stage_b_csv_bytes",
+            None,
+        )
+
+        self.assertTrue(
+            callable(serialize),
+            "analyzer._serialize_stage_b_csv_bytes must exist",
+        )
+
+        frame = pd.DataFrame(
+            [
+                {
+                    "feature": "feature_b",
+                    "base_decision": "KEEP",
+                },
+                {
+                    "feature": "feature_a",
+                    "base_decision": "DROP_REDUNDANT",
+                },
+            ]
+        )
+
+        first = serialize(
+            frame=frame,
+            field_order=[
+                "feature",
+                "base_decision",
+            ],
+            row_sort_by=[
+                "feature",
+            ],
+        )
+
+        second = serialize(
+            frame=frame.iloc[::-1].copy(),
+            field_order=[
+                "feature",
+                "base_decision",
+            ],
+            row_sort_by=[
+                "feature",
+            ],
+        )
+
+        self.assertIsInstance(
+            first,
+            bytes,
+        )
+
+        self.assertEqual(
+            first,
+            second,
+        )
+
+        self.assertNotIn(
+            b"\r\n",
+            first,
+        )
+
+        self.assertTrue(
+            first.endswith(
+                b"\n"
+            )
+        )
+
+        decoded = first.decode(
+            "utf-8"
+        )
+
+        self.assertEqual(
+            decoded,
+            (
+                "feature,base_decision\n"
+                "feature_a,DROP_REDUNDANT\n"
+                "feature_b,KEEP\n"
+            ),
+        )
+
+    def test_csv_multi_value_pipe_string_is_preserved_exactly(
+        self,
+    ) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        serialize = getattr(
+            analyzer,
+            "_serialize_stage_b_csv_bytes",
+            None,
+        )
+
+        self.assertTrue(
+            callable(serialize),
+            "analyzer._serialize_stage_b_csv_bytes must exist",
+        )
+
+        frame = pd.DataFrame(
+            [
+                {
+                    "feature": "feature_a",
+                    "semantic_dependency_groups": (
+                        "GROUP_A|GROUP_B"
+                    ),
+                }
+            ]
+        )
+
+        data = serialize(
+            frame=frame,
+            field_order=[
+                "feature",
+                "semantic_dependency_groups",
+            ],
+            row_sort_by=[
+                "feature",
+            ],
+        )
+
+        self.assertIn(
+            b"GROUP_A|GROUP_B",
+            data,
+        )
+
+        self.assertNotIn(
+            b"GROUP_B|GROUP_A",
+            data,
+        )
+
+    def test_json_serialization_is_canonical_utf8_lf(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        serialize = getattr(
+            analyzer,
+            "_serialize_stage_b_json_bytes",
+            None,
+        )
+
+        self.assertTrue(
+            callable(serialize),
+            "analyzer._serialize_stage_b_json_bytes must exist",
+        )
+
+        payload_a = {
+            "z": 3,
+            "a": {
+                "beta": 2,
+                "alpha": 1,
+            },
+        }
+
+        payload_b = {
+            "a": {
+                "alpha": 1,
+                "beta": 2,
+            },
+            "z": 3,
+        }
+
+        first = serialize(
+            payload=payload_a,
+        )
+
+        second = serialize(
+            payload=payload_b,
+        )
+
+        self.assertEqual(
+            first,
+            second,
+        )
+
+        self.assertNotIn(
+            b"\r\n",
+            first,
+        )
+
+        self.assertTrue(
+            first.endswith(
+                b"\n"
+            )
+        )
+
+        self.assertEqual(
+            first.decode("utf-8"),
+            '{"a":{"alpha":1,"beta":2},"z":3}\n',
+        )
+
+    def test_sha256_uses_exact_serialized_bytes(
+        self,
+    ) -> None:
+        import hashlib
+
+        from mes_quant.redundancy import analyzer
+
+        digest = getattr(
+            analyzer,
+            "_sha256_bytes",
+            None,
+        )
+
+        self.assertTrue(
+            callable(digest),
+            "analyzer._sha256_bytes must exist",
+        )
+
+        raw = (
+            b"line1\r\n"
+            b"line2\n"
+        )
+
+        self.assertEqual(
+            digest(raw),
+            hashlib.sha256(
+                raw
+            ).hexdigest(),
+        )
+
+        normalized = raw.replace(
+            b"\r\n",
+            b"\n",
+        )
+
+        self.assertNotEqual(
+            digest(raw),
+            digest(normalized),
+        )
+
+    def test_output_bundle_requires_exact_seven_artifacts(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_output_bundle",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_output_bundle must exist",
+        )
+
+        bundle = {
+            name: b"x"
+            for name in self.EXPECTED_OUTPUTS
+        }
+
+        result = validate(
+            artifacts=bundle,
+        )
+
+        self.assertTrue(
+            result[
+                "output_bundle_valid"
+            ]
+        )
+
+        self.assertEqual(
+            result[
+                "artifact_count"
+            ],
+            7,
+        )
+
+        missing = dict(
+            bundle
+        )
+
+        missing.pop(
+            self.EXPECTED_OUTPUTS[0]
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                artifacts=missing,
+            )
+
+        extra = dict(
+            bundle
+        )
+
+        extra[
+            "cell14_feature_registry_v1.csv"
+        ] = b"forbidden"
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                artifacts=extra,
+            )
+
+    def test_output_hash_manifest_covers_all_seven_raw_artifacts(
+        self,
+    ) -> None:
+        import hashlib
+
+        from mes_quant.redundancy import analyzer
+
+        build = getattr(
+            analyzer,
+            "_build_stage_b_output_hash_manifest",
+            None,
+        )
+
+        self.assertTrue(
+            callable(build),
+            "analyzer._build_stage_b_output_hash_manifest must exist",
+        )
+
+        artifacts = {
+            name: (
+                f"bytes::{index}::{name}\n"
+            ).encode(
+                "utf-8"
+            )
+            for index, name in enumerate(
+                self.EXPECTED_OUTPUTS
+            )
+        }
+
+        manifest = build(
+            artifacts=artifacts,
+            policy_version="MES_V1_REDUNDANCY_1.1",
+            control_hashes={
+                "markdown_sha256": "a" * 64,
+                "semantic_registry_sha256": "b" * 64,
+            },
+            upstream_hashes={
+                "cell14_feature_artifact_sha256": "c" * 64,
+                "cell14_registry_sha256": "d" * 64,
+            },
+        )
+
+        self.assertEqual(
+            tuple(
+                manifest[
+                    "output_hashes"
+                ].keys()
+            ),
+            self.EXPECTED_OUTPUTS,
+        )
+
+        for name in self.EXPECTED_OUTPUTS:
+            self.assertEqual(
+                manifest[
+                    "output_hashes"
+                ][
+                    name
+                ],
+                hashlib.sha256(
+                    artifacts[
+                        name
+                    ]
+                ).hexdigest(),
+            )
+
+        self.assertEqual(
+            manifest[
+                "policy_version"
+            ],
+            "MES_V1_REDUNDANCY_1.1",
+        )
+
+    def test_audit_self_hash_policy_is_explicitly_non_recursive(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import contract
+
+        policy = getattr(
+            contract,
+            "STAGE_B_AUDIT_HASH_POLICY_ID",
+            None,
+        )
+
+        self.assertTrue(
+            isinstance(
+                policy,
+                str,
+            )
+            and policy
+        )
+
+        self.assertIn(
+            "NON_RECURSIVE",
+            policy,
+        )
+
+
+
+
+# STEP_13G1B_PARQUET_AND_AUDIT_SCHEMA_SPEC_V1
+
+class StageBParquetAndAuditSchemaSpecificationTests(
+    unittest.TestCase
+):
+    REQUIRED_OUTPUTS = (
+        "stage_b_feature_coverage_v1.csv",
+        "stage_b_semantic_dependency_ledger_v1.csv",
+        "stage_b_fold_correlations_v1.parquet",
+        "stage_b_set_level_diagnostics_v1.csv",
+        "stage_b_redundancy_clusters_v1.csv",
+        "stage_b_feature_decision_registry_v1.csv",
+        "stage_b_redundancy_audit.json",
+    )
+
+    SIBLING_OUTPUTS = REQUIRED_OUTPUTS[:-1]
+
+    EXPECTED_AUDIT_FIELDS = (
+        "policy_version",
+        "markdown_sha256",
+        "semantic_registry_sha256",
+        "locked_markdown_git_commit",
+        "python_policy_status",
+        "cell14_artifact_hashes",
+        "cell14_registry_hash",
+        "canonical_candidate_count",
+        "feature_order_validation",
+        "lookback_metadata_validation",
+        "common_cohort_coverage_by_fold",
+        "full29_yearly_coverage",
+        "yearly_low_coverage_flags",
+        "yearly_concentration_review_required",
+        "yearly_concentration_review_status",
+        "shared_240m_missingness_summary",
+        "full29_incomplete_row_count",
+        "shared_240m_incomplete_row_count",
+        "session_to_date_vwap_only_incomplete_row_count",
+        "unexplained_full29_incomplete_row_count",
+        "fold_coverage_gate_result",
+        "final_test_rows_opened",
+        "forbidden_inputs_opened",
+        "empirical_threshold_provenance",
+        "coverage_threshold_provenance",
+        "semantic_registry_completeness",
+        "semantic_registry_structural_invariant_result",
+        "markdown_json_joint_audit_status",
+        "prelock_identity_validation_result",
+        "prelock_final_test_firewall_result",
+        "protected_semantic_basis_features",
+        "derived_protected_set_feature_list",
+        "protected_set_sentinel_result",
+        "full_train_zero_variance_diagnostics",
+        "common_cohort_zero_variance_diagnostics",
+        "phase_a_decisions",
+        "generic_phase_b_group_available_verification_results",
+        "group_cohort_rank_conflict_count",
+        "phase_b_rank",
+        "phase_c_rank",
+        "phase_c_rank_loss",
+        "phase_c_rank_loss_review_required",
+        "phase_c_rank_loss_review_status",
+        "primary_hard_pair_count",
+        "cohort_sensitivity_supported_count",
+        "cohort_sensitivity_conflict_count",
+        "cohort_sensitivity_unavailable_count",
+        "empirical_drops_vetoed_by_cohort_sensitivity",
+        "full_set_condition_number",
+        "exact_basis_condition_number",
+        "clustering_metric",
+        "clustering_linkage",
+        "clustering_cut",
+        "open_count",
+        "base_feature_count",
+        "linear_overlay_feature_count",
+        "tree_overlay_feature_count",
+        "unique_stage_c_mask_count",
+        "multi_value_serialization_policy_id",
+        "output_hashes",
+    )
+
+    @classmethod
+    def _complete_audit_payload(
+        cls,
+    ):
+        payload = {
+            field: None
+            for field in cls.EXPECTED_AUDIT_FIELDS
+        }
+
+        payload.update(
+            {
+                "policy_version": "MES_V1_REDUNDANCY_1.1",
+                "markdown_sha256": "a" * 64,
+                "semantic_registry_sha256": "b" * 64,
+                "locked_markdown_git_commit": "c" * 40,
+                "python_policy_status": "LOCKED_EXECUTABLE",
+                "cell14_artifact_hashes": {
+                    "feature_artifact_sha256": "d" * 64,
+                },
+                "cell14_registry_hash": "e" * 64,
+                "canonical_candidate_count": 29,
+                "feature_order_validation": True,
+                "lookback_metadata_validation": True,
+                "common_cohort_coverage_by_fold": {
+                    "role_wf_2022": 0.95,
+                    "role_wf_2023": 0.96,
+                    "role_wf_2024": 0.97,
+                },
+                "full29_yearly_coverage": {
+                    "2019": 0.81,
+                    "2020": 0.95,
+                    "2021": 0.98,
+                    "2022": 1.0,
+                    "2023": 0.99,
+                    "2024": 0.99,
+                },
+                "yearly_low_coverage_flags": [
+                    2019,
+                ],
+                "yearly_concentration_review_required": True,
+                "yearly_concentration_review_status": "ACKNOWLEDGED",
+                "shared_240m_missingness_summary": {
+                    "shared_rows": 983,
+                },
+                "full29_incomplete_row_count": 996,
+                "shared_240m_incomplete_row_count": 983,
+                "session_to_date_vwap_only_incomplete_row_count": 13,
+                "unexplained_full29_incomplete_row_count": 0,
+                "fold_coverage_gate_result": True,
+                "final_test_rows_opened": 0,
+                "forbidden_inputs_opened": 0,
+                "empirical_threshold_provenance": {
+                    "hard_pearson_abs": 0.95,
+                    "hard_spearman_abs": 0.95,
+                    "review_abs": 0.90,
+                },
+                "coverage_threshold_provenance": {
+                    "fold_floor": 0.90,
+                },
+                "semantic_registry_completeness": True,
+                "semantic_registry_structural_invariant_result": True,
+                "markdown_json_joint_audit_status": "PASS",
+                "prelock_identity_validation_result": "PASS",
+                "prelock_final_test_firewall_result": "PASS",
+                "protected_semantic_basis_features": [
+                    "ret_log_15m_lag0",
+                ],
+                "derived_protected_set_feature_list": [
+                    "ret_log_15m_lag0",
+                    "ret_log_15m_lag1",
+                    "ret_log_15m_lag2",
+                    "ret_log_15m_lag3",
+                    "minutes_since_nyse_open",
+                    "early_close_session",
+                ],
+                "protected_set_sentinel_result": True,
+                "full_train_zero_variance_diagnostics": {},
+                "common_cohort_zero_variance_diagnostics": {},
+                "phase_a_decisions": [],
+                "generic_phase_b_group_available_verification_results": [],
+                "group_cohort_rank_conflict_count": 0,
+                "phase_b_rank": 20,
+                "phase_c_rank": 19,
+                "phase_c_rank_loss": 1,
+                "phase_c_rank_loss_review_required": True,
+                "phase_c_rank_loss_review_status": "ACKNOWLEDGED",
+                "primary_hard_pair_count": 1,
+                "cohort_sensitivity_supported_count": 1,
+                "cohort_sensitivity_conflict_count": 0,
+                "cohort_sensitivity_unavailable_count": 0,
+                "empirical_drops_vetoed_by_cohort_sensitivity": 0,
+                "full_set_condition_number": 100.0,
+                "exact_basis_condition_number": 20.0,
+                "clustering_metric": "1-ABS_SPEARMAN",
+                "clustering_linkage": "COMPLETE",
+                "clustering_cut": 0.10,
+                "open_count": 0,
+                "base_feature_count": 20,
+                "linear_overlay_feature_count": 20,
+                "tree_overlay_feature_count": 20,
+                "unique_stage_c_mask_count": 1,
+                "multi_value_serialization_policy_id": (
+                    "MES_V1_MULTI_ID_PIPE_ORDERED_V1"
+                ),
+                "output_hashes": {
+                    name: (
+                        f"{index + 1:x}" * 64
+                    )[:64]
+                    for index, name in enumerate(
+                        cls.SIBLING_OUTPUTS
+                    )
+                },
+            }
+        )
+
+        return payload
+
+    def test_parquet_and_multi_value_policy_identifiers_are_explicit(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import contract
+
+        self.assertTrue(
+            hasattr(
+                contract,
+                "STAGE_B_PARQUET_SERIALIZATION_POLICY_ID",
+            ),
+            "Parquet serialization policy identifier must exist",
+        )
+
+        self.assertTrue(
+            hasattr(
+                contract,
+                "STAGE_B_MULTI_VALUE_SERIALIZATION_POLICY_ID",
+            ),
+            "Multi-value serialization policy identifier must exist",
+        )
+
+        for name in [
+            "STAGE_B_PARQUET_SERIALIZATION_POLICY_ID",
+            "STAGE_B_MULTI_VALUE_SERIALIZATION_POLICY_ID",
+        ]:
+            value = getattr(
+                contract,
+                name,
+            )
+
+            self.assertIsInstance(
+                value,
+                str,
+            )
+
+            self.assertTrue(
+                value,
+            )
+
+    def test_parquet_serialization_is_schema_row_deterministic(
+        self,
+    ) -> None:
+        import io
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        serialize = getattr(
+            analyzer,
+            "_serialize_stage_b_parquet_bytes",
+            None,
+        )
+
+        self.assertTrue(
+            callable(serialize),
+            "analyzer._serialize_stage_b_parquet_bytes must exist",
+        )
+
+        frame = pd.DataFrame(
+            [
+                {
+                    "fold": "role_wf_2023",
+                    "feature_a": "b",
+                    "feature_b": "c",
+                    "pearson": 0.91,
+                    "spearman": 0.92,
+                },
+                {
+                    "fold": "role_wf_2022",
+                    "feature_a": "a",
+                    "feature_b": "b",
+                    "pearson": 0.97,
+                    "spearman": 0.96,
+                },
+            ]
+        )
+
+        fields = [
+            "fold",
+            "feature_a",
+            "feature_b",
+            "pearson",
+            "spearman",
+        ]
+
+        sort_by = [
+            "fold",
+            "feature_a",
+            "feature_b",
+        ]
+
+        first = serialize(
+            frame=frame,
+            field_order=fields,
+            row_sort_by=sort_by,
+        )
+
+        second = serialize(
+            frame=(
+                frame.iloc[::-1]
+                .loc[
+                    :,
+                    list(reversed(fields)),
+                ]
+                .copy()
+            ),
+            field_order=fields,
+            row_sort_by=sort_by,
+        )
+
+        self.assertIsInstance(
+            first,
+            bytes,
+        )
+
+        self.assertEqual(
+            first,
+            second,
+        )
+
+        self.assertTrue(
+            first.startswith(
+                b"PAR1"
+            )
+        )
+
+        self.assertTrue(
+            first.endswith(
+                b"PAR1"
+            )
+        )
+
+        restored = pd.read_parquet(
+            io.BytesIO(first)
+        )
+
+        self.assertEqual(
+            list(restored.columns),
+            fields,
+        )
+
+        self.assertEqual(
+            list(restored["fold"]),
+            [
+                "role_wf_2022",
+                "role_wf_2023",
+            ],
+        )
+
+    def test_parquet_serializer_requires_exact_declared_schema(
+        self,
+    ) -> None:
+        import pandas as pd
+
+        from mes_quant.redundancy import analyzer
+
+        serialize = getattr(
+            analyzer,
+            "_serialize_stage_b_parquet_bytes",
+            None,
+        )
+
+        self.assertTrue(
+            callable(serialize),
+            "analyzer._serialize_stage_b_parquet_bytes must exist",
+        )
+
+        frame = pd.DataFrame(
+            [
+                {
+                    "a": 1,
+                    "b": 2,
+                    "unexpected": 3,
+                }
+            ]
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            serialize(
+                frame=frame,
+                field_order=[
+                    "a",
+                    "b",
+                ],
+                row_sort_by=[
+                    "a",
+                ],
+            )
+
+    def test_required_audit_fields_match_locked_minimum_contract(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        required = getattr(
+            analyzer,
+            "_required_stage_b_audit_fields",
+            None,
+        )
+
+        self.assertTrue(
+            callable(required),
+            "analyzer._required_stage_b_audit_fields must exist",
+        )
+
+        result = required()
+
+        self.assertEqual(
+            result,
+            self.EXPECTED_AUDIT_FIELDS,
+        )
+
+        self.assertEqual(
+            len(result),
+            len(set(result)),
+        )
+
+    def test_complete_minimum_audit_payload_is_valid(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_audit_payload",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_audit_payload must exist",
+        )
+
+        result = validate(
+            payload=self._complete_audit_payload(),
+        )
+
+        self.assertTrue(
+            result[
+                "audit_payload_valid"
+            ]
+        )
+
+        self.assertEqual(
+            result[
+                "required_field_count"
+            ],
+            len(
+                self.EXPECTED_AUDIT_FIELDS
+            ),
+        )
+
+    def test_missing_any_required_audit_field_fails_closed(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_audit_payload",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_audit_payload must exist",
+        )
+
+        payload = self._complete_audit_payload()
+
+        payload.pop(
+            "final_test_rows_opened"
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                payload=payload,
+            )
+
+    def test_audit_hashes_are_non_recursive_six_sibling_hashes(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_audit_payload",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_audit_payload must exist",
+        )
+
+        payload = self._complete_audit_payload()
+
+        result = validate(
+            payload=payload,
+        )
+
+        self.assertEqual(
+            result[
+                "audit_output_hash_names"
+            ],
+            self.SIBLING_OUTPUTS,
+        )
+
+        self.assertNotIn(
+            "stage_b_redundancy_audit.json",
+            payload[
+                "output_hashes"
+            ],
+        )
+
+        invalid = self._complete_audit_payload()
+
+        invalid[
+            "output_hashes"
+        ][
+            "stage_b_redundancy_audit.json"
+        ] = "f" * 64
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                payload=invalid,
+            )
+
+    def test_audit_minimum_schema_allows_additional_metadata(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_audit_payload",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            "analyzer._validate_stage_b_audit_payload must exist",
+        )
+
+        payload = self._complete_audit_payload()
+
+        payload[
+            "runtime_library_versions"
+        ] = {
+            "pandas": "synthetic",
+            "pyarrow": "synthetic",
+        }
+
+        result = validate(
+            payload=payload,
+        )
+
+        self.assertTrue(
+            result[
+                "audit_payload_valid"
+            ]
+        )
+
+
+
+
+# STEP_13G2C_MINIMAL_V1_1_PREREQUISITE_SPEC
+
+
+class StageBMinimalV11PrerequisiteSpecificationTests(
+    unittest.TestCase
+):
+    SHARED_240M = (
+        "momentum_log_240m",
+        "realized_vol_240m",
+        "volume_ratio_prev_240m",
+        "return_autocorr_lag1_240m",
+        "sign_entropy_240m",
+    )
+
+    @classmethod
+    def _missingness_frame(
+        cls,
+    ):
+        import numpy as np
+        import pandas as pd
+
+        features = list(
+            cls.SHARED_240M
+        ) + [
+            "session_vwap_proxy_deviation",
+            "ret_log_15m_lag0",
+        ]
+
+        rows = []
+
+        # Row 0:
+        # shared 240m component only.
+        row = {
+            feature: 1.0
+            for feature in features
+        }
+
+        for feature in cls.SHARED_240M:
+            row[feature] = np.nan
+
+        row["feature_status"] = (
+            "PARTIAL_LOOKBACK"
+        )
+
+        rows.append(row)
+
+        # Row 1:
+        # shared 240m component AND VWAP unavailable.
+        # Still counts once inside shared component.
+        row = {
+            feature: 1.0
+            for feature in features
+        }
+
+        for feature in cls.SHARED_240M:
+            row[feature] = np.nan
+
+        row[
+            "session_vwap_proxy_deviation"
+        ] = np.nan
+
+        row["feature_status"] = (
+            "PARTIAL_LOOKBACK|SESSION_VWAP_INPUT_INVALID"
+        )
+
+        rows.append(row)
+
+        # Row 2:
+        # VWAP-only residual.
+        row = {
+            feature: 1.0
+            for feature in features
+        }
+
+        row[
+            "session_vwap_proxy_deviation"
+        ] = np.nan
+
+        row["feature_status"] = (
+            "SESSION_VWAP_INPUT_INVALID"
+        )
+
+        rows.append(row)
+
+        # Row 3:
+        # complete.
+        row = {
+            feature: 1.0
+            for feature in features
+        }
+
+        row["feature_status"] = "OK"
+
+        rows.append(row)
+
+        return (
+            pd.DataFrame(rows),
+            features,
+        )
+
+    def test_full29_missingness_reconciliation_is_component_based(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        reconcile = getattr(
+            analyzer,
+            "_reconcile_full29_missingness",
+            None,
+        )
+
+        self.assertTrue(
+            callable(reconcile),
+            "analyzer._reconcile_full29_missingness must exist",
+        )
+
+        frame, features = (
+            self._missingness_frame()
+        )
+
+        result = reconcile(
+            frame=frame,
+            canonical_features=features,
+            shared_240m_features=list(
+                self.SHARED_240M
+            ),
+            session_to_date_feature=(
+                "session_vwap_proxy_deviation"
+            ),
+            status_column="feature_status",
+        )
+
+        self.assertEqual(
+            result[
+                "full29_incomplete_row_count"
+            ],
+            3,
+        )
+
+        self.assertEqual(
+            result[
+                "shared_240m_incomplete_row_count"
+            ],
+            2,
+        )
+
+        self.assertEqual(
+            result[
+                "session_to_date_vwap_only_incomplete_row_count"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            result[
+                "unexplained_full29_incomplete_row_count"
+            ],
+            0,
+        )
+
+    def test_shared_240m_missingness_is_not_counted_as_five_events(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        reconcile = getattr(
+            analyzer,
+            "_reconcile_full29_missingness",
+            None,
+        )
+
+        self.assertTrue(
+            callable(reconcile),
+            "analyzer._reconcile_full29_missingness must exist",
+        )
+
+        frame, features = (
+            self._missingness_frame()
+        )
+
+        result = reconcile(
+            frame=frame,
+            canonical_features=features,
+            shared_240m_features=list(
+                self.SHARED_240M
+            ),
+            session_to_date_feature=(
+                "session_vwap_proxy_deviation"
+            ),
+            status_column="feature_status",
+        )
+
+        summary = result[
+            "shared_240m_missingness_summary"
+        ]
+
+        self.assertEqual(
+            summary[
+                "feature_count"
+            ],
+            5,
+        )
+
+        self.assertEqual(
+            summary[
+                "row_count"
+            ],
+            2,
+        )
+
+        self.assertEqual(
+            tuple(
+                summary[
+                    "features"
+                ]
+            ),
+            self.SHARED_240M,
+        )
+
+    def test_unexplained_missingness_remains_explicit(
+        self,
+    ) -> None:
+        import numpy as np
+
+        from mes_quant.redundancy import analyzer
+
+        reconcile = getattr(
+            analyzer,
+            "_reconcile_full29_missingness",
+            None,
+        )
+
+        self.assertTrue(
+            callable(reconcile),
+            "analyzer._reconcile_full29_missingness must exist",
+        )
+
+        frame, features = (
+            self._missingness_frame()
+        )
+
+        frame.loc[
+            3,
+            "ret_log_15m_lag0",
+        ] = np.nan
+
+        result = reconcile(
+            frame=frame,
+            canonical_features=features,
+            shared_240m_features=list(
+                self.SHARED_240M
+            ),
+            session_to_date_feature=(
+                "session_vwap_proxy_deviation"
+            ),
+            status_column="feature_status",
+        )
+
+        self.assertEqual(
+            result[
+                "full29_incomplete_row_count"
+            ],
+            4,
+        )
+
+        self.assertEqual(
+            result[
+                "unexplained_full29_incomplete_row_count"
+            ],
+            1,
+        )
+
+    def test_intercept_rank_diagnostic_reports_feature_and_augmented_rank(
+        self,
+    ) -> None:
+        import numpy as np
+
+        from mes_quant.redundancy import analyzer
+
+        compute = getattr(
+            analyzer,
+            "_compute_intercept_rank_diagnostic",
+            None,
+        )
+
+        self.assertTrue(
+            callable(compute),
+            "analyzer._compute_intercept_rank_diagnostic must exist",
+        )
+
+        x = np.asarray(
+            [
+                -1.0,
+                -0.5,
+                0.5,
+                1.0,
+            ],
+            dtype=np.float64,
+        )
+
+        z = np.column_stack(
+            [
+                x,
+                2.0 * x,
+            ]
+        )
+
+        result = compute(
+            standardized_matrix=z,
+        )
+
+        self.assertEqual(
+            result[
+                "feature_space_rank"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            result[
+                "feature_space_deficiency"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            result[
+                "augmented_design_rank"
+            ],
+            2,
+        )
+
+        self.assertEqual(
+            result[
+                "augmented_design_deficiency"
+            ],
+            1,
+        )
+
+    def test_full_set_rank_deficiency_maps_condition_number_to_infinity(
+        self,
+    ) -> None:
+        import math
+
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "_resolve_stage_b_condition_number",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer._resolve_stage_b_condition_number must exist",
+        )
+
+        result = resolve(
+            svd_diagnostics={
+                "matrix_shape": (
+                    100,
+                    3,
+                ),
+                "singular_values": [
+                    10.0,
+                    2.0,
+                    0.0,
+                ],
+                "rank": 2,
+                "deficiency": 1,
+            },
+            basis_kind="FULL_SET",
+        )
+
+        self.assertTrue(
+            math.isinf(
+                result[
+                    "condition_number"
+                ]
+            )
+        )
+
+        self.assertEqual(
+            result[
+                "basis_kind"
+            ],
+            "FULL_SET",
+        )
+
+    def test_exact_basis_rank_deficiency_fails_closed(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "_resolve_stage_b_condition_number",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer._resolve_stage_b_condition_number must exist",
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            resolve(
+                svd_diagnostics={
+                    "matrix_shape": (
+                        100,
+                        3,
+                    ),
+                    "singular_values": [
+                        10.0,
+                        2.0,
+                        0.0,
+                    ],
+                    "rank": 2,
+                    "deficiency": 1,
+                },
+                basis_kind="EXACT_BASIS",
+            )
+
+    def test_exact_basis_full_rank_condition_number_is_sigma_ratio(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        resolve = getattr(
+            analyzer,
+            "_resolve_stage_b_condition_number",
+            None,
+        )
+
+        self.assertTrue(
+            callable(resolve),
+            "analyzer._resolve_stage_b_condition_number must exist",
+        )
+
+        result = resolve(
+            svd_diagnostics={
+                "matrix_shape": (
+                    100,
+                    2,
+                ),
+                "singular_values": [
+                    10.0,
+                    2.0,
+                ],
+                "rank": 2,
+                "deficiency": 0,
+            },
+            basis_kind="EXACT_BASIS",
+        )
+
+        self.assertAlmostEqual(
+            result[
+                "condition_number"
+            ],
+            5.0,
+        )
+
+    def test_stage_c_masks_are_deterministic_and_deduplicated(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        build = getattr(
+            analyzer,
+            "_build_stage_c_feature_masks",
+            None,
+        )
+
+        self.assertTrue(
+            callable(build),
+            "analyzer._build_stage_c_feature_masks must exist",
+        )
+
+        result = build(
+            base_features=[
+                "c",
+                "a",
+                "b",
+            ],
+            linear_removed_features=[
+                "c",
+            ],
+            tree_removed_features=[],
+            protected_features=set(),
+            canonical_order=[
+                "a",
+                "b",
+                "c",
+            ],
+        )
+
+        self.assertEqual(
+            result[
+                "base_mask"
+            ],
+            (
+                "a",
+                "b",
+                "c",
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "linear_overlay_mask"
+            ],
+            (
+                "a",
+                "b",
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "tree_overlay_mask"
+            ],
+            (
+                "a",
+                "b",
+                "c",
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "unique_masks"
+            ],
+            (
+                (
+                    "a",
+                    "b",
+                    "c",
+                ),
+                (
+                    "a",
+                    "b",
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "unique_stage_c_mask_count"
+            ],
+            2,
+        )
+
+        self.assertLessEqual(
+            result[
+                "unique_stage_c_mask_count"
+            ],
+            3,
+        )
+
+    def test_overlay_removal_of_protected_base_feature_is_recorded(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        build = getattr(
+            analyzer,
+            "_build_stage_c_feature_masks",
+            None,
+        )
+
+        self.assertTrue(
+            callable(build),
+            "analyzer._build_stage_c_feature_masks must exist",
+        )
+
+        result = build(
+            base_features=[
+                "a",
+                "b",
+                "c",
+            ],
+            linear_removed_features=[
+                "b",
+            ],
+            tree_removed_features=[],
+            protected_features={
+                "b",
+            },
+            canonical_order=[
+                "a",
+                "b",
+                "c",
+            ],
+        )
+
+        self.assertEqual(
+            result[
+                "protected_overlay_removals"
+            ][
+                "LINEAR_OVERLAY"
+            ],
+            (
+                "b",
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "protected_overlay_removals"
+            ][
+                "TREE_OVERLAY"
+            ],
+            (),
+        )
+
+    def test_overlay_cannot_remove_feature_outside_base(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        build = getattr(
+            analyzer,
+            "_build_stage_c_feature_masks",
+            None,
+        )
+
+        self.assertTrue(
+            callable(build),
+            "analyzer._build_stage_c_feature_masks must exist",
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            build(
+                base_features=[
+                    "a",
+                    "b",
+                ],
+                linear_removed_features=[
+                    "dropped_derived_feature",
+                ],
+                tree_removed_features=[],
+                protected_features=set(),
+                canonical_order=[
+                    "a",
+                    "b",
+                    "dropped_derived_feature",
+                ],
+            )
+
+
+
+
+# STEP_13G3A_RUN_STAGE_B_PRODUCTION_BOUNDARY_SPEC
+
+
+class StageBProductionBoundarySpecificationTests(
+    unittest.TestCase
+):
+    EXPECTED_PARAMETERS = (
+        "project_root",
+        "output_dir",
+        "yearly_review_acknowledged",
+        "phase_c_rank_loss_review_acknowledged",
+    )
+
+    FORBIDDEN_CALLER_PROVENANCE_PARAMETERS = {
+        "release_manifest_path",
+        "cell14_features_path",
+        "cell14_registry_path",
+        "cell8_assignments_path",
+        "markdown_sha256",
+        "semantic_registry_sha256",
+        "cell14_registry_hash",
+        "cell14_feature_hash",
+        "cell8_assignments_hash",
+        "upstream_hashes",
+        "opened_fields",
+        "opened_cells",
+        "final_test_rows_opened",
+        "feature_frame",
+        "features_df",
+        "registry_rows",
+        "fold_assignments",
+    }
+
+    LEGACY_HIGH_LEVEL_PATHS = {
+        "get_train_mask",
+        "get_common_complete_case_train_mask",
+        "compute_fold_correlations",
+        "classify_pair_redundancy",
+        "build_pairwise_redundancy_table",
+        "analyze_one_fold",
+        "analyze_all_folds",
+        "build_fold_coverage_summary",
+        "build_all_fold_coverage_summary",
+        "build_feature_missingness_summary",
+        "build_all_fold_feature_missingness_summary",
+        "check_momentum_60m_identity",
+        "check_weekday_dummy_identity",
+    }
+
+    @staticmethod
+    def _run_stage_b():
+        from mes_quant.redundancy import analyzer
+
+        obj = getattr(
+            analyzer,
+            "run_stage_b",
+            None,
+        )
+
+        if not callable(obj):
+            raise AssertionError(
+                "analyzer.run_stage_b must exist"
+            )
+
+        return obj
+
+    def test_run_stage_b_has_exact_keyword_only_boundary_signature(
+        self,
+    ) -> None:
+        import inspect
+
+        run_stage_b = (
+            self._run_stage_b()
+        )
+
+        signature = (
+            inspect.signature(
+                run_stage_b
+            )
+        )
+
+        parameters = tuple(
+            signature.parameters
+        )
+
+        self.assertEqual(
+            parameters,
+            self.EXPECTED_PARAMETERS,
+        )
+
+        for name in (
+            self.EXPECTED_PARAMETERS
+        ):
+            parameter = (
+                signature.parameters[
+                    name
+                ]
+            )
+
+            self.assertEqual(
+                parameter.kind,
+                inspect.Parameter.KEYWORD_ONLY,
+                (
+                    "run_stage_b production arguments "
+                    "must be keyword-only"
+                ),
+            )
+
+        self.assertFalse(
+            any(
+                parameter.kind
+                in {
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                }
+                for parameter
+                in signature.parameters.values()
+            ),
+            (
+                "run_stage_b must not expose "
+                "*args or **kwargs"
+            ),
+        )
+
+    def test_run_stage_b_does_not_accept_caller_supplied_provenance(
+        self,
+    ) -> None:
+        import inspect
+
+        run_stage_b = (
+            self._run_stage_b()
+        )
+
+        parameters = set(
+            inspect.signature(
+                run_stage_b
+            ).parameters
+        )
+
+        overlap = sorted(
+            parameters.intersection(
+                self.FORBIDDEN_CALLER_PROVENANCE_PARAMETERS
+            )
+        )
+
+        self.assertEqual(
+            overlap,
+            [],
+            (
+                "run_stage_b must derive production "
+                "provenance from canonical controls "
+                "instead of trusting caller-supplied "
+                f"provenance: {overlap}"
+            ),
+        )
+
+    def test_production_gate_runs_before_any_artifact_io(
+        self,
+    ) -> None:
+        from pathlib import Path
+        from unittest.mock import patch
+
+        run_stage_b = (
+            self._run_stage_b()
+        )
+
+        def unexpected_io(
+            *args,
+            **kwargs,
+        ):
+            raise AssertionError(
+                "artifact I/O occurred before "
+                "the production policy gate"
+            )
+
+        with (
+            patch.object(
+                Path,
+                "read_bytes",
+                side_effect=unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "read_text",
+                side_effect=unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "write_bytes",
+                side_effect=unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "write_text",
+                side_effect=unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "mkdir",
+                side_effect=unexpected_io,
+            ),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                (
+                    "Stage B policy must be "
+                    "LOCKED_EXECUTABLE"
+                ),
+            ):
+                run_stage_b(
+                    project_root=Path(
+                        "synthetic_project_root"
+                    ),
+                    output_dir=Path(
+                        "synthetic_output"
+                    ),
+                    yearly_review_acknowledged=False,
+                    phase_c_rank_loss_review_acknowledged=False,
+                )
+
+    def test_run_stage_b_is_sole_redundancy_package_artifact_reader(
+        self,
+    ) -> None:
+        import ast
+        from pathlib import Path
+
+        package_dir = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "mes_quant"
+            / "redundancy"
+        )
+
+        reader_call_names = {
+            "open",
+            "read_csv",
+            "read_parquet",
+            "read_json",
+            "read_pickle",
+            "read_bytes",
+            "read_text",
+        }
+
+        readers = []
+
+        for py_path in sorted(
+            package_dir.glob(
+                "*.py"
+            )
+        ):
+            tree = ast.parse(
+                py_path.read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            for node in tree.body:
+                if not isinstance(
+                    node,
+                    (
+                        ast.FunctionDef,
+                        ast.AsyncFunctionDef,
+                    ),
+                ):
+                    continue
+
+                calls = []
+
+                for child in ast.walk(
+                    node
+                ):
+                    if not isinstance(
+                        child,
+                        ast.Call,
+                    ):
+                        continue
+
+                    if isinstance(
+                        child.func,
+                        ast.Name,
+                    ):
+                        name = (
+                            child.func.id
+                        )
+
+                    elif isinstance(
+                        child.func,
+                        ast.Attribute,
+                    ):
+                        name = (
+                            child.func.attr
+                        )
+
+                    else:
+                        continue
+
+                    if name in reader_call_names:
+                        calls.append(
+                            name
+                        )
+
+                if calls:
+                    readers.append(
+                        (
+                            py_path.name,
+                            node.name,
+                        )
+                    )
+
+        self.assertEqual(
+            readers,
+            [
+                (
+                    "analyzer.py",
+                    "run_stage_b",
+                )
+            ],
+            (
+                "Expected sole Stage B artifact reader "
+                "to be analyzer.run_stage_b, got "
+                f"{readers}"
+            ),
+        )
+
+    def test_run_stage_b_does_not_call_legacy_high_level_paths(
+        self,
+    ) -> None:
+        import ast
+        import inspect
+        import textwrap
+
+        run_stage_b = (
+            self._run_stage_b()
+        )
+
+        source = textwrap.dedent(
+            inspect.getsource(
+                run_stage_b
+            )
+        )
+
+        tree = ast.parse(
+            source
+        )
+
+        called_names = set()
+
+        for node in ast.walk(
+            tree
+        ):
+            if not isinstance(
+                node,
+                ast.Call,
+            ):
+                continue
+
+            if isinstance(
+                node.func,
+                ast.Name,
+            ):
+                called_names.add(
+                    node.func.id
+                )
+
+            elif isinstance(
+                node.func,
+                ast.Attribute,
+            ):
+                called_names.add(
+                    node.func.attr
+                )
+
+        forbidden_used = sorted(
+            called_names.intersection(
+                self.LEGACY_HIGH_LEVEL_PATHS
+            )
+        )
+
+        self.assertEqual(
+            forbidden_used,
+            [],
+            (
+                "run_stage_b must use locked V1.1 "
+                "runtime instead of legacy "
+                f"decision paths: {forbidden_used}"
+            ),
+        )
+
+    def test_run_stage_b_boundary_has_no_label_aware_input_parameters(
+        self,
+    ) -> None:
+        import inspect
+
+        run_stage_b = (
+            self._run_stage_b()
+        )
+
+        parameters = tuple(
+            inspect.signature(
+                run_stage_b
+            ).parameters
+        )
+
+        forbidden_tokens = (
+            "label",
+            "target",
+            "pnl",
+            "future_return",
+            "auc",
+            "validation_performance",
+            "final_test",
+        )
+
+        violations = [
+            name
+            for name in parameters
+            if any(
+                token in name.lower()
+                for token in forbidden_tokens
+            )
+        ]
+
+        self.assertEqual(
+            violations,
+            [],
+            (
+                "Stage B production boundary must "
+                "remain target-blind: "
+                f"{violations}"
+            ),
+        )
+
+
+
+
+# STEP_13G3B1_PROVENANCE_CONTROL_FIREWALL_SPEC
+
+
+class StageBProductionProvenanceFirewallSpecificationTests(
+    unittest.TestCase
+):
+    EXPECTED_READABLE_ARTIFACT_IDS = (
+        "cell14_features",
+        "cell14_registry",
+        "cell14_audit",
+        "cell8_assignments",
+        "cell8_audit",
+    )
+
+    @staticmethod
+    def _repo_root():
+        from pathlib import Path
+
+        return (
+            Path(__file__)
+            .resolve()
+            .parents[1]
+        )
+
+    @classmethod
+    def _frozen_release_manifest(
+        cls,
+    ):
+        import json
+
+        path = (
+            cls._repo_root()
+            / "manifests"
+            / "releases"
+            / "cell14_local_release_v1.json"
+        )
+
+        return json.loads(
+            path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def test_stage_b_contract_contains_frozen_provenance_pins(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import contract
+        from tools.verify_cell14_release import (
+            EXPECTED_RELEASE_MANIFEST_SHA256,
+        )
+
+        required = (
+            "CELL14_RELEASE_MANIFEST_PATH",
+            "CELL14_RELEASE_MANIFEST_SHA256",
+            "CELL14_REGISTRY_FILE_SHA256",
+            "CELL14_AUDIT_FILE_SHA256",
+            "CELL8_ASSIGNMENTS_FILE_SHA256",
+            "CELL8_AUDIT_FILE_SHA256",
+        )
+
+        for name in required:
+            self.assertTrue(
+                hasattr(
+                    contract,
+                    name,
+                ),
+                (
+                    "Missing Stage B provenance pin: "
+                    f"{name}"
+                ),
+            )
+
+        manifest = (
+            self._frozen_release_manifest()
+        )
+
+        self.assertEqual(
+            contract.CELL14_RELEASE_MANIFEST_PATH,
+            (
+                "manifests/releases/"
+                "cell14_local_release_v1.json"
+            ),
+        )
+
+        self.assertEqual(
+            contract.CELL14_RELEASE_MANIFEST_SHA256,
+            EXPECTED_RELEASE_MANIFEST_SHA256,
+        )
+
+        self.assertEqual(
+            contract.CELL14_REGISTRY_FILE_SHA256,
+            manifest[
+                "runs"
+            ][
+                "canonical"
+            ][
+                "artifacts"
+            ][
+                "registry"
+            ][
+                "sha256"
+            ],
+        )
+
+        self.assertEqual(
+            contract.CELL14_AUDIT_FILE_SHA256,
+            manifest[
+                "runs"
+            ][
+                "canonical"
+            ][
+                "artifacts"
+            ][
+                "audit"
+            ][
+                "sha256"
+            ],
+        )
+
+        self.assertEqual(
+            contract.CELL8_ASSIGNMENTS_FILE_SHA256,
+            manifest[
+                "upstream_inputs"
+            ][
+                "cell8_assignments"
+            ][
+                "sha256"
+            ],
+        )
+
+        self.assertEqual(
+            contract.CELL8_AUDIT_FILE_SHA256,
+            manifest[
+                "upstream_inputs"
+            ][
+                "cell8_audit"
+            ][
+                "sha256"
+            ],
+        )
+
+    def test_release_manifest_binding_exposes_only_stage_b_allowed_artifacts(
+        self,
+    ) -> None:
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        source = inspect.getsource(
+            analyzer._validate_stage_b_release_manifest_binding
+        )
+
+        self.assertIn(
+            "provenance_only_artifact_ids",
+            source,
+        )
+
+        self.assertIn(
+            "cell8_assignments",
+            source,
+        )
+
+        self.assertIn(
+            "readable_artifact_ids",
+            source,
+        )
+
+    def test_release_manifest_binding_rejects_critical_hash_mutation(
+        self,
+    ) -> None:
+        import copy
+
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_release_manifest_binding",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            (
+                "analyzer."
+                "_validate_stage_b_release_manifest_binding "
+                "must exist"
+            ),
+        )
+
+        manifest = copy.deepcopy(
+            self._frozen_release_manifest()
+        )
+
+        manifest[
+            "upstream_inputs"
+        ][
+            "cell8_assignments"
+        ][
+            "sha256"
+        ] = "0" * 64
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                release_manifest=manifest,
+            )
+
+    def test_release_manifest_binding_rejects_path_escape(
+        self,
+    ) -> None:
+        import copy
+
+        from mes_quant.redundancy import analyzer
+
+        validate = getattr(
+            analyzer,
+            "_validate_stage_b_release_manifest_binding",
+            None,
+        )
+
+        self.assertTrue(
+            callable(validate),
+            (
+                "analyzer."
+                "_validate_stage_b_release_manifest_binding "
+                "must exist"
+            ),
+        )
+
+        manifest = copy.deepcopy(
+            self._frozen_release_manifest()
+        )
+
+        manifest[
+            "runs"
+        ][
+            "canonical"
+        ][
+            "artifacts"
+        ][
+            "features"
+        ][
+            "file"
+        ] = "../escape.parquet"
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            validate(
+                release_manifest=manifest,
+            )
+
+    def test_run_stage_b_rejects_tampered_release_manifest_before_dataframe_io(
+        self,
+    ) -> None:
+        import tempfile
+
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer
+
+        repo_root = (
+            self._repo_root()
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = (
+                Path(tmp)
+                / "project"
+            )
+
+            (
+                root
+                / "manifests"
+                / "releases"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "docs"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "configs"
+                / "v1"
+            ).mkdir(
+                parents=True
+            )
+
+            # Valid JSON but deliberately not the frozen
+            # Cell14 release-manifest bytes.
+            (
+                root
+                / "manifests"
+                / "releases"
+                / "cell14_local_release_v1.json"
+            ).write_text(
+                '{"tampered":true}\n',
+                encoding="utf-8",
+            )
+
+            (
+                root
+                / "docs"
+                / "STAGE_B_REDUNDANCY_CONTRACT.md"
+            ).write_bytes(
+                (
+                    repo_root
+                    / "docs"
+                    / "STAGE_B_REDUNDANCY_CONTRACT.md"
+                ).read_bytes()
+            )
+
+            (
+                root
+                / "configs"
+                / "v1"
+                / "stage_b_semantic_registry_v1.json"
+            ).write_bytes(
+                (
+                    repo_root
+                    / "configs"
+                    / "v1"
+                    / "stage_b_semantic_registry_v1.json"
+                ).read_bytes()
+            )
+
+            def forbidden_dataframe_io(
+                *args,
+                **kwargs,
+            ):
+                raise AssertionError(
+                    "DataFrame artifact I/O occurred "
+                    "before release-manifest firewall"
+                )
+
+            with (
+                patch.object(
+                    analyzer,
+                    "assert_stage_b_contract_locked",
+                    return_value=None,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_parquet",
+                    side_effect=forbidden_dataframe_io,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_csv",
+                    side_effect=forbidden_dataframe_io,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    (
+                        "release manifest SHA256 mismatch"
+                    ),
+                ):
+                    analyzer.run_stage_b(
+                        project_root=root,
+                        output_dir=(
+                            root
+                            / "stage_b_output"
+                        ),
+                        yearly_review_acknowledged=False,
+                        phase_c_rank_loss_review_acknowledged=False,
+                    )
+
+    def test_run_stage_b_rejects_tampered_markdown_before_dataframe_io(
+        self,
+    ) -> None:
+        import tempfile
+
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer
+
+        repo_root = (
+            self._repo_root()
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = (
+                Path(tmp)
+                / "project"
+            )
+
+            (
+                root
+                / "manifests"
+                / "releases"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "docs"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "configs"
+                / "v1"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "manifests"
+                / "releases"
+                / "cell14_local_release_v1.json"
+            ).write_bytes(
+                (
+                    repo_root
+                    / "manifests"
+                    / "releases"
+                    / "cell14_local_release_v1.json"
+                ).read_bytes()
+            )
+
+            (
+                root
+                / "docs"
+                / "STAGE_B_REDUNDANCY_CONTRACT.md"
+            ).write_bytes(
+                b"TAMPERED MARKDOWN\n"
+            )
+
+            (
+                root
+                / "configs"
+                / "v1"
+                / "stage_b_semantic_registry_v1.json"
+            ).write_bytes(
+                (
+                    repo_root
+                    / "configs"
+                    / "v1"
+                    / "stage_b_semantic_registry_v1.json"
+                ).read_bytes()
+            )
+
+            def forbidden_dataframe_io(
+                *args,
+                **kwargs,
+            ):
+                raise AssertionError(
+                    "DataFrame artifact I/O occurred "
+                    "before Markdown firewall"
+                )
+
+            with (
+                patch.object(
+                    analyzer,
+                    "assert_stage_b_contract_locked",
+                    return_value=None,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_parquet",
+                    side_effect=forbidden_dataframe_io,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_csv",
+                    side_effect=forbidden_dataframe_io,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "Markdown contract SHA256 mismatch",
+                ):
+                    analyzer.run_stage_b(
+                        project_root=root,
+                        output_dir=(
+                            root
+                            / "stage_b_output"
+                        ),
+                        yearly_review_acknowledged=False,
+                        phase_c_rank_loss_review_acknowledged=False,
+                    )
+
+    def test_run_stage_b_rejects_tampered_semantic_registry_before_dataframe_io(
+        self,
+    ) -> None:
+        import tempfile
+
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer
+
+        repo_root = (
+            self._repo_root()
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = (
+                Path(tmp)
+                / "project"
+            )
+
+            (
+                root
+                / "manifests"
+                / "releases"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "docs"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "configs"
+                / "v1"
+            ).mkdir(
+                parents=True
+            )
+
+            (
+                root
+                / "manifests"
+                / "releases"
+                / "cell14_local_release_v1.json"
+            ).write_bytes(
+                (
+                    repo_root
+                    / "manifests"
+                    / "releases"
+                    / "cell14_local_release_v1.json"
+                ).read_bytes()
+            )
+
+            (
+                root
+                / "docs"
+                / "STAGE_B_REDUNDANCY_CONTRACT.md"
+            ).write_bytes(
+                (
+                    repo_root
+                    / "docs"
+                    / "STAGE_B_REDUNDANCY_CONTRACT.md"
+                ).read_bytes()
+            )
+
+            # Valid JSON with byte-level tampering.
+            (
+                root
+                / "configs"
+                / "v1"
+                / "stage_b_semantic_registry_v1.json"
+            ).write_text(
+                '{"tampered":true}\n',
+                encoding="utf-8",
+            )
+
+            def forbidden_dataframe_io(
+                *args,
+                **kwargs,
+            ):
+                raise AssertionError(
+                    "DataFrame artifact I/O occurred "
+                    "before semantic-registry firewall"
+                )
+
+            with (
+                patch.object(
+                    analyzer,
+                    "assert_stage_b_contract_locked",
+                    return_value=None,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_parquet",
+                    side_effect=forbidden_dataframe_io,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_csv",
+                    side_effect=forbidden_dataframe_io,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    (
+                        "semantic registry SHA256 mismatch"
+                    ),
+                ):
+                    analyzer.run_stage_b(
+                        project_root=root,
+                        output_dir=(
+                            root
+                            / "stage_b_output"
+                        ),
+                        yearly_review_acknowledged=False,
+                        phase_c_rank_loss_review_acknowledged=False,
+                    )
+
+
+
+
+# STEP_13G3B2_CANONICAL_DATA_OPEN_RECONCILIATION_SPEC
+
+
+class StageBEmbeddedRoleProjectionBoundarySpecificationTests(
+    unittest.TestCase
+):
+    @staticmethod
+    def _fold_columns():
+        return (
+            "role_wf_2022",
+            "role_wf_2023",
+            "role_wf_2024",
+        )
+
+    @classmethod
+    def _feature_frame(cls):
+        import pandas as pd
+
+        return pd.DataFrame(
+            {
+                "decision_id": [
+                    "D1",
+                    "D2",
+                    "D3",
+                ],
+                "decision_time": pd.to_datetime(
+                    [
+                        "2024-01-02T15:00:00Z",
+                        "2024-06-03T15:00:00Z",
+                        "2024-12-31T20:00:00Z",
+                    ],
+                    utc=True,
+                ),
+                "outer_partition": [
+                    "TRAIN",
+                    "TRAIN",
+                    "VALIDATION",
+                ],
+                "role_wf_2022": [
+                    "TRAIN",
+                    "TRAIN",
+                    "VALIDATION",
+                ],
+                "role_wf_2023": [
+                    "TRAIN",
+                    "TRAIN",
+                    "VALIDATION",
+                ],
+                "role_wf_2024": [
+                    "TRAIN",
+                    "TRAIN",
+                    "VALIDATION",
+                ],
+            }
+        )
+
+    @staticmethod
+    def _cell8_sha():
+        return (
+            "2e13ee7d1e7de321411604c3500c73e6"
+            "8a080b02fa2983288d41d399aeb43035"
+        )
+
+    @classmethod
+    def _cell14_audit(
+        cls,
+        *,
+        cell8_sha=None,
+        rows=3,
+        final_test_rows=0,
+    ):
+        if cell8_sha is None:
+            cell8_sha = cls._cell8_sha()
+
+        return {
+            "upstream_binding": {
+                "cell8_assignments_sha256": (
+                    cell8_sha
+                ),
+            },
+            "feature_contract": {
+                "final_test_feature_rows": (
+                    final_test_rows
+                ),
+            },
+            "physical_development_reads": {
+                "cell8_assignments": {
+                    "physical_filter": {
+                        "outer_partition_in": [
+                            "TRAIN",
+                            "VALIDATION",
+                        ],
+                    },
+                    "rows": rows,
+                    "decision_time_min_utc": (
+                        "2024-01-02T15:00:00+00:00"
+                    ),
+                    "decision_time_max_utc": (
+                        "2024-12-31T20:00:00+00:00"
+                    ),
+                    "partitions": [
+                        "TRAIN",
+                        "VALIDATION",
+                    ],
+                },
+            },
+            "counts": {
+                "development_rows": rows,
+                "final_test_feature_rows": (
+                    final_test_rows
+                ),
+            },
+        }
+
+    def _validator(self):
+        from mes_quant.redundancy import analyzer
+
+        validator = getattr(
+            analyzer,
+            "_validate_stage_b_embedded_role_projection",
+            None,
+        )
+
+        self.assertTrue(
+            callable(
+                validator
+            ),
+            (
+                "analyzer."
+                "_validate_stage_b_embedded_role_projection "
+                "must exist"
+            ),
+        )
+
+        return validator
+
+    def test_embedded_role_validator_has_exact_keyword_only_signature(
+        self,
+    ):
+        import inspect
+
+        validator = self._validator()
+
+        signature = inspect.signature(
+            validator
+        )
+
+        self.assertEqual(
+            tuple(
+                signature.parameters
+            ),
+            (
+                "feature_frame",
+                "cell14_audit",
+                "expected_cell8_assignments_sha256",
+                "fold_role_columns",
+                "final_test_start_year",
+            ),
+        )
+
+        for parameter in (
+            signature.parameters.values()
+        ):
+            self.assertEqual(
+                parameter.kind,
+                inspect.Parameter.KEYWORD_ONLY,
+            )
+
+    def test_valid_embedded_development_role_projection_passes(
+        self,
+    ):
+        validator = self._validator()
+
+        result = validator(
+            feature_frame=(
+                self._feature_frame()
+            ),
+            cell14_audit=(
+                self._cell14_audit()
+            ),
+            expected_cell8_assignments_sha256=(
+                self._cell8_sha()
+            ),
+            fold_role_columns=list(
+                self._fold_columns()
+            ),
+            final_test_start_year=2025,
+        )
+
+        self.assertTrue(
+            result[
+                "embedded_role_projection_valid"
+            ]
+        )
+
+        self.assertEqual(
+            result[
+                "feature_row_count"
+            ],
+            3,
+        )
+
+        self.assertEqual(
+            result[
+                "cell8_assignment_rows_opened"
+            ],
+            0,
+        )
+
+        self.assertEqual(
+            result[
+                "final_test_rows_opened"
+            ],
+            0,
+        )
+
+    def test_embedded_projection_rejects_duplicate_decision_id(
+        self,
+    ):
+        frame = self._feature_frame()
+
+        frame.loc[
+            2,
+            "decision_id",
+        ] = "D2"
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            self._validator()(
+                feature_frame=frame,
+                cell14_audit=(
+                    self._cell14_audit()
+                ),
+                expected_cell8_assignments_sha256=(
+                    self._cell8_sha()
+                ),
+                fold_role_columns=list(
+                    self._fold_columns()
+                ),
+                final_test_start_year=2025,
+            )
+
+    def test_embedded_projection_rejects_missing_fold_role_column(
+        self,
+    ):
+        frame = (
+            self._feature_frame()
+            .drop(
+                columns=[
+                    "role_wf_2023",
+                ]
+            )
+        )
+
+        with self.assertRaises(
+            (ValueError, RuntimeError)
+        ):
+            self._validator()(
+                feature_frame=frame,
+                cell14_audit=(
+                    self._cell14_audit()
+                ),
+                expected_cell8_assignments_sha256=(
+                    self._cell8_sha()
+                ),
+                fold_role_columns=list(
+                    self._fold_columns()
+                ),
+                final_test_start_year=2025,
+            )
+
+    def test_embedded_projection_rejects_final_test_feature_row(
+        self,
+    ):
+        frame = self._feature_frame()
+
+        frame.loc[
+            2,
+            "decision_time",
+        ] = "2025-01-02T15:00:00Z"
+
+        with self.assertRaises(
+            RuntimeError
+        ):
+            self._validator()(
+                feature_frame=frame,
+                cell14_audit=(
+                    self._cell14_audit()
+                ),
+                expected_cell8_assignments_sha256=(
+                    self._cell8_sha()
+                ),
+                fold_role_columns=list(
+                    self._fold_columns()
+                ),
+                final_test_start_year=2025,
+            )
+
+    def test_embedded_projection_rejects_non_development_partition(
+        self,
+    ):
+        frame = self._feature_frame()
+
+        frame.loc[
+            2,
+            "outer_partition",
+        ] = "FINAL_TEST"
+
+        with self.assertRaises(
+            RuntimeError
+        ):
+            self._validator()(
+                feature_frame=frame,
+                cell14_audit=(
+                    self._cell14_audit()
+                ),
+                expected_cell8_assignments_sha256=(
+                    self._cell8_sha()
+                ),
+                fold_role_columns=list(
+                    self._fold_columns()
+                ),
+                final_test_start_year=2025,
+            )
+
+    def test_embedded_projection_rejects_cell8_provenance_hash_mismatch(
+        self,
+    ):
+        with self.assertRaises(
+            RuntimeError
+        ):
+            self._validator()(
+                feature_frame=(
+                    self._feature_frame()
+                ),
+                cell14_audit=(
+                    self._cell14_audit(
+                        cell8_sha=(
+                            "f" * 64
+                        )
+                    )
+                ),
+                expected_cell8_assignments_sha256=(
+                    self._cell8_sha()
+                ),
+                fold_role_columns=list(
+                    self._fold_columns()
+                ),
+                final_test_start_year=2025,
+            )
+
+    def test_embedded_projection_rejects_physical_development_row_count_mismatch(
+        self,
+    ):
+        with self.assertRaises(
+            RuntimeError
+        ):
+            self._validator()(
+                feature_frame=(
+                    self._feature_frame()
+                ),
+                cell14_audit=(
+                    self._cell14_audit(
+                        rows=2,
+                    )
+                ),
+                expected_cell8_assignments_sha256=(
+                    self._cell8_sha()
+                ),
+                fold_role_columns=list(
+                    self._fold_columns()
+                ),
+                final_test_start_year=2025,
+            )
+
+    def test_run_stage_b_uses_embedded_role_projection_not_cell8_reconciliation(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        source = inspect.getsource(
+            analyzer.run_stage_b
+        )
+
+        self.assertIn(
+            "_validate_stage_b_embedded_role_projection(",
+            source,
+        )
+
+        self.assertNotIn(
+            "_validate_stage_b_canonical_data_reconciliation(",
+            source,
+        )
+
+        self.assertNotIn(
+            "Cell8 assignment Parquet bytes",
+            source,
+        )
+
+    def test_release_binding_marks_cell8_assignments_provenance_only(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        source = inspect.getsource(
+            analyzer._validate_stage_b_release_manifest_binding
+        )
+
+        self.assertIn(
+            "provenance_only_artifact_ids",
+            source,
+        )
+
+        self.assertIn(
+            "cell8_assignments",
+            source,
+        )
+
+
+
+
+
+# STEP_13G3B3B_CANONICAL_REGISTRY_COMPATIBILITY_SPEC
+
+
+class StageBCanonicalRegistryCompatibilitySpecificationTests(
+    unittest.TestCase
+):
+    @staticmethod
+    def _canonical_registry_frame():
+        import io
+        import json
+
+        import pandas as pd
+
+        from pathlib import Path
+
+        root = (
+            Path(__file__)
+            .resolve()
+            .parents[1]
+        )
+
+        release = json.loads(
+            (
+                root
+                / "manifests"
+                / "releases"
+                / "cell14_local_release_v1.json"
+            ).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        registry_path = (
+            root
+            / release[
+                "runs"
+            ][
+                "canonical"
+            ][
+                "artifacts"
+            ][
+                "registry"
+            ][
+                "file"
+            ]
+        )
+
+        return pd.read_csv(
+            io.BytesIO(
+                registry_path.read_bytes()
+            )
+        )
+
+    def test_frozen_canonical_cell14_registry_is_accepted_without_metadata_rewrite(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        registry = (
+            self._canonical_registry_frame()
+        )
+
+        self.assertEqual(
+            len(
+                registry
+            ),
+            29,
+        )
+
+        self.assertIn(
+            "feature_name",
+            registry.columns,
+        )
+
+        fixed = registry.loc[
+            registry[
+                "lookback_mode"
+            ].eq(
+                "FIXED"
+            )
+        ]
+
+        self.assertTrue(
+            fixed[
+                "lookback_start_rule"
+            ]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .ne("")
+            .any(),
+            (
+                "The canonical control must exercise "
+                "the FIXED non-empty start-rule case."
+            ),
+        )
+
+        # Faithful schema adaptation only:
+        # feature_name -> feature.
+        #
+        # No canonical lookback metadata is rewritten,
+        # nulled, normalized away, or invented.
+        rows = (
+            registry.rename(
+                columns={
+                    "feature_name": "feature",
+                }
+            )
+            .to_dict(
+                orient="records"
+            )
+        )
+
+        artifact_order = (
+            registry[
+                "feature_name"
+            ]
+            .tolist()
+        )
+
+        result = (
+            analyzer._validate_canonical_feature_registry(
+                registry_rows=rows,
+                artifact_feature_order=artifact_order,
+            )
+        )
+
+        self.assertEqual(
+            result[
+                "candidate_count"
+            ],
+            29,
+        )
+
+        self.assertTrue(
+            result[
+                "membership_exact"
+            ]
+        )
+
+        self.assertTrue(
+            result[
+                "order_exact"
+            ]
+        )
+
+        self.assertTrue(
+            result[
+                "lookback_metadata_valid"
+            ]
+        )
+
+        self.assertEqual(
+            result[
+                "canonical_feature_order"
+            ],
+            tuple(
+                artifact_order
+            ),
+        )
+
+    def test_fixed_lookback_may_preserve_nonempty_canonical_start_rule(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        rows = []
+
+        for index in range(
+            29
+        ):
+            rows.append(
+                {
+                    "feature": (
+                        f"synthetic_feature_{index:02d}"
+                    ),
+                    "lookback_mode": "FIXED",
+                    "lookback_bars": 1,
+                    "lookback_minutes": 15,
+                    "lookback_start_rule": (
+                        "DECISION_TIME_MINUS_LOOKBACK"
+                    ),
+                }
+            )
+
+        order = [
+            row[
+                "feature"
+            ]
+            for row in rows
+        ]
+
+        result = (
+            analyzer._validate_canonical_feature_registry(
+                registry_rows=rows,
+                artifact_feature_order=order,
+            )
+        )
+
+        self.assertTrue(
+            result[
+                "lookback_metadata_valid"
+            ]
+        )
+
+        self.assertEqual(
+            result[
+                "canonical_feature_order"
+            ],
+            tuple(
+                order
+            ),
+        )
+
+
+
+
+# STEP_13G3B3_PHASE0_PRODUCTION_ORCHESTRATION_RED_SPEC
+
+
+class StageBPhaseASemanticIntegrationSpecificationTests(
+    unittest.TestCase
+):
+    @staticmethod
+    def _helper():
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_run_stage_b_phase_a",
+            None,
+        )
+
+        return helper
+
+    @staticmethod
+    def _source():
+        import inspect
+
+        helper = (
+            StageBPhaseASemanticIntegrationSpecificationTests
+            ._helper()
+        )
+
+        if not callable(helper):
+            raise AssertionError(
+                "analyzer._run_stage_b_phase_a must exist"
+            )
+
+        return inspect.getsource(
+            helper
+        )
+
+    def test_phase_a_boundary_exists_with_keyword_only_inputs(
+        self,
+    ):
+        import inspect
+
+        helper = self._helper()
+
+        self.assertTrue(
+            callable(helper),
+            "analyzer._run_stage_b_phase_a must exist",
+        )
+
+        signature = inspect.signature(
+            helper
+        )
+
+        self.assertEqual(
+            list(
+                signature.parameters
+            ),
+            [
+                "feature_frame",
+                "semantic_registry",
+                "phase0",
+            ],
+        )
+
+        for parameter in (
+            signature.parameters.values()
+        ):
+            self.assertEqual(
+                parameter.kind,
+                inspect.Parameter.KEYWORD_ONLY,
+            )
+
+    def test_phase_a_validates_semantic_registry_before_dispatch(
+        self,
+    ):
+        source = self._source()
+
+        validate_pos = source.find(
+            "validate_semantic_registry("
+        )
+
+        dispatch_pos = source.find(
+            '["implementation_key"]'
+        )
+
+        if dispatch_pos < 0:
+            dispatch_pos = source.find(
+                "['implementation_key']"
+            )
+
+        self.assertGreaterEqual(
+            validate_pos,
+            0,
+        )
+
+        self.assertGreater(
+            dispatch_pos,
+            validate_pos,
+        )
+
+    def test_phase_a_derives_protected_features_from_registry(
+        self,
+    ):
+        source = self._source()
+
+        self.assertEqual(
+            source.count(
+                "derive_protected_features("
+            ),
+            1,
+        )
+
+        self.assertIn(
+            '"protected_features"',
+            source,
+        )
+
+    def test_phase_a_executes_train_per_fold_only(
+        self,
+    ):
+        source = self._source()
+
+        self.assertIn(
+            "_contract.FOLD_ROLE_COLUMNS",
+            source,
+        )
+
+        self.assertIn(
+            "get_train_mask(",
+            source,
+        )
+
+        self.assertIn(
+            "for fold_role_column in",
+            source,
+        )
+
+    def test_phase_a_dispatches_from_registry_implementation_key(
+        self,
+    ):
+        source = self._source()
+
+        self.assertTrue(
+            (
+                'entry["implementation_key"]'
+                in source
+            )
+            or (
+                "entry['implementation_key']"
+                in source
+            )
+        )
+
+        self.assertIn(
+            "callable",
+            source,
+        )
+
+        self.assertIn(
+            "raise RuntimeError",
+            source,
+        )
+
+    def test_phase_a_requires_exact_semantic_checks_to_pass(
+        self,
+    ):
+        source = self._source()
+
+        exact_types = (
+            "EXACT_LINEAR_DERIVED_IDENTITY",
+            "EXACT_NONLINEAR_DERIVED_REPRESENTATION",
+            "EXACT_AFFINE_DERIVED_IDENTITY",
+            "EXACT_AFFINE_DEPENDENCY",
+            "PAIRED_NONLINEAR_REPRESENTATION",
+        )
+
+        for check_type in exact_types:
+            self.assertIn(
+                repr(check_type),
+                source,
+            )
+
+        self.assertIn(
+            "identity_pass",
+            source,
+        )
+
+        self.assertIn(
+            "raise RuntimeError",
+            source,
+        )
+
+    def test_phase_a_empirical_near_identity_is_evidence_only(
+        self,
+    ):
+        source = self._source()
+
+        self.assertIn(
+            repr(
+                "EMPIRICAL_NEAR_IDENTITY"
+            ),
+            source,
+        )
+
+        self.assertIn(
+            "automatic_decision",
+            source,
+        )
+
+        self.assertIn(
+            "EMPIRICAL_EVIDENCE_ONLY",
+            source,
+        )
+
+    def test_phase_a_returns_fold_results_and_protected_set(
+        self,
+    ):
+        source = self._source()
+
+        required_tokens = (
+            '"phase_a_semantic_valid"',
+            '"semantic_results_by_fold"',
+            '"protected_features"',
+        )
+
+        for token in required_tokens:
+            self.assertIn(
+                token,
+                source,
+            )
+
+    def test_phase_a_contains_no_data_io_imputation_or_row_drop(
+        self,
+    ):
+        source = self._source()
+
+        forbidden = (
+            "read_parquet",
+            "read_csv",
+            "read_bytes",
+            "read_text",
+            "to_parquet",
+            "to_csv",
+            "fillna(",
+            "ffill(",
+            "bfill(",
+            "interpolate(",
+            "dropna(",
+            ".drop(",
+            "open(",
+        )
+
+        for operation in forbidden:
+            self.assertNotIn(
+                operation,
+                source,
+            )
+
+    def test_phase_a_requires_green_phase0_and_sealed_final_test(
+        self,
+    ):
+        source = self._source()
+
+        self.assertIn(
+            "phase0_boundary_valid",
+            source,
+        )
+
+        self.assertIn(
+            "final_test_rows_opened",
+            source,
+        )
+
+        self.assertIn(
+            "raise RuntimeError",
+            source,
+        )
+
+class StageBPhase0FullOrchestrationSpecificationTests(
+    unittest.TestCase
+):
+    SHARED_240M = (
+        "momentum_log_240m",
+        "realized_vol_240m",
+        "volume_ratio_prev_240m",
+        "return_autocorr_lag1_240m",
+        "sign_entropy_240m",
+    )
+
+    @staticmethod
+    def _phase0_source():
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_run_stage_b_phase0",
+            None,
+        )
+
+        if not callable(
+            helper
+        ):
+            raise AssertionError(
+                "analyzer._run_stage_b_phase0 must exist"
+            )
+
+        return inspect.getsource(
+            helper
+        )
+
+    def test_phase0_calls_canonical_registry_validator(
+        self,
+    ):
+        source = self._phase0_source()
+
+        self.assertEqual(
+            source.count(
+                "_validate_canonical_feature_registry("
+            ),
+            1,
+        )
+
+    def test_phase0_calls_forbidden_input_validator(
+        self,
+    ):
+        source = self._phase0_source()
+
+        self.assertEqual(
+            source.count(
+                "_validate_forbidden_inputs("
+            ),
+            1,
+        )
+
+    def test_phase0_locked_order_registry_then_forbidden_then_coverage(
+        self,
+    ):
+        source = self._phase0_source()
+
+        registry_pos = source.find(
+            "_validate_canonical_feature_registry("
+        )
+
+        forbidden_pos = source.find(
+            "_validate_forbidden_inputs("
+        )
+
+        coverage_pos = source.find(
+            "_compute_stage_b_phase0_coverage("
+        )
+
+        self.assertGreaterEqual(
+            registry_pos,
+            0,
+        )
+
+        self.assertGreater(
+            forbidden_pos,
+            registry_pos,
+        )
+
+        self.assertGreater(
+            coverage_pos,
+            forbidden_pos,
+        )
+
+    def test_phase0_missingness_runs_after_coverage(
+        self,
+    ):
+        source = self._phase0_source()
+
+        coverage_pos = source.find(
+            "_compute_stage_b_phase0_coverage("
+        )
+
+        missingness_pos = source.find(
+            "_reconcile_full29_missingness("
+        )
+
+        self.assertGreaterEqual(
+            coverage_pos,
+            0,
+        )
+
+        self.assertGreater(
+            missingness_pos,
+            coverage_pos,
+        )
+
+    def test_phase0_uses_locked_missingness_feature_authorities(
+        self,
+    ):
+        source = self._phase0_source()
+
+        for feature in self.SHARED_240M:
+            self.assertIn(
+                repr(
+                    feature
+                ),
+                source,
+            )
+
+        self.assertIn(
+            repr(
+                "session_vwap_proxy_deviation"
+            ),
+            source,
+        )
+
+        self.assertIn(
+            repr(
+                "feature_status"
+            ),
+            source,
+        )
+
+    def test_phase0_computes_zero_variance_for_exact_three_folds(
+        self,
+    ):
+        source = self._phase0_source()
+
+        self.assertEqual(
+            source.count(
+                "compute_zero_variance_diagnostics("
+            ),
+            1,
+        )
+
+        self.assertIn(
+            "for fold_role_column in",
+            source,
+        )
+
+        self.assertIn(
+            "_contract.FOLD_ROLE_COLUMNS",
+            source,
+        )
+
+    def test_phase0_fails_closed_on_invalid_missingness_reconciliation(
+        self,
+    ):
+        source = self._phase0_source()
+
+        self.assertIn(
+            "component_reconciliation_valid",
+            source,
+        )
+
+        self.assertIn(
+            "raise RuntimeError",
+            source,
+        )
+
+    def test_phase0_returns_missingness_and_zero_variance_diagnostics(
+        self,
+    ):
+        source = self._phase0_source()
+
+        required_return_tokens = (
+            '"missingness_reconciliation"',
+            '"zero_variance_diagnostics"',
+        )
+
+        for token in required_return_tokens:
+            self.assertIn(
+                token,
+                source,
+            )
+
+    def test_phase0_full_orchestration_contains_no_imputation_or_row_drop(
+        self,
+    ):
+        source = self._phase0_source()
+
+        forbidden_operations = (
+            "fillna(",
+            "ffill(",
+            "bfill(",
+            "interpolate(",
+            "dropna(",
+            ".drop(",
+        )
+
+        for operation in forbidden_operations:
+            self.assertNotIn(
+                operation,
+                source,
+            )
+
+class StageBPhase0ProductionOrchestrationSpecificationTests(
+    unittest.TestCase
+):
+    CANONICAL_FEATURES = (
+        "ret_log_15m_lag0",
+        "ret_log_15m_lag1",
+        "ret_log_15m_lag2",
+        "ret_log_15m_lag3",
+        "momentum_log_60m",
+        "momentum_log_120m",
+        "momentum_log_240m",
+        "realized_vol_60m",
+        "realized_vol_120m",
+        "realized_vol_240m",
+        "bar_log_range_15m",
+        "bar_log_body_15m",
+        "bar_close_location",
+        "log1p_volume_15m",
+        "volume_ratio_prev_60m",
+        "volume_ratio_prev_240m",
+        "session_vwap_proxy_deviation",
+        "return_autocorr_lag1_240m",
+        "sign_entropy_240m",
+        "minutes_since_nyse_open",
+        "minutes_to_horizon_safe_close",
+        "decision_slot_sin",
+        "decision_slot_cos",
+        "weekday_0",
+        "weekday_1",
+        "weekday_2",
+        "weekday_3",
+        "weekday_4",
+        "early_close_session",
+    )
+
+    FOLD_COLUMNS = (
+        "role_wf_2022",
+        "role_wf_2023",
+        "role_wf_2024",
+    )
+
+    @classmethod
+    def _coverage_frame(
+        cls,
+        *,
+        low_2019=False,
+    ):
+        import numpy as np
+        import pandas as pd
+
+        rows = 10
+
+        data = {
+            feature: np.arange(
+                rows,
+                dtype="float64",
+            )
+            + index
+            for index, feature in enumerate(
+                cls.CANONICAL_FEATURES
+            )
+        }
+
+        frame = pd.DataFrame(
+            data
+        )
+
+        frame[
+            "decision_id"
+        ] = [
+            f"D{i:02d}"
+            for i in range(
+                rows
+            )
+        ]
+
+        frame[
+            "decision_time"
+        ] = pd.to_datetime(
+            (
+                [
+                    "2019-06-03T15:00:00Z",
+                    "2019-06-04T15:00:00Z",
+                    "2019-06-05T15:00:00Z",
+                    "2019-06-06T15:00:00Z",
+                    "2019-06-07T15:00:00Z",
+                ]
+                + [
+                    "2024-06-03T15:00:00Z",
+                    "2024-06-04T15:00:00Z",
+                    "2024-06-05T15:00:00Z",
+                    "2024-06-06T15:00:00Z",
+                    "2024-06-07T15:00:00Z",
+                ]
+            ),
+            utc=True,
+        )
+
+        for fold in cls.FOLD_COLUMNS:
+            frame[
+                fold
+            ] = (
+                ["TRAIN"] * 5
+                + ["VALIDATION"] * 5
+            )
+
+        if low_2019:
+            frame.loc[
+                0,
+                cls.CANONICAL_FEATURES[
+                    0
+                ],
+            ] = np.nan
+
+        frame[
+            "feature_row_usable"
+        ] = (
+            frame[
+                list(
+                    cls.CANONICAL_FEATURES
+                )
+            ]
+            .notna()
+            .all(
+                axis=1
+            )
+        )
+
+        frame[
+            "feature_status"
+        ] = np.where(
+            frame[
+                "feature_row_usable"
+            ],
+            "PASS",
+            "PARTIAL_LOOKBACK_BAR",
+        )
+
+        return frame
+
+    def _coverage_helper(self):
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_compute_stage_b_phase0_coverage",
+            None,
+        )
+
+        self.assertTrue(
+            callable(
+                helper
+            ),
+            (
+                "analyzer."
+                "_compute_stage_b_phase0_coverage "
+                "must exist"
+            ),
+        )
+
+        return helper
+
+    def test_phase0_coverage_helper_has_exact_keyword_only_signature(
+        self,
+    ):
+        import inspect
+
+        helper = self._coverage_helper()
+
+        signature = inspect.signature(
+            helper
+        )
+
+        self.assertEqual(
+            tuple(
+                signature.parameters
+            ),
+            (
+                "feature_frame",
+                "canonical_features",
+                "fold_role_columns",
+            ),
+        )
+
+        for parameter in (
+            signature.parameters.values()
+        ):
+            self.assertEqual(
+                parameter.kind,
+                inspect.Parameter.KEYWORD_ONLY,
+            )
+
+    def test_fold_coverage_is_recomputed_from_embedded_roles(
+        self,
+    ):
+        result = self._coverage_helper()(
+            feature_frame=(
+                self._coverage_frame(
+                    low_2019=True,
+                )
+            ),
+            canonical_features=list(
+                self.CANONICAL_FEATURES
+            ),
+            fold_role_columns=list(
+                self.FOLD_COLUMNS
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "fold_train_rows"
+            ],
+            {
+                fold: 5
+                for fold
+                in self.FOLD_COLUMNS
+            },
+        )
+
+        self.assertEqual(
+            result[
+                "fold_complete_rows"
+            ],
+            {
+                fold: 4
+                for fold
+                in self.FOLD_COLUMNS
+            },
+        )
+
+    def test_yearly_coverage_uses_only_applicable_train_history(
+        self,
+    ):
+        result = self._coverage_helper()(
+            feature_frame=(
+                self._coverage_frame(
+                    low_2019=True,
+                )
+            ),
+            canonical_features=list(
+                self.CANONICAL_FEATURES
+            ),
+            fold_role_columns=list(
+                self.FOLD_COLUMNS
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "yearly_coverage"
+            ],
+            {
+                2019: 0.8,
+            },
+        )
+
+        self.assertNotIn(
+            2024,
+            result[
+                "yearly_coverage"
+            ],
+        )
+
+    def test_yearly_denominator_keeps_unusable_train_decisions(
+        self,
+    ):
+        result = self._coverage_helper()(
+            feature_frame=(
+                self._coverage_frame(
+                    low_2019=True,
+                )
+            ),
+            canonical_features=list(
+                self.CANONICAL_FEATURES
+            ),
+            fold_role_columns=list(
+                self.FOLD_COLUMNS
+            ),
+        )
+
+        self.assertEqual(
+            result[
+                "yearly_train_rows"
+            ],
+            {
+                2019: 5,
+            },
+        )
+
+        self.assertEqual(
+            result[
+                "yearly_complete_rows"
+            ],
+            {
+                2019: 4,
+            },
+        )
+
+        self.assertAlmostEqual(
+            result[
+                "yearly_coverage"
+            ][
+                2019
+            ],
+            4 / 5,
+        )
+
+    def test_phase0_private_orchestrator_signature_has_no_assignments_frame(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_run_stage_b_phase0",
+            None,
+        )
+
+        self.assertTrue(
+            callable(
+                helper
+            )
+        )
+
+        signature = inspect.signature(
+            helper
+        )
+
+        self.assertEqual(
+            tuple(
+                signature.parameters
+            ),
+            (
+                "feature_frame",
+                "registry_frame",
+                "opened_fields",
+                "opened_cells",
+                "final_test_rows_opened",
+                "yearly_review_acknowledged",
+            ),
+        )
+
+        self.assertNotIn(
+            "assignments_frame",
+            signature.parameters,
+        )
+
+    def test_phase0_orchestrator_contains_no_artifact_io_or_assignment_frame(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_run_stage_b_phase0",
+            None,
+        )
+
+        self.assertTrue(
+            callable(
+                helper
+            )
+        )
+
+        source = inspect.getsource(
+            helper
+        )
+
+        self.assertNotIn(
+            "assignments_frame",
+            source,
+        )
+
+        for forbidden in (
+            "read_parquet",
+            "read_csv",
+            "read_bytes",
+            "read_text",
+            "write_bytes",
+            "write_text",
+            "to_parquet",
+            "to_csv",
+            "open(",
+        ):
+            self.assertNotIn(
+                forbidden,
+                source,
+            )
+
+    def test_phase0_orchestrator_consumes_embedded_role_coverage_helper(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_run_stage_b_phase0",
+            None,
+        )
+
+        self.assertTrue(
+            callable(
+                helper
+            )
+        )
+
+        source = inspect.getsource(
+            helper
+        )
+
+        self.assertEqual(
+            source.count(
+                "_compute_stage_b_phase0_coverage("
+            ),
+            1,
+        )
+
+    def test_final_test_firewall_precedes_coverage_computation(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        helper = getattr(
+            analyzer,
+            "_run_stage_b_phase0",
+            None,
+        )
+
+        self.assertTrue(
+            callable(
+                helper
+            )
+        )
+
+        source = inspect.getsource(
+            helper
+        )
+
+        firewall_position = source.find(
+            "final_test_rows_opened"
+        )
+
+        coverage_position = source.find(
+            "_compute_stage_b_phase0_coverage("
+        )
+
+        self.assertGreaterEqual(
+            firewall_position,
+            0,
+        )
+
+        self.assertGreater(
+            coverage_position,
+            firewall_position,
+        )
+
+    def test_run_stage_b_validates_embedded_projection_before_phase0(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        source = inspect.getsource(
+            analyzer.run_stage_b
+        )
+
+        projection = source.find(
+            "_validate_stage_b_embedded_role_projection("
+        )
+
+        phase0 = source.find(
+            "_run_stage_b_phase0("
+        )
+
+        self.assertGreaterEqual(
+            projection,
+            0,
+        )
+
+        self.assertGreater(
+            phase0,
+            projection,
+        )
+
+    def test_run_stage_b_has_no_old_cell8_dataframe_reconciliation_path(
+        self,
+    ):
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        source = inspect.getsource(
+            analyzer.run_stage_b
+        )
+
+        self.assertNotIn(
+            "_validate_stage_b_canonical_data_reconciliation(",
+            source,
+        )
+
+        self.assertNotIn(
+            "cell8_assignments=",
+            source,
+        )
+
+        self.assertNotIn(
+            "Cell8 assignment Parquet bytes",
+            source,
+        )
+
+
+
+
+if __name__ == "__main__":
+    unittest.main()
