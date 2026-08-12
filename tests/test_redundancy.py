@@ -102,6 +102,129 @@ class StageBLockedControlTests(unittest.TestCase):
         )
 
 
+class StageBConstitutionalPolicyGateDirectTests(
+    unittest.TestCase
+):
+    """Exercise the real production gate against locked control bytes."""
+
+    @staticmethod
+    def _call_gate() -> None:
+        from mes_quant.redundancy import analyzer
+
+        analyzer.assert_stage_b_contract_locked()
+
+    def test_current_provisional_python_status_fails_closed(
+        self,
+    ) -> None:
+        self.assertEqual(
+            contract.POLICY_STATUS,
+            "PROVISIONAL",
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "LOCKED_EXECUTABLE",
+        ):
+            self._call_gate()
+
+    def test_controlled_locked_state_passes_all_gate_invariants(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        with patch.object(
+            contract,
+            "POLICY_STATUS",
+            "LOCKED_EXECUTABLE",
+        ):
+            self._call_gate()
+
+    def test_wrong_policy_version_fails_closed(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        with (
+            patch.object(
+                contract,
+                "POLICY_STATUS",
+                "LOCKED_EXECUTABLE",
+            ),
+            patch.object(
+                contract,
+                "POLICY_VERSION",
+                "MES_V1_REDUNDANCY_WRONG",
+            ),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "policy version",
+            ):
+                self._call_gate()
+
+    def test_wrong_markdown_hash_fails_closed(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        with (
+            patch.object(
+                contract,
+                "POLICY_STATUS",
+                "LOCKED_EXECUTABLE",
+            ),
+            patch.object(
+                contract,
+                "MARKDOWN_CONTRACT_SHA256",
+                "0" * 64,
+            ),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Markdown contract SHA256 mismatch",
+            ):
+                self._call_gate()
+
+    def test_wrong_semantic_registry_hash_fails_closed(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        with (
+            patch.object(
+                contract,
+                "POLICY_STATUS",
+                "LOCKED_EXECUTABLE",
+            ),
+            patch.object(
+                contract,
+                "SEMANTIC_REGISTRY_SHA256",
+                "0" * 64,
+            ),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "semantic registry SHA256 mismatch",
+            ):
+                self._call_gate()
+
+    def test_wrong_python_status_fails_closed(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        with patch.object(
+            contract,
+            "POLICY_STATUS",
+            "OPEN",
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "LOCKED_EXECUTABLE",
+            ):
+                self._call_gate()
+
+
 class StageBSemanticRegistryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -5397,11 +5520,16 @@ class StageBProductionBoundarySpecificationTests(
                 (
                     "analyzer.py",
                     "run_stage_b",
-                )
+                ),
+                (
+                    "analyzer.py",
+                    "assert_stage_b_contract_locked",
+                ),
             ],
             (
-                "Expected sole Stage B artifact reader "
-                "to be analyzer.run_stage_b, got "
+                "Expected Stage B production data access to remain in "
+                "analyzer.run_stage_b and locked-control byte access "
+                "to remain in analyzer.assert_stage_b_contract_locked, got "
                 f"{readers}"
             ),
         )

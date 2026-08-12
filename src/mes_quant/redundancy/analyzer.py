@@ -8618,11 +8618,100 @@ def run_stage_b(
 
 
 def assert_stage_b_contract_locked() -> None:
-    """Stop immediately if Stage B policy is not locked."""
+    """Fail closed unless the live constitutional controls agree."""
 
-    if POLICY_STATUS != "LOCKED_EXECUTABLE":
+    import hashlib
+    import json
+    from pathlib import Path
+
+    from . import contract as _contract
+
+    if _contract.POLICY_STATUS != "LOCKED_EXECUTABLE":
         raise RuntimeError(
-            f"Stage B policy must be LOCKED_EXECUTABLE, got {POLICY_STATUS!r}"
+            "Stage B policy must be LOCKED_EXECUTABLE, got "
+            f"{_contract.POLICY_STATUS!r}"
+        )
+
+    project_root = Path(__file__).resolve().parents[3]
+
+    markdown_bytes = (
+        project_root
+        / _contract.MARKDOWN_CONTRACT_PATH
+    ).read_bytes()
+
+    registry_bytes = (
+        project_root
+        / _contract.SEMANTIC_REGISTRY_PATH
+    ).read_bytes()
+
+    if (
+        hashlib.sha256(markdown_bytes).hexdigest()
+        != _contract.MARKDOWN_CONTRACT_SHA256
+    ):
+        raise RuntimeError(
+            "Stage B Markdown contract SHA256 mismatch."
+        )
+
+    if (
+        hashlib.sha256(registry_bytes).hexdigest()
+        != _contract.SEMANTIC_REGISTRY_SHA256
+    ):
+        raise RuntimeError(
+            "Stage B semantic registry SHA256 mismatch."
+        )
+
+    try:
+        markdown = markdown_bytes.decode("utf-8")
+        registry = json.loads(
+            registry_bytes.decode("utf-8")
+        )
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise RuntimeError(
+            "Stage B constitutional controls are not valid UTF-8/JSON."
+        ) from exc
+
+    expected_version_line = (
+        f"Policy version: `{_contract.POLICY_VERSION}`"
+    )
+
+    if expected_version_line not in markdown:
+        raise RuntimeError(
+            "Stage B policy version mismatch."
+        )
+
+    if (
+        "Policy status: **LOCKED_EXECUTABLE**"
+        not in markdown
+    ):
+        raise RuntimeError(
+            "Stage B Markdown policy status is not LOCKED_EXECUTABLE."
+        )
+
+    if (
+        registry.get("registry_status")
+        != "LOCKED_EXECUTABLE"
+    ):
+        raise RuntimeError(
+            "Stage B semantic registry status is not LOCKED_EXECUTABLE."
+        )
+
+    if (
+        registry.get("policy_version")
+        != _contract.POLICY_VERSION
+    ):
+        raise RuntimeError(
+            "Stage B semantic registry policy version mismatch."
+        )
+
+    if (
+        registry.get("source_contract")
+        != _contract.MARKDOWN_CONTRACT_PATH
+    ):
+        raise RuntimeError(
+            "Stage B semantic registry source-contract mismatch."
         )
 
 
