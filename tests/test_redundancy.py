@@ -111,7 +111,9 @@ class StageBConstitutionalPolicyGateDirectTests(
     def _call_gate() -> None:
         from mes_quant.redundancy import analyzer
 
-        analyzer.assert_stage_b_contract_locked()
+        analyzer.assert_stage_b_contract_locked(
+            project_root=PROJECT_ROOT,
+        )
 
     def test_current_provisional_python_status_fails_closed(
         self,
@@ -223,6 +225,183 @@ class StageBConstitutionalPolicyGateDirectTests(
                 "LOCKED_EXECUTABLE",
             ):
                 self._call_gate()
+
+
+class StageBProjectRootGateSpecificationTests(
+    unittest.TestCase
+):
+    """Lock one caller-supplied root for the constitutional gate."""
+
+    @staticmethod
+    def _build_control_root(
+        root: Path,
+    ) -> None:
+        for relative_path in (
+            contract.MARKDOWN_CONTRACT_PATH,
+            contract.SEMANTIC_REGISTRY_PATH,
+        ):
+            source = PROJECT_ROOT / relative_path
+            destination = root / relative_path
+            destination.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            destination.write_bytes(
+                source.read_bytes()
+            )
+
+    def test_gate_requires_explicit_keyword_only_project_root(
+        self,
+    ) -> None:
+        import inspect
+
+        from mes_quant.redundancy import analyzer
+
+        signature = inspect.signature(
+            analyzer.assert_stage_b_contract_locked
+        )
+
+        self.assertEqual(
+            tuple(signature.parameters),
+            ("project_root",),
+        )
+        self.assertEqual(
+            signature.parameters[
+                "project_root"
+            ].kind,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+
+    def test_real_gate_rejects_tampered_control_under_supplied_root(
+        self,
+    ) -> None:
+        import tempfile
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            alternate_root = Path(temp_dir)
+            self._build_control_root(
+                alternate_root
+            )
+
+            markdown_path = (
+                alternate_root
+                / contract.MARKDOWN_CONTRACT_PATH
+            )
+            markdown_path.write_bytes(
+                markdown_path.read_bytes()
+                + b"\nTAMPERED_ALTERNATE_ROOT\n"
+            )
+
+            with (
+                patch.object(
+                    contract,
+                    "POLICY_STATUS",
+                    "LOCKED_EXECUTABLE",
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "Markdown contract SHA256 mismatch",
+                ),
+            ):
+                analyzer.assert_stage_b_contract_locked(
+                    project_root=alternate_root,
+                )
+
+    def test_real_gate_accepts_exact_controls_under_supplied_root(
+        self,
+    ) -> None:
+        import tempfile
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            alternate_root = Path(temp_dir)
+            self._build_control_root(
+                alternate_root
+            )
+
+            with patch.object(
+                contract,
+                "POLICY_STATUS",
+                "LOCKED_EXECUTABLE",
+            ):
+                analyzer.assert_stage_b_contract_locked(
+                    project_root=alternate_root,
+                )
+
+    def test_run_stage_b_first_action_routes_caller_project_root_to_gate(
+        self,
+    ) -> None:
+        import ast
+        import inspect
+        import textwrap
+
+        from mes_quant.redundancy import analyzer
+
+        source = textwrap.dedent(
+            inspect.getsource(
+                analyzer.run_stage_b
+            )
+        )
+        function = ast.parse(source).body[0]
+
+        executable = list(function.body)
+        if (
+            executable
+            and isinstance(executable[0], ast.Expr)
+            and isinstance(
+                executable[0].value,
+                ast.Constant,
+            )
+            and isinstance(
+                executable[0].value.value,
+                str,
+            )
+        ):
+            executable = executable[1:]
+
+        first_action = executable[0]
+        self.assertIsInstance(
+            first_action,
+            ast.Expr,
+        )
+        self.assertIsInstance(
+            first_action.value,
+            ast.Call,
+        )
+        self.assertIsInstance(
+            first_action.value.func,
+            ast.Name,
+        )
+        self.assertEqual(
+            first_action.value.func.id,
+            "assert_stage_b_contract_locked",
+        )
+        self.assertEqual(
+            first_action.value.args,
+            [],
+        )
+        self.assertEqual(
+            len(first_action.value.keywords),
+            1,
+        )
+        keyword = first_action.value.keywords[0]
+        self.assertEqual(
+            keyword.arg,
+            "project_root",
+        )
+        self.assertIsInstance(
+            keyword.value,
+            ast.Name,
+        )
+        self.assertEqual(
+            keyword.value.id,
+            "project_root",
+        )
 
 
 class StageBSemanticRegistryTests(unittest.TestCase):

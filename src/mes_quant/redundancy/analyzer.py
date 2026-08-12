@@ -10,7 +10,6 @@ from mes_quant.redundancy.contract import (
     FOLD_ROLE_COLUMNS,
     HARD_REDUNDANCY_PEARSON_ABS,
     HARD_REDUNDANCY_SPEARMAN_ABS,
-    POLICY_STATUS,
     POLICY_VERSION,
     REVIEW_CORRELATION_ABS,
     SEMANTIC_IDENTITY_TOLERANCE,
@@ -8161,7 +8160,9 @@ def run_stage_b(
     # 1. ABSOLUTE FIRST ACTION: POLICY GATE
     # --------------------------------------------------------
 
-    assert_stage_b_contract_locked()
+    assert_stage_b_contract_locked(
+        project_root=project_root,
+    )
 
     # --------------------------------------------------------
     # 2. ARGUMENT NORMALIZATION AFTER GATE
@@ -8617,7 +8618,10 @@ def run_stage_b(
 
 
 
-def assert_stage_b_contract_locked() -> None:
+def assert_stage_b_contract_locked(
+    *,
+    project_root,
+) -> None:
     """Fail closed unless the live constitutional controls agree."""
 
     import hashlib
@@ -8632,15 +8636,15 @@ def assert_stage_b_contract_locked() -> None:
             f"{_contract.POLICY_STATUS!r}"
         )
 
-    project_root = Path(__file__).resolve().parents[3]
+    root = Path(project_root).resolve()
 
     markdown_bytes = (
-        project_root
+        root
         / _contract.MARKDOWN_CONTRACT_PATH
     ).read_bytes()
 
     registry_bytes = (
-        project_root
+        root
         / _contract.SEMANTIC_REGISTRY_PATH
     ).read_bytes()
 
@@ -8829,10 +8833,14 @@ def analyze_one_fold(
     df: pd.DataFrame,
     fold_role_column: str,
     feature_columns: list[str],
+    *,
+    project_root,
 ) -> pd.DataFrame:
     """Run the locked Stage B redundancy analysis for one TRAIN fold."""
 
-    assert_stage_b_contract_locked()
+    assert_stage_b_contract_locked(
+        project_root=project_root,
+    )
 
     pearson, spearman, pairwise_counts = compute_fold_correlations(
         df=df,
@@ -8853,6 +8861,8 @@ def analyze_one_fold(
 def analyze_all_folds(
     df: pd.DataFrame,
     feature_columns: list[str],
+    *,
+    project_root,
 ) -> pd.DataFrame:
     """Run Stage B redundancy analysis across all locked TRAIN folds."""
 
@@ -8863,6 +8873,7 @@ def analyze_all_folds(
             df=df,
             fold_role_column=fold_role_column,
             feature_columns=feature_columns,
+            project_root=project_root,
         )
         fold_results.append(fold_result)
 
