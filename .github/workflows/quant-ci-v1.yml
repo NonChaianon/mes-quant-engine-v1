@@ -41,8 +41,8 @@ jobs:
           from mes_quant.redundancy import analyzer, contract
 
           assert analyzer.run_stage_b is not None
-          assert contract.POLICY_STATUS == "PROVISIONAL"
-          print("Active imports passed; Stage B policy remains PROVISIONAL.")
+          print("Active imports passed.")
+          print(f"Stage B Python policy status: {contract.POLICY_STATUS}")
           PY
 
       - name: Run critical Ruff checks

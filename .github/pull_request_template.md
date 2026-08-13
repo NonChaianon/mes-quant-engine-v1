@@ -44,8 +44,11 @@ CI GREEN verifies engineering/test invariants. It does **not** authorize merge.
 To be completed by the authorized Quant/CIO reviewer, not assumed by the PR author:
 
 - [ ] Implementation matches the approved Quant specification.
-- [ ] Decisions use only authorized TRAIN information.
-- [ ] No Validation or Final Test information influenced a decision.
+- [ ] Information usage matches the approved phase/specification.
+- [ ] TRAIN-only rules were obeyed wherever the approved phase requires TRAIN-only.
+- [ ] Validation was not used where prohibited by the approved phase/specification.
+- [ ] Final Test remained sealed unless its opening was separately authorized.
+- [ ] Final Test was not used for tuning/reselection.
 - [ ] Locked methods, tolerances, thresholds, and retention priorities are unchanged or explicitly authorized.
 - [ ] Protected features and DROP authority are correct.
 - [ ] Artifact schemas and provenance boundaries are preserved where required.

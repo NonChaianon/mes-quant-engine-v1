@@ -178,9 +178,12 @@ known checkout-safe regression coverage.
 Quant UAT verifies fidelity to the approved methodology and specification. It
 asks questions that automated CI cannot authorize, including:
 
-- Did each decision use only authorized TRAIN information?
-- Did Validation performance, future information, labels, targets, P&L, or
-  Final Test data leak into any decision?
+- Did the implementation use only information explicitly authorized by the
+  approved phase/specification?
+- Were TRAIN-only rules obeyed wherever the approved phase requires TRAIN-only?
+- Was Validation excluded wherever the approved phase/specification prohibits
+  its use?
+- Did future information, labels, targets, or P&L leak into any decision?
 - Were locked SVD construction, rank tolerance, thresholds, and retention
   priority followed exactly?
 - Were protected features preserved?
@@ -190,6 +193,17 @@ asks questions that automated CI cannot authorize, including:
 - Are Cell8 full assignment rows opened still exactly `0`?
 - Did production remain fail-closed at every boundary required by the approved
   phase?
+
+Every implementation may use only information explicitly authorized by the
+approved phase/specification. For current Stage B, Validation must not influence
+Phase A, B, C, or D feature-reduction decisions. A later, separately approved
+methodology/specification may permit Validation for a defined purpose such as
+model selection or calibration; this guide does not define or authorize that
+future methodology.
+
+Final Test is different: it remains sealed unless a separately approved stage
+explicitly authorizes opening it. After evaluation, Final Test must never be
+used to tune, reselect, or redesign the system.
 
 `CI GREEN != Quant approval`. Both CI GREEN and explicit Quant UAT acceptance
 are required before merge.
@@ -242,7 +256,7 @@ not actually configured. Reassess when a separate Quant reviewer account or
 GitHub team exists; then map locked controls and Quant production paths to that
 review authority and enable required code-owner review deliberately.
 
-## Recommended future branch protection
+## Recommended current branch protection
 
 Branch protection is not enabled or changed by this workflow task. After
 independent review, configure `main` with:
@@ -252,10 +266,15 @@ independent review, configure `main` with:
 - block force pushes to `main`;
 - block deletion of `main`;
 - require conversation resolution when review comments are used;
-- require at least one approval from the designated Quant UAT authority; and
+- require Quant UAT evidence to be recorded before merge;
+- allow no merge without explicit User + ChatGPT Quant/CIO acceptance; and
 - do not permit CI GREEN to substitute for explicit Quant UAT approval.
 
-Keep administrator bypass and dismissal permissions narrow. Add required
-code-owner review only after CODEOWNERS maps to a real independent reviewer or
-team. These settings are recommendations; enabling them requires separate
-explicit authorization.
+The current single-account workflow has no genuinely independent GitHub
+reviewer identity. Do not currently require a GitHub approving-review count;
+that setting could deadlock the workflow or falsely imply independent review.
+When a distinct Quant reviewer GitHub account/team exists, enable at least one
+required approving review and reassess CODEOWNERS.
+
+Keep administrator bypass and dismissal permissions narrow. These settings are
+recommendations; enabling them requires separate explicit authorization.
