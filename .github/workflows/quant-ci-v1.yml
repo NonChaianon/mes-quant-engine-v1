@@ -62,28 +62,40 @@ jobs:
           tests/test_redundancy.py::StageBProjectRootGateSpecificationTests
 
       - name: Run Phase 0 and Phase A focused tests
+        shell: bash
         run: |
-          python -m pytest -p no:cacheprovider \
-            tests/test_redundancy.py::StageBPhase0FirewallSpecificationTests \
-            tests/test_redundancy.py::StageBPhase0FullOrchestrationSpecificationTests \
-            tests/test_redundancy.py::StageBPhase0ProductionOrchestrationSpecificationTests \
-            tests/test_redundancy.py::StageBPhaseASemanticIntegrationSpecificationTests \
-            tests/test_redundancy.py::StageBPhaseADecisionBridgeRedSpecificationTests \
-            tests/test_redundancy.py::StageBExactBasisPrimitiveRedSpecificationTests
+          registry_path="artifacts/runs/cell14_20260809T175203Z/cell14_feature_registry_v1.csv"
+          focused_tests=(
+            tests/test_redundancy.py::StageBPhase0FirewallSpecificationTests
+            tests/test_redundancy.py::StageBPhase0FullOrchestrationSpecificationTests
+            tests/test_redundancy.py::StageBPhase0ProductionOrchestrationSpecificationTests
+            tests/test_redundancy.py::StageBPhaseASemanticIntegrationSpecificationTests
+          )
+
+          if [[ -f "$registry_path" ]]; then
+            focused_tests+=(tests/test_redundancy.py::StageBPhaseADecisionBridgeRedSpecificationTests)
+          else
+            echo "::notice title=Environmental fixture exclusion::The external Cell14 feature-registry artifact is not present. StageBPhaseADecisionBridgeRedSpecificationTests is external-fixture-dependent and is intentionally not executed in checkout-only CI. This environmental absence is not a pass; artifact-enabled validation remains separately required where applicable."
+          fi
+
+          focused_tests+=(tests/test_redundancy.py::StageBExactBasisPrimitiveRedSpecificationTests)
+          python -m pytest -p no:cacheprovider "${focused_tests[@]}"
 
       - name: Run checkout-safe Stage B redundancy suite
         shell: bash
         run: |
           registry_path="artifacts/runs/cell14_20260809T175203Z/cell14_feature_registry_v1.csv"
           registry_test="tests/test_redundancy.py::StageBCanonicalRegistryCompatibilitySpecificationTests::test_frozen_canonical_cell14_registry_is_accepted_without_metadata_rewrite"
+          decision_bridge_class="tests/test_redundancy.py::StageBPhaseADecisionBridgeRedSpecificationTests"
 
           if [[ -f "$registry_path" ]]; then
             python -m pytest -p no:cacheprovider tests/test_redundancy.py
           else
-            echo "::notice title=Environmental data not present::The frozen Cell14 registry metadata snapshot is not stored in Git. CI will not fetch, copy, or synthesize it; exactly one external-fixture compatibility test is deselected."
+            echo "::notice title=Environmental fixture exclusions::The external Cell14 feature-registry artifact is not present. The frozen canonical-registry compatibility test and StageBPhaseADecisionBridgeRedSpecificationTests are intentionally not executed in checkout-only CI. These environmental exclusions are not passes; artifact-enabled validation remains separately required where applicable."
             python -m pytest -p no:cacheprovider \
               tests/test_redundancy.py \
-              --deselect="$registry_test"
+              --deselect="$registry_test" \
+              --deselect="$decision_bridge_class"
           fi
 
       - name: Run other checkout-safe repository tests

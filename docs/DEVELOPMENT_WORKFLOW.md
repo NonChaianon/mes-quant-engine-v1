@@ -151,12 +151,17 @@ these explicit environmental rules:
 
 - It never fetches or copies raw MES data, Final Test data, or provenance-only
   Cell8 full assignment data.
-- It runs all of `tests/test_redundancy.py` when the frozen Cell14 registry
-  metadata snapshot is present.
-- In a clean checkout where that ignored metadata snapshot is absent, it emits
-  an `Environmental data not present` notice and deselects exactly
-  `StageBCanonicalRegistryCompatibilitySpecificationTests::test_frozen_canonical_cell14_registry_is_accepted_without_metadata_rewrite`.
-  Every other test in `tests/test_redundancy.py` still runs.
+- It runs all of `tests/test_redundancy.py` when the frozen Cell14 feature
+  registry is present. That external fixture supports both the frozen canonical
+  registry compatibility boundary and the Phase-A Decision Bridge specification
+  boundary.
+- In a clean checkout where that ignored feature-registry artifact is absent,
+  it emits visible environmental-exclusion notices and does not execute either
+  `StageBCanonicalRegistryCompatibilitySpecificationTests::test_frozen_canonical_cell14_registry_is_accepted_without_metadata_rewrite`
+  or the external-fixture-dependent
+  `StageBPhaseADecisionBridgeRedSpecificationTests` class. These exclusions are
+  environmental absences, not test passes. All other checkout-safe redundancy
+  tests continue to execute.
 - It does not run `tests/test_cell14_release.py` because that module's shared
   setup requires the complete ignored Cell14 release outputs, including the
   development feature parquet. This is an environmental limitation, not a
@@ -167,7 +172,7 @@ these explicit environmental rules:
 
 Do not make unavailable-data tests green by weakening them. An approved
 artifact-enabled environment may run those tests separately and report the
-results as additional evidence.
+results for both external-fixture boundaries as additional evidence.
 
 ## CI versus Quant UAT
 
