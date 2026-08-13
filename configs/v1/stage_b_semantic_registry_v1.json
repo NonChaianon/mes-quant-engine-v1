@@ -1,0 +1,138 @@
+{
+  "policy_version": "MES_V1_REDUNDANCY_1.1",
+  "registry_status": "LOCKED_EXECUTABLE",
+  "source_contract": "docs/STAGE_B_REDUNDANCY_CONTRACT.md",
+  "semantic_checks": [
+    {
+      "check_id": "SEM_MOMENTUM_60M",
+      "check_type": "EXACT_LINEAR_DERIVED_IDENTITY",
+      "features": [
+        "momentum_log_60m",
+        "ret_log_15m_lag0",
+        "ret_log_15m_lag1",
+        "ret_log_15m_lag2",
+        "ret_log_15m_lag3"
+      ],
+      "dependent_features": [
+        "momentum_log_60m"
+      ],
+      "determining_features": [
+        "ret_log_15m_lag0",
+        "ret_log_15m_lag1",
+        "ret_log_15m_lag2",
+        "ret_log_15m_lag3"
+      ],
+      "scope": "TRAIN_PER_FOLD",
+      "decision_effect": "DROP_DEPENDENT_KEEP_DETERMINING",
+      "implementation_key": "check_momentum_60m_telescoping_identity",
+      "dependency_group": "SEM_MOMENTUM_60M",
+      "required_drop_count": 1,
+      "protect_determining_features": true,
+      "rationale": "momentum_log_60m is the exact sum of the four canonical 15-minute return lags; retain the determining return basis and drop the derived feature."
+    },
+    {
+      "check_id": "SEM_REALIZED_VOL_60M",
+      "check_type": "EXACT_NONLINEAR_DERIVED_REPRESENTATION",
+      "features": [
+        "realized_vol_60m",
+        "ret_log_15m_lag0",
+        "ret_log_15m_lag1",
+        "ret_log_15m_lag2",
+        "ret_log_15m_lag3"
+      ],
+      "dependent_features": [
+        "realized_vol_60m"
+      ],
+      "determining_features": [
+        "ret_log_15m_lag0",
+        "ret_log_15m_lag1",
+        "ret_log_15m_lag2",
+        "ret_log_15m_lag3"
+      ],
+      "scope": "TRAIN_PER_FOLD",
+      "decision_effect": "RETAIN_DERIVED_NONLINEAR_REPRESENTATION",
+      "implementation_key": "check_realized_vol_60m_representation",
+      "dependency_group": "SEM_REALIZED_VOL_60M",
+      "required_drop_count": 0,
+      "protect_determining_features": false,
+      "rationale": "realized_vol_60m is an exact nonlinear function of the four canonical return lags but is retained in BASE as a potentially useful nonlinear representation."
+    },
+    {
+      "check_id": "SEM_HORIZON_SAFE_CLOSE",
+      "check_type": "EXACT_AFFINE_DERIVED_IDENTITY",
+      "features": [
+        "minutes_to_horizon_safe_close",
+        "minutes_since_nyse_open",
+        "early_close_session"
+      ],
+      "dependent_features": [
+        "minutes_to_horizon_safe_close"
+      ],
+      "determining_features": [
+        "minutes_since_nyse_open",
+        "early_close_session"
+      ],
+      "scope": "TRAIN_PER_FOLD",
+      "decision_effect": "DROP_DEPENDENT_KEEP_DETERMINING",
+      "implementation_key": "check_horizon_safe_close_affine_identity",
+      "dependency_group": "SEM_HORIZON_SAFE_CLOSE",
+      "required_drop_count": 1,
+      "protect_determining_features": true,
+      "rationale": "minutes_to_horizon_safe_close is exactly determined by minutes_since_nyse_open and early_close_session under the locked upstream calendar/session definitions underlying the canonical affine relation; retain the determining basis and drop the derived feature. Any upstream calendar/session change that invalidates this relation requires renewed semantic validation before Stage B execution."
+    },
+    {
+      "check_id": "SEM_WEEKDAY_ONEHOT",
+      "check_type": "EXACT_AFFINE_DEPENDENCY",
+      "features": [
+        "weekday_0",
+        "weekday_1",
+        "weekday_2",
+        "weekday_3",
+        "weekday_4"
+      ],
+      "dependent_features": [],
+      "determining_features": [],
+      "scope": "TRAIN_PER_FOLD",
+      "decision_effect": "DROP_ONE_DETERMINISTIC_REFERENCE_KEEP_FOUR_DIMENSIONS",
+      "implementation_key": "check_weekday_one_hot_affine_dependency",
+      "dependency_group": "SEM_WEEKDAY_ONEHOT",
+      "required_drop_count": 1,
+      "protect_determining_features": false,
+      "rationale": "The five weekday one-hot features sum to one and contain four categorical dimensions; retain four dimensions and drop one deterministic reference dummy."
+    },
+    {
+      "check_id": "SEM_DECISION_SLOT_CYCLE",
+      "check_type": "PAIRED_NONLINEAR_REPRESENTATION",
+      "features": [
+        "decision_slot_sin",
+        "decision_slot_cos"
+      ],
+      "dependent_features": [],
+      "determining_features": [],
+      "scope": "TRAIN_PER_FOLD",
+      "decision_effect": "RETAIN_BOTH_PAIRED_REPRESENTATION",
+      "implementation_key": "check_decision_slot_unit_circle",
+      "dependency_group": "SEM_DECISION_SLOT_CYCLE",
+      "required_drop_count": 0,
+      "protect_determining_features": false,
+      "rationale": "The sine/cosine pair is a deterministic cyclical representation satisfying the unit-circle identity; neither component alone replaces the other."
+    },
+    {
+      "check_id": "EMP_LAG0_BAR_BODY",
+      "check_type": "EMPIRICAL_NEAR_IDENTITY",
+      "features": [
+        "ret_log_15m_lag0",
+        "bar_log_body_15m"
+      ],
+      "dependent_features": [],
+      "determining_features": [],
+      "scope": "TRAIN_PER_FOLD",
+      "decision_effect": "PHASE_C_HARD_MAY_DROP_ONLY_UNPROTECTED_MEMBER",
+      "implementation_key": "check_lag0_bar_body_empirical_pair",
+      "dependency_group": "EMP_LAG0_BAR_BODY",
+      "required_drop_count": null,
+      "protect_determining_features": false,
+      "rationale": "This pair is empirical rather than exact. ret_log_15m_lag0 is protected by the separate momentum identity, so any automatic HARD compression may remove only the unprotected member and only after all locked Phase-C gates pass."
+    }
+  ]
+}
