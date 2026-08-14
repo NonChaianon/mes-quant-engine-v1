@@ -2,7 +2,7 @@
 
 Policy version: `MES_V1_REDUNDANCY_1.2`
 
-Policy status: **PROVISIONAL**
+Policy status: **LOCKED**
 
 Upstream status:
 

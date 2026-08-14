@@ -1,9 +1,9 @@
-"""Stage B V1.2 provisional enforcement constants and control-file pins."""
+"""Stage B V1.2 locked policy controls with execution disabled."""
 
 POLICY_VERSION = "MES_V1_REDUNDANCY_1.2"
 # Machine-authoritative policy and execution states are independent.
-# Issue #15 keeps both the policy lock and execution enablement unapplied.
-POLICY_STATUS = "PROVISIONAL"
+# Issue #13 locks policy authority without enabling artifact execution.
+POLICY_STATUS = "LOCKED"
 EXECUTION_STATUS = "DISABLED"
 
 # Issue #9 is a bounded remediation from this exact accepted baseline.
@@ -28,15 +28,19 @@ STAGE_B_MULTI_VALUE_SERIALIZATION_POLICY_ID = "MES_V1_MULTI_ID_PIPE_ORDERED_V1"
 
 
 
-# Exact prior V1.1 locked-control provenance from Section 46 Steps 10-11.
-LOCKED_CONTROL_COMMIT = "bd9e38c11e01bae18a5ffa0a6a0405a008273d27"
+# Exact historical V1.1 locked-control provenance from Section 46 Steps 10-11.
+PRIOR_V1_1_LOCKED_CONTROL_COMMIT = (
+    "bd9e38c11e01bae18a5ffa0a6a0405a008273d27"
+)
 
-# Exact current V1.2 provisional control bindings. These hashes do not promote
-# the controls or open the production gate.
+# Exact V1.2 locked-control provenance and byte bindings. The status-only
+# control commit precedes this pin update, avoiding self-referential commit
+# provenance. These bindings do not enable artifact execution.
+LOCKED_CONTROL_COMMIT = "bb68e6d8be9244564c2d06179cffde775041c8f3"
 MARKDOWN_CONTRACT_PATH = "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
-MARKDOWN_CONTRACT_SHA256 = "77d512801f245601f169c667d6b6d9516522a4717d78d23cdbfe2e1fa890c03c"
+MARKDOWN_CONTRACT_SHA256 = "7db2abd3e7fd6ee3e7bde2e0509a9141046067d82f97dd1cce85af66f047e334"
 SEMANTIC_REGISTRY_PATH = "configs/v1/stage_b_semantic_registry_v1.json"
-SEMANTIC_REGISTRY_SHA256 = "056ba7639960c8dd9c65d7e6a7a6a383e432a069651503def8bf05e3cafed861"
+SEMANTIC_REGISTRY_SHA256 = "88912eb49b10a3437ccf3ace3cf48ca76200f9e808a558fe3ca00a91f3737561"
 
 CELL14_FEATURE_FILE_SHA256 = (
     "aaf606e3d8869a414f0e687835c44529303a9b4e98f0092da39631ab2fc53452"
