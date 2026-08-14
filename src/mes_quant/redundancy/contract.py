@@ -1,7 +1,10 @@
 """Stage B V1.2 provisional enforcement constants and control-file pins."""
 
 POLICY_VERSION = "MES_V1_REDUNDANCY_1.2"
+# Machine-authoritative policy and execution states are independent.
+# Issue #15 keeps both the policy lock and execution enablement unapplied.
 POLICY_STATUS = "PROVISIONAL"
+EXECUTION_STATUS = "DISABLED"
 
 # Issue #9 is a bounded remediation from this exact accepted baseline.
 # The prior V1.1 lock remains historical provenance; V1.2 is not locked here.
@@ -31,7 +34,7 @@ LOCKED_CONTROL_COMMIT = "bd9e38c11e01bae18a5ffa0a6a0405a008273d27"
 # Exact current V1.2 provisional control bindings. These hashes do not promote
 # the controls or open the production gate.
 MARKDOWN_CONTRACT_PATH = "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
-MARKDOWN_CONTRACT_SHA256 = "173afa7e26717795abb88eef1880af1ce8e3cecca133604840942fa8c6d12a96"
+MARKDOWN_CONTRACT_SHA256 = "77d512801f245601f169c667d6b6d9516522a4717d78d23cdbfe2e1fa890c03c"
 SEMANTIC_REGISTRY_PATH = "configs/v1/stage_b_semantic_registry_v1.json"
 SEMANTIC_REGISTRY_SHA256 = "056ba7639960c8dd9c65d7e6a7a6a383e432a069651503def8bf05e3cafed861"
 

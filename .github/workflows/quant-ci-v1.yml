@@ -43,6 +43,7 @@ jobs:
           assert analyzer.run_stage_b is not None
           print("Active imports passed.")
           print(f"Stage B Python policy status: {contract.POLICY_STATUS}")
+          print(f"Stage B execution status: {contract.EXECUTION_STATUS}")
           PY
 
       - name: Run critical Ruff checks
