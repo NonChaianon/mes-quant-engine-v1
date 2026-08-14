@@ -17,7 +17,7 @@ def sha256_raw(path: Path) -> str:
 
 
 class StageBLockedControlTests(unittest.TestCase):
-    def test_v12_remediation_and_v11_lock_provenance_are_pinned(self) -> None:
+    def test_v12_lock_and_prior_v11_provenance_are_pinned(self) -> None:
         self.assertEqual(
             contract.POLICY_VERSION,
             "MES_V1_REDUNDANCY_1.2",
@@ -27,8 +27,12 @@ class StageBLockedControlTests(unittest.TestCase):
             "a5d3f40e7edc26d950010401654ce4d6b7822e86",
         )
         self.assertEqual(
-            contract.LOCKED_CONTROL_COMMIT,
+            contract.PRIOR_V1_1_LOCKED_CONTROL_COMMIT,
             "bd9e38c11e01bae18a5ffa0a6a0405a008273d27",
+        )
+        self.assertEqual(
+            contract.LOCKED_CONTROL_COMMIT,
+            "bb68e6d8be9244564c2d06179cffde775041c8f3",
         )
         self.assertEqual(
             contract.MARKDOWN_CONTRACT_PATH,
@@ -55,7 +59,7 @@ class StageBLockedControlTests(unittest.TestCase):
             contract.SEMANTIC_REGISTRY_SHA256,
         )
 
-    def test_provisional_control_statuses_and_binding_agree(self) -> None:
+    def test_locked_policy_controls_and_disabled_execution_agree(self) -> None:
         markdown = (
             PROJECT_ROOT / contract.MARKDOWN_CONTRACT_PATH
         ).read_text(encoding="utf-8")
@@ -67,16 +71,16 @@ class StageBLockedControlTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "Policy status: **PROVISIONAL**",
+            "Policy status: **LOCKED**",
             markdown,
         )
         self.assertEqual(
             registry["registry_status"],
-            "PROVISIONAL",
+            "LOCKED",
         )
         self.assertEqual(
             contract.POLICY_STATUS,
-            "PROVISIONAL",
+            "LOCKED",
         )
         self.assertEqual(
             contract.EXECUTION_STATUS,
@@ -155,7 +159,7 @@ class StageBConstitutionalPolicyGateDirectTests(
             "the machine status predicates passed"
         )
 
-    def test_current_policy_and_execution_states_fail_before_io(
+    def test_current_locked_policy_and_disabled_execution_fail_before_io(
         self,
     ) -> None:
         from pathlib import Path
@@ -163,7 +167,7 @@ class StageBConstitutionalPolicyGateDirectTests(
 
         self.assertEqual(
             contract.POLICY_STATUS,
-            "PROVISIONAL",
+            "LOCKED",
         )
         self.assertEqual(
             contract.EXECUTION_STATUS,
@@ -224,6 +228,11 @@ class StageBConstitutionalPolicyGateDirectTests(
         from unittest.mock import patch
 
         with (
+            patch.object(
+                contract,
+                "POLICY_STATUS",
+                "PROVISIONAL",
+            ),
             patch.object(
                 contract,
                 "EXECUTION_STATUS",
@@ -378,33 +387,21 @@ class StageBProjectRootGateSpecificationTests(
             )
 
     @staticmethod
-    def _promote_synthetic_controls_for_gate_test(
+    def _hash_locked_controls_for_gate_test(
         root: Path,
     ) -> tuple[str, str]:
-        """Create an isolated future-lock fixture without changing repo controls."""
+        """Verify and hash isolated copies of the locked controls."""
 
         markdown_path = root / contract.MARKDOWN_CONTRACT_PATH
         registry_path = root / contract.SEMANTIC_REGISTRY_PATH
 
         markdown = markdown_path.read_text(encoding="utf-8")
-        markdown = markdown.replace(
-            "Policy status: **PROVISIONAL**",
-            "Policy status: **LOCKED**",
-            1,
-        )
-        markdown_path.write_text(
-            markdown,
-            encoding="utf-8",
-            newline="",
-        )
-
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        registry["registry_status"] = "LOCKED"
-        registry_path.write_text(
-            json.dumps(registry, indent=2) + "\n",
-            encoding="utf-8",
-            newline="",
-        )
+
+        if "Policy status: **LOCKED**" not in markdown:
+            raise AssertionError("copied Markdown policy is not locked")
+        if registry["registry_status"] != "LOCKED":
+            raise AssertionError("copied semantic registry is not locked")
 
         return (
             sha256_raw(markdown_path),
@@ -491,7 +488,7 @@ class StageBProjectRootGateSpecificationTests(
             )
 
             markdown_hash, registry_hash = (
-                self._promote_synthetic_controls_for_gate_test(
+                self._hash_locked_controls_for_gate_test(
                     alternate_root
                 )
             )
@@ -5550,32 +5547,22 @@ class StageBProductionBoundarySpecificationTests(
             registry_path.parent.mkdir(parents=True)
             release_path.parent.mkdir(parents=True)
 
-            markdown = (
+            markdown_bytes = (
                 PROJECT_ROOT
                 / contract.MARKDOWN_CONTRACT_PATH
-            ).read_text(encoding="utf-8").replace(
-                "Policy status: **PROVISIONAL**",
-                "Policy status: **LOCKED**",
-                1,
-            )
-            markdown_path.write_text(
-                markdown,
-                encoding="utf-8",
-                newline="",
-            )
+            ).read_bytes()
+            if b"Policy status: **LOCKED**" not in markdown_bytes:
+                raise AssertionError("source Markdown policy is not locked")
+            markdown_path.write_bytes(markdown_bytes)
 
-            registry = json.loads(
-                (
-                    PROJECT_ROOT
-                    / contract.SEMANTIC_REGISTRY_PATH
-                ).read_text(encoding="utf-8")
-            )
-            registry["registry_status"] = "LOCKED"
-            registry_path.write_text(
-                json.dumps(registry, indent=2) + "\n",
-                encoding="utf-8",
-                newline="",
-            )
+            registry_bytes = (
+                PROJECT_ROOT
+                / contract.SEMANTIC_REGISTRY_PATH
+            ).read_bytes()
+            registry = json.loads(registry_bytes)
+            if registry["registry_status"] != "LOCKED":
+                raise AssertionError("source semantic registry is not locked")
+            registry_path.write_bytes(registry_bytes)
 
             release_bytes = b"{}\n"
             release_path.write_bytes(release_bytes)
