@@ -77,20 +77,27 @@ monotonic redundancy proves general statistical independence.
 After this policy is formally locked, the executable Python contract must pin
 the SHA256 of this exact Markdown document.
 
-Stage B production execution is allowed only when all are true:
+Stage B execution may enter the artifact-validation path only when all are
+true:
 
 1. Python policy version equals the policy version in this document.
-2. Python policy status is `LOCKED_EXECUTABLE`.
-3. This Markdown document's `Policy status` is `LOCKED_EXECUTABLE`.
-4. The semantic registry top-level `registry_status` is `LOCKED_EXECUTABLE`.
-5. The semantic registry top-level `policy_version` equals the policy version
+2. Python policy status is `LOCKED`.
+3. Python execution status is independently `ENABLED`.
+4. This Markdown document's `Policy status` is `LOCKED`.
+5. The semantic registry top-level `registry_status` is `LOCKED`.
+6. The semantic registry top-level `policy_version` equals the policy version
    in this document.
-6. The semantic registry top-level `source_contract` equals
+7. The semantic registry top-level `source_contract` equals
    `docs/STAGE_B_REDUNDANCY_CONTRACT.md`.
-7. SHA256 of the committed Markdown bytes equals the SHA256 pinned in Python.
-8. Required upstream control artifacts and hashes pass.
-9. Required semantic-registry SHA256 equals the SHA256 pinned in Python.
-10. Dedicated Stage B tests pass.
+8. SHA256 of the committed Markdown bytes equals the SHA256 pinned in Python.
+9. Required upstream control artifacts and hashes pass.
+10. Required semantic-registry SHA256 equals the SHA256 pinned in Python.
+11. Dedicated Stage B tests pass.
+
+Policy lock and execution enablement are distinct machine predicates. A policy
+lock does not change execution status, and execution enablement does not create
+policy authority. If execution is `DISABLED`, the entry gate must stop before
+any control or artifact I/O.
 
 Any post-lock policy change requires:
 
@@ -732,9 +739,8 @@ The top-level semantic-registry object must contain at minimum:
 For V1.2:
 
 - before lock, `registry_status` must equal `PROVISIONAL`,
-- after a later, separately authorized status-only promotion under §46.1
-  step 9,
-  `registry_status` must equal `LOCKED_EXECUTABLE`,
+- after a later, separately authorized policy-only promotion,
+  `registry_status` must equal `LOCKED`,
 - `policy_version` must equal `MES_V1_REDUNDANCY_1.2`,
 - `source_contract` must equal
   `docs/STAGE_B_REDUNDANCY_CONTRACT.md`.
@@ -2975,7 +2981,30 @@ Real-data Stage B decisions may be released only when:
 9. Do not lock V1.2 in Issue #9. Any later status promotion is a separate,
    explicitly authorized action after independent review.
 
-### 46.2 Historical V1.1 R6 lock sequence
+### 46.2 V1.2 policy/execution separation remediation
+
+1. Preserve the accepted Issue #8 final-audit evidence without reinterpreting
+   its `SAFE_TO_LOCK_V1_2` result.
+2. Keep the V1.2 Markdown, semantic registry, and Python policy status
+   `PROVISIONAL`; this remediation does not perform the mechanical policy lock.
+3. Represent Python policy status and execution status as distinct
+   machine-authoritative fields.
+4. Use `LOCKED` as the V1.2 policy-lock value and `ENABLED` as the independent
+   execution-enablement value.
+   `contract.EXECUTION_STATUS` is the Stage-B artifact-entry predicate; it does
+   not replace or change project deployment state `RESEARCH_ONLY /
+   LIVE_DISABLED`.
+5. Check execution status and then policy status before any control or artifact
+   I/O. Policy lock alone and execution enablement alone must both fail closed.
+6. Keep execution `DISABLED`, keep `run_stage_b()` fail-closed before Phase B,
+   and do not perform a real Stage B run during remediation.
+7. Preserve semantic-check authority, thresholds, tolerances, provenance pins,
+   and target-blind boundaries exactly.
+8. Only after independent acceptance and merge may the separate Issue #13
+   mechanical policy-lock workflow resume from the new `main`. That later
+   policy lock must leave execution `DISABLED`.
+
+### 46.3 Historical V1.1 R6 lock sequence
 
 1. Preserve the R5 baseline commit:
 

@@ -1979,10 +1979,10 @@ def _validate_stage_b_control_binding(
     }
 
     for layer, value in statuses.items():
-        if value != "LOCKED_EXECUTABLE":
+        if value != "LOCKED":
             raise RuntimeError(
                 f"{layer} policy status is not "
-                f"LOCKED_EXECUTABLE: {value!r}"
+                f"LOCKED: {value!r}"
             )
 
     if (
@@ -1998,7 +1998,7 @@ def _validate_stage_b_control_binding(
         "markdown_sha256": markdown_sha256,
         "registry_sha256": registry_sha256,
         "policy_version": expected_version,
-        "policy_status": "LOCKED_EXECUTABLE",
+        "policy_status": "LOCKED",
         "registry_source_contract": (
             registry_source_contract
         ),
@@ -4875,10 +4875,10 @@ def _validate_stage_b_audit_payload(
 
     if payload[
         "python_policy_status"
-    ] != "LOCKED_EXECUTABLE":
+    ] != "LOCKED":
         raise RuntimeError(
             "Production audit must record "
-            "python_policy_status=LOCKED_EXECUTABLE."
+            "python_policy_status=LOCKED."
         )
 
     if payload[
@@ -8693,7 +8693,7 @@ def run_stage_b(
     """
 
     # --------------------------------------------------------
-    # 1. ABSOLUTE FIRST ACTION: POLICY GATE
+    # 1. ABSOLUTE FIRST ACTION: POLICY / EXECUTION GATE
     # --------------------------------------------------------
 
     assert_stage_b_contract_locked(
@@ -9158,7 +9158,7 @@ def assert_stage_b_contract_locked(
     *,
     project_root,
 ) -> None:
-    """Fail closed unless the live constitutional controls agree."""
+    """Fail closed unless execution and locked policy controls agree."""
 
     import hashlib
     import json
@@ -9166,9 +9166,15 @@ def assert_stage_b_contract_locked(
 
     from . import contract as _contract
 
-    if _contract.POLICY_STATUS != "LOCKED_EXECUTABLE":
+    if _contract.EXECUTION_STATUS != "ENABLED":
         raise RuntimeError(
-            "Stage B policy must be LOCKED_EXECUTABLE, got "
+            "Stage B execution must be ENABLED, got "
+            f"{_contract.EXECUTION_STATUS!r}"
+        )
+
+    if _contract.POLICY_STATUS != "LOCKED":
+        raise RuntimeError(
+            "Stage B policy must be LOCKED, got "
             f"{_contract.POLICY_STATUS!r}"
         )
 
@@ -9223,19 +9229,19 @@ def assert_stage_b_contract_locked(
         )
 
     if (
-        "Policy status: **LOCKED_EXECUTABLE**"
+        "Policy status: **LOCKED**"
         not in markdown
     ):
         raise RuntimeError(
-            "Stage B Markdown policy status is not LOCKED_EXECUTABLE."
+            "Stage B Markdown policy status is not LOCKED."
         )
 
     if (
         registry.get("registry_status")
-        != "LOCKED_EXECUTABLE"
+        != "LOCKED"
     ):
         raise RuntimeError(
-            "Stage B semantic registry status is not LOCKED_EXECUTABLE."
+            "Stage B semantic registry status is not LOCKED."
         )
 
     if (

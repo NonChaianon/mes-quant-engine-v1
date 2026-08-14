@@ -75,12 +75,38 @@ class StageBLockedControlTests(unittest.TestCase):
             "PROVISIONAL",
         )
         self.assertEqual(
+            contract.POLICY_STATUS,
+            "PROVISIONAL",
+        )
+        self.assertEqual(
+            contract.EXECUTION_STATUS,
+            "DISABLED",
+        )
+        self.assertEqual(
             registry["policy_version"],
             contract.POLICY_VERSION,
         )
         self.assertEqual(
             registry["source_contract"],
             contract.MARKDOWN_CONTRACT_PATH,
+        )
+
+    def test_semantic_checks_match_accepted_baseline_exactly(self) -> None:
+        registry = json.loads(
+            (
+                PROJECT_ROOT / contract.SEMANTIC_REGISTRY_PATH
+            ).read_text(encoding="utf-8")
+        )
+        canonical = json.dumps(
+            registry["semantic_checks"],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+        self.assertEqual(
+            hashlib.sha256(canonical).hexdigest(),
+            "53f37c14b3e2b7da2e39ad9a27fe287"
+            "b1b3a3f362aeca375a2adc02f28a74cff",
         )
 
     def test_repository_byte_policy_disables_text_normalization(self) -> None:
@@ -109,7 +135,7 @@ class StageBLockedControlTests(unittest.TestCase):
 class StageBConstitutionalPolicyGateDirectTests(
     unittest.TestCase
 ):
-    """Exercise the real gate against the provisional V1.2 controls."""
+    """Exercise independent machine policy and execution predicates."""
 
     @staticmethod
     def _call_gate() -> None:
@@ -119,35 +145,106 @@ class StageBConstitutionalPolicyGateDirectTests(
             project_root=PROJECT_ROOT,
         )
 
-    def test_current_provisional_python_status_fails_closed(
+    @staticmethod
+    def _unexpected_io(
+        *args,
+        **kwargs,
+    ):
+        raise AssertionError(
+            "control or artifact I/O occurred before "
+            "the machine status predicates passed"
+        )
+
+    def test_current_policy_and_execution_states_fail_before_io(
         self,
     ) -> None:
+        from pathlib import Path
+        from unittest.mock import patch
+
         self.assertEqual(
             contract.POLICY_STATUS,
             "PROVISIONAL",
         )
+        self.assertEqual(
+            contract.EXECUTION_STATUS,
+            "DISABLED",
+        )
 
-        with self.assertRaisesRegex(
-            RuntimeError,
-            "LOCKED_EXECUTABLE",
+        with (
+            patch.object(
+                Path,
+                "read_bytes",
+                side_effect=self._unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "read_text",
+                side_effect=self._unexpected_io,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "execution must be ENABLED",
+            ),
         ):
             self._call_gate()
 
-    def test_python_status_patch_cannot_promote_provisional_controls(
+    def test_policy_lock_alone_cannot_enable_io(
         self,
     ) -> None:
+        from pathlib import Path
         from unittest.mock import patch
 
-        with patch.object(
-            contract,
-            "POLICY_STATUS",
-            "LOCKED_EXECUTABLE",
-        ):
-            with self.assertRaisesRegex(
+        with (
+            patch.object(
+                contract,
+                "POLICY_STATUS",
+                "LOCKED",
+            ),
+            patch.object(
+                Path,
+                "read_bytes",
+                side_effect=self._unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "read_text",
+                side_effect=self._unexpected_io,
+            ),
+            self.assertRaisesRegex(
                 RuntimeError,
-                "Markdown policy status is not LOCKED_EXECUTABLE",
-            ):
-                self._call_gate()
+                "execution must be ENABLED",
+            ),
+        ):
+            self._call_gate()
+
+    def test_execution_enablement_alone_cannot_bypass_policy_or_io(
+        self,
+    ) -> None:
+        from pathlib import Path
+        from unittest.mock import patch
+
+        with (
+            patch.object(
+                contract,
+                "EXECUTION_STATUS",
+                "ENABLED",
+            ),
+            patch.object(
+                Path,
+                "read_bytes",
+                side_effect=self._unexpected_io,
+            ),
+            patch.object(
+                Path,
+                "read_text",
+                side_effect=self._unexpected_io,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "policy must be LOCKED",
+            ),
+        ):
+            self._call_gate()
 
     def test_wrong_policy_version_fails_closed(
         self,
@@ -158,7 +255,12 @@ class StageBConstitutionalPolicyGateDirectTests(
             patch.object(
                 contract,
                 "POLICY_STATUS",
-                "LOCKED_EXECUTABLE",
+                "LOCKED",
+            ),
+            patch.object(
+                contract,
+                "EXECUTION_STATUS",
+                "ENABLED",
             ),
             patch.object(
                 contract,
@@ -181,7 +283,12 @@ class StageBConstitutionalPolicyGateDirectTests(
             patch.object(
                 contract,
                 "POLICY_STATUS",
-                "LOCKED_EXECUTABLE",
+                "LOCKED",
+            ),
+            patch.object(
+                contract,
+                "EXECUTION_STATUS",
+                "ENABLED",
             ),
             patch.object(
                 contract,
@@ -204,7 +311,12 @@ class StageBConstitutionalPolicyGateDirectTests(
             patch.object(
                 contract,
                 "POLICY_STATUS",
-                "LOCKED_EXECUTABLE",
+                "LOCKED",
+            ),
+            patch.object(
+                contract,
+                "EXECUTION_STATUS",
+                "ENABLED",
             ),
             patch.object(
                 contract,
@@ -223,14 +335,21 @@ class StageBConstitutionalPolicyGateDirectTests(
     ) -> None:
         from unittest.mock import patch
 
-        with patch.object(
-            contract,
-            "POLICY_STATUS",
-            "OPEN",
+        with (
+            patch.object(
+                contract,
+                "POLICY_STATUS",
+                "OPEN",
+            ),
+            patch.object(
+                contract,
+                "EXECUTION_STATUS",
+                "ENABLED",
+            ),
         ):
             with self.assertRaisesRegex(
                 RuntimeError,
-                "LOCKED_EXECUTABLE",
+                "policy must be LOCKED",
             ):
                 self._call_gate()
 
@@ -270,7 +389,7 @@ class StageBProjectRootGateSpecificationTests(
         markdown = markdown_path.read_text(encoding="utf-8")
         markdown = markdown.replace(
             "Policy status: **PROVISIONAL**",
-            "Policy status: **LOCKED_EXECUTABLE**",
+            "Policy status: **LOCKED**",
             1,
         )
         markdown_path.write_text(
@@ -280,7 +399,7 @@ class StageBProjectRootGateSpecificationTests(
         )
 
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        registry["registry_status"] = "LOCKED_EXECUTABLE"
+        registry["registry_status"] = "LOCKED"
         registry_path.write_text(
             json.dumps(registry, indent=2) + "\n",
             encoding="utf-8",
@@ -341,7 +460,12 @@ class StageBProjectRootGateSpecificationTests(
                 patch.object(
                     contract,
                     "POLICY_STATUS",
-                    "LOCKED_EXECUTABLE",
+                    "LOCKED",
+                ),
+                patch.object(
+                    contract,
+                    "EXECUTION_STATUS",
+                    "ENABLED",
                 ),
                 self.assertRaisesRegex(
                     RuntimeError,
@@ -376,7 +500,12 @@ class StageBProjectRootGateSpecificationTests(
                 patch.object(
                     contract,
                     "POLICY_STATUS",
-                    "LOCKED_EXECUTABLE",
+                    "LOCKED",
+                ),
+                patch.object(
+                    contract,
+                    "EXECUTION_STATUS",
+                    "ENABLED",
                 ),
                 patch.object(
                     contract,
@@ -1766,11 +1895,11 @@ class StageBPhase0FirewallSpecificationTests(
                     registry
                 ).hexdigest(),
                 python_policy_version=contract.POLICY_VERSION,
-                python_policy_status="LOCKED_EXECUTABLE",
+                python_policy_status="LOCKED",
                 markdown_policy_version=contract.POLICY_VERSION,
-                markdown_policy_status="LOCKED_EXECUTABLE",
+                markdown_policy_status="LOCKED",
                 registry_policy_version=contract.POLICY_VERSION,
-                registry_status="LOCKED_EXECUTABLE",
+                registry_status="LOCKED",
                 registry_source_contract=(
                     "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
                 ),
@@ -1808,11 +1937,11 @@ class StageBPhase0FirewallSpecificationTests(
                     registry
                 ).hexdigest(),
                 python_policy_version=contract.POLICY_VERSION,
-                python_policy_status="LOCKED_EXECUTABLE",
+                python_policy_status="LOCKED",
                 markdown_policy_version=contract.POLICY_VERSION,
-                markdown_policy_status="LOCKED_EXECUTABLE",
+                markdown_policy_status="LOCKED",
                 registry_policy_version=contract.POLICY_VERSION,
-                registry_status="LOCKED_EXECUTABLE",
+                registry_status="LOCKED",
                 registry_source_contract=(
                     "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
                 ),
@@ -1847,11 +1976,11 @@ class StageBPhase0FirewallSpecificationTests(
                 registry
             ).hexdigest(),
             "python_policy_version": contract.POLICY_VERSION,
-            "python_policy_status": "LOCKED_EXECUTABLE",
+            "python_policy_status": "LOCKED",
             "markdown_policy_version": contract.POLICY_VERSION,
-            "markdown_policy_status": "LOCKED_EXECUTABLE",
+            "markdown_policy_status": "LOCKED",
             "registry_policy_version": contract.POLICY_VERSION,
-            "registry_status": "LOCKED_EXECUTABLE",
+            "registry_status": "LOCKED",
             "registry_source_contract": (
                 "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
             ),
@@ -4030,7 +4159,7 @@ class StageBParquetAndAuditSchemaSpecificationTests(
                 "markdown_sha256": "a" * 64,
                 "semantic_registry_sha256": "b" * 64,
                 "locked_markdown_git_commit": "c" * 40,
-                "python_policy_status": "LOCKED_EXECUTABLE",
+                "python_policy_status": "LOCKED",
                 "cell14_artifact_hashes": {
                     "feature_artifact_sha256": "d" * 64,
                 },
@@ -5353,7 +5482,7 @@ class StageBProductionBoundarySpecificationTests(
         ):
             raise AssertionError(
                 "artifact I/O occurred before "
-                "the production policy gate"
+                "the production policy/execution gate"
             )
 
         with (
@@ -5386,8 +5515,8 @@ class StageBProductionBoundarySpecificationTests(
             with self.assertRaisesRegex(
                 RuntimeError,
                 (
-                    "Stage B policy must be "
-                    "LOCKED_EXECUTABLE"
+                    "Stage B execution must be "
+                    "ENABLED"
                 ),
             ):
                 run_stage_b(
@@ -5400,6 +5529,169 @@ class StageBProductionBoundarySpecificationTests(
                     yearly_review_acknowledged=False,
                     phase_c_rank_loss_review_acknowledged=False,
                 )
+
+    def test_both_machine_states_reach_only_existing_phase_b_stop(
+        self,
+    ) -> None:
+        import tempfile
+
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "synthetic_project"
+
+            markdown_path = root / contract.MARKDOWN_CONTRACT_PATH
+            registry_path = root / contract.SEMANTIC_REGISTRY_PATH
+            release_path = root / contract.CELL14_RELEASE_MANIFEST_PATH
+
+            markdown_path.parent.mkdir(parents=True)
+            registry_path.parent.mkdir(parents=True)
+            release_path.parent.mkdir(parents=True)
+
+            markdown = (
+                PROJECT_ROOT
+                / contract.MARKDOWN_CONTRACT_PATH
+            ).read_text(encoding="utf-8").replace(
+                "Policy status: **PROVISIONAL**",
+                "Policy status: **LOCKED**",
+                1,
+            )
+            markdown_path.write_text(
+                markdown,
+                encoding="utf-8",
+                newline="",
+            )
+
+            registry = json.loads(
+                (
+                    PROJECT_ROOT
+                    / contract.SEMANTIC_REGISTRY_PATH
+                ).read_text(encoding="utf-8")
+            )
+            registry["registry_status"] = "LOCKED"
+            registry_path.write_text(
+                json.dumps(registry, indent=2) + "\n",
+                encoding="utf-8",
+                newline="",
+            )
+
+            release_bytes = b"{}\n"
+            release_path.write_bytes(release_bytes)
+
+            artifact_bytes = {
+                "cell14_features": b"synthetic features",
+                "cell14_registry": b"synthetic registry",
+                "cell14_audit": b"{}\n",
+                "cell8_audit": b"{}\n",
+            }
+            artifact_bindings = {}
+
+            for artifact_id, raw in artifact_bytes.items():
+                relative = f"synthetic/{artifact_id}.bin"
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(raw)
+                artifact_bindings[artifact_id] = {
+                    "file": relative,
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                }
+
+            artifact_bindings["cell8_assignments"] = {
+                "file": "synthetic/not_opened.parquet",
+                "sha256": "0" * 64,
+            }
+
+            release_binding = {
+                "artifact_bindings": artifact_bindings,
+                "readable_artifact_ids": (
+                    "cell14_features",
+                    "cell14_registry",
+                    "cell14_audit",
+                    "cell8_audit",
+                ),
+                "provenance_only_artifact_ids": (
+                    "cell8_assignments",
+                ),
+            }
+
+            with (
+                patch.object(
+                    contract,
+                    "POLICY_STATUS",
+                    "LOCKED",
+                ),
+                patch.object(
+                    contract,
+                    "EXECUTION_STATUS",
+                    "ENABLED",
+                ),
+                patch.object(
+                    contract,
+                    "MARKDOWN_CONTRACT_SHA256",
+                    sha256_raw(markdown_path),
+                ),
+                patch.object(
+                    contract,
+                    "SEMANTIC_REGISTRY_SHA256",
+                    sha256_raw(registry_path),
+                ),
+                patch.object(
+                    contract,
+                    "CELL14_RELEASE_MANIFEST_SHA256",
+                    hashlib.sha256(release_bytes).hexdigest(),
+                ),
+                patch.object(
+                    analyzer,
+                    "_validate_stage_b_release_manifest_binding",
+                    return_value=release_binding,
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_parquet",
+                    return_value=analyzer.pd.DataFrame(),
+                ),
+                patch.object(
+                    analyzer.pd,
+                    "read_csv",
+                    return_value=analyzer.pd.DataFrame(),
+                ),
+                patch.object(
+                    analyzer,
+                    "_validate_stage_b_embedded_role_projection",
+                    return_value={
+                        "final_test_rows_opened": 0,
+                    },
+                ),
+                patch.object(
+                    analyzer,
+                    "_run_stage_b_phase0",
+                    return_value={
+                        "phase0_valid": True,
+                    },
+                ) as phase0,
+                patch.object(
+                    analyzer,
+                    "_run_stage_b_phase_a",
+                    return_value={
+                        "phase_a_valid": True,
+                    },
+                ) as phase_a,
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "Phase B boundary is not yet implemented",
+                ),
+            ):
+                analyzer.run_stage_b(
+                    project_root=root,
+                    output_dir=root / "output",
+                    yearly_review_acknowledged=False,
+                    phase_c_rank_loss_review_acknowledged=False,
+                )
+
+            phase0.assert_called_once()
+            phase_a.assert_called_once()
 
     def test_run_stage_b_is_sole_redundancy_package_artifact_reader(
         self,

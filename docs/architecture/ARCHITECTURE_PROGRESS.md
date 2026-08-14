@@ -10,7 +10,7 @@
 
 **Current milestone:** `STAGE_B_REDUNDANCY_V1.2`
 
-**Current gate:** `RESUMED — ONE FINAL V1.2 integration / contradiction / preservation audit (Issue #8)`
+**Current gate:** `BLOCKED — V1_2_LOCK_BREAKER_5 policy/execution separation remediation (Issue #15; independent review pending)`
 
 > This file is the project-level progress source of truth. It tracks **where we are**. Detailed mathematical/methodological authority remains in the applicable stage contract; the target architecture explains **where we are going**.
 
@@ -36,12 +36,16 @@ Use these states; do not use a fake project-completion percentage.
 Architecture:       v2.2 — BASELINE_ACCEPTED / DESIGN_CLOSED
 Current plane:      PLANE A — RESEARCH / OFFLINE
 Current stage:      A6 — Target-Blind Redundancy
-Current policy:     Stage B Redundancy V1.2 — PROVISIONAL until final lock
+Current policy:     Stage B Redundancy V1.2 — PROVISIONAL / no mechanical lock
+Stage-B artifact execution: DISABLED / gate fails before artifact I/O
 BL-30:              CLOSED / ACCEPT_GENESIS_ATTESTATION / EXACT_BYTES
-Lock-breakers 4/5: REMEDIATED / independently reviewed / Issue #9 CLOSED
+Issue #9 breakers:  REMEDIATED / independently reviewed / Issue #9 CLOSED
 Remediation merge:  e16bb5a432bcc98052b6a19167c396af0167ba86
-Final audit:        RESUMED — Issue #8 continuation
-Current action:     complete the same final integration / contradiction / preservation audit
+Final audit:        COMPLETE / independently accepted / SAFE_TO_LOCK_V1_2
+PR #14 lock:        NOT ACCEPTED / Draft / unmerged / supplies no lock authority
+Current breaker:    V1_2_LOCK_BREAKER_5 / coupled policy and execution status
+Issue #15:          bounded remediation ready for independent review
+Current action:     independent review of Issue #15; merge only if separately authorized, then resume Issue #13 from new main
 Live trading:       DISABLED
 Final Test:         SEALED
 ```
@@ -103,15 +107,23 @@ PR #11 was merged to `main` as:
 
 `e16bb5a432bcc98052b6a19167c396af0167ba86`
 
-The remediation preserves Phase-A semantic KEEP/DROP authority while removing generic Phase-B SVD/rank direct-DROP authority. Stage B V1.2 remains `PROVISIONAL`, `run_stage_b()` remains fail-closed before unimplemented Phase B execution, and the same Issue #8 final audit is now resumed from the post-remediation repository state.
+The remediation preserves Phase-A semantic KEEP/DROP authority while removing generic Phase-B SVD/rank direct-DROP authority. Stage B V1.2 remains `PROVISIONAL`, and `run_stage_b()` remains fail-closed before unimplemented Phase B execution.
+
+The resumed Issue #8 final audit completed and was independently accepted with `SAFE_TO_LOCK_V1_2`. Draft PR #14 then attempted the separate Issue #13 mechanical lock; independent review of Draft PR #14 proved a new `V1_2_LOCK_BREAKER_5`: one Python status field simultaneously represented policy lock and execution eligibility. PR #14 remains Draft and unmerged; its lock candidate is not accepted and supplies no A6 `LOCKED` authority. Its exact archived Issue #8 report is preserved as evidence without reinterpretation.
+
+Issue #15 is the bounded remediation only. It introduces distinct machine-authoritative policy and execution fields and a conjunctive pre-I/O gate. The committed policy remains `PROVISIONAL`, execution remains `DISABLED`, and no mechanical lock or real Stage B run occurs in this remediation.
 
 Audit/remediation records:
 
 - `docs/audits/STAGE_B_V1_2_FINAL_AUDIT_LOCK_BREAKER.md`
 - `docs/audits/V1_2_LOCK_BREAKER_REMEDIATION_SCOPE.md`
 - `docs/audits/STAGE_B_V1_2_LOCK_BREAKER_4_5_REMEDIATION.md`
-- GitHub Issue #8 — same final integration audit, resumed
+- `docs/audits/STAGE_B_V1_2_FINAL_INTEGRATION_AUDIT.md`
+- `docs/audits/STAGE_B_V1_2_LOCK_BREAKER_5_POLICY_EXECUTION_SEPARATION_REMEDIATION.md`
+- GitHub Issue #8 — final integration audit complete / independently accepted
 - GitHub Issue #9 — bounded remediation, completed
+- GitHub Issue #15 — bounded policy/execution separation remediation
+- Draft PR #14 — unmerged mechanical-lock candidate; independent disposition `V1_2_LOCK_CANDIDATE_NOT_ACCEPTED`
 
 ---
 
@@ -125,7 +137,7 @@ Audit/remediation records:
 | A3 | Cost & Impact Model | DEFERRED | Cost assumptions exist historically but the v2.2 single-source canonical cost contract is not yet formalized | Define only to the level required for Edge Sprint protocol; do not build full production cost stack first |
 | A4 | Label / Target Contract | IN_PROGRESS | Historical label logic exists; v2.2 separates target contract from realized-label access | Before Edge Sprint, record pre-firewall exposure and freeze sprint target/cost assumptions |
 | A5 | Feature Construction | LOCKED | Canonical Cell 14 V1 feature build: 29 candidate features, PIT-safe Development output; BL-30 independently reproduced exact bytes | Reopen only for documented defect/version bump |
-| **A6** | **Target-Blind Redundancy / Stage B** | **READY_FOR_AUDIT** | BL-30 accepted; lock-breaker 4/5 remediated and independently reviewed; PR #11 merged; final audit resumed | **Complete the SAME Issue #8 final audit -> lock only if no V1_2_LOCK_BREAKER 1–5 remains** |
+| **A6** | **Target-Blind Redundancy / Stage B** | **BLOCKED** | BL-30 accepted; Issue #9 remediation accepted; Issue #8 final audit accepted; PR #14 mechanical lock candidate not accepted after proving policy/execution coupling; Issue #15 bounded remediation ready for independent review | **Independent acceptance and merge of Issue #15 -> resume the same Issue #13 mechanical lock from new main; do not lock in this remediation PR** |
 | A7 | Regime / Context | DEFERRED | Not required before first Edge Sprint | Do not build before Edge Sprint evidence justifies continuation |
 | A8 | Label Materialization / access control | IN_PROGRESS | Historical labels exist; new L0/L1/L2/L3 governance not yet formalized | Create `LABEL_EXPOSURE_PRE_FIREWALL` acknowledgment; enforce access levels before Sprint/Validation |
 | Exploratory Lane | TRAIN-only edge discovery | NOT_STARTED | One-page charter design closed | Freeze one-page charter + Sprint 1 protocol only after A6 lock |
@@ -144,7 +156,7 @@ Audit/remediation records:
 
 ## Current A6 / Stage-B exit gate
 
-V1.2 convergence remains frozen. The predefined lock-breaker exception was exercised and remediated:
+V1.2 convergence remains frozen. The predefined lock-breaker path is active:
 
 ```text
 BL-30 reproduction evidence                    COMPLETE
@@ -155,11 +167,16 @@ BL-30 reproduction evidence                    COMPLETE
 -> bounded breaker remediation                 COMPLETE
 -> independent remediation review              COMPLETE / ACCEPT
 -> PR #11 remediation merge                    COMPLETE
--> resume the SAME final audit (Issue #8)      CURRENT GATE
--> V1.2 LOCK only if no predefined lock-breaker remains
+-> resume the SAME final audit (Issue #8)      COMPLETE / ACCEPT
+-> Issue #13 mechanical lock / Draft PR #14    ATTEMPTED
+   -> V1_2_LOCK_BREAKER_5 policy/execution     PROVEN / STOP
+-> PR #14                                      DRAFT / UNMERGED / NOT ACCEPTED
+-> Issue #15 bounded separation remediation    CURRENT GATE
+-> independent Issue #15 acceptance + merge
+-> resume the SAME Issue #13 from new main
 ```
 
-This continuation does **not** reopen architecture design and does not create an unlimited new audit cycle. The final audit stopped under its own predefined breaker rule; after the proven contradiction was remediated, the same audit resumed to completion.
+This sequence does **not** reopen architecture design and does not create an unlimited new audit cycle. The Issue #8 audit result remains accepted. The later Issue #13 lock mechanics exposed a distinct constitutional coupling, so the predefined breaker rule requires bounded remediation before the same mechanical lock workflow may resume.
 
 V1.2 may be blocked only by a predefined `V1_2_LOCK_BREAKER`:
 
@@ -176,11 +193,12 @@ Everything else goes to V1.3 backlog.
 ## Frozen next sequence after A6
 
 ```text
-1. Complete resumed Issue #8 final V1.2 audit
-2. LOCK V1.2 only if no predefined lock-breaker remains
-3. Record LABEL_EXPOSURE_PRE_FIREWALL acknowledgment
-4. Freeze Exploratory Lane V1 one-page charter
-5. Freeze Edge Discovery Sprint 1 protocol:
+1. Obtain independent acceptance and merge of Issue #15 remediation
+2. Resume the SAME Issue #13 mechanical lock from the new `main`
+3. Obtain independent acceptance and merge of the separate lock candidate
+4. Record LABEL_EXPOSURE_PRE_FIREWALL acknowledgment
+5. Freeze Exploratory Lane V1 one-page charter
+6. Freeze Edge Discovery Sprint 1 protocol:
    - EXPLORATION_SCOPE_ID
    - project continuation policy
    - baseline(s), including ALWAYS_FLAT
@@ -188,7 +206,7 @@ Everything else goes to V1.3 backlog.
    - diagnostic secondary metrics
    - cost assumption
    - interesting-enough continuation criterion
-6. RUN EDGE DISCOVERY SPRINT 1
+7. RUN EDGE DISCOVERY SPRINT 1
 ```
 
 Do **not** build the remaining institutional contracts merely because they appear in the target architecture. Sprint 1 remains the next major business/research proof point after A6.
