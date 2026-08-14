@@ -6,15 +6,13 @@
 
 **Execution status:** `RESEARCH_ONLY / LIVE_DISABLED`
 
-**Current project stage:** `A6 — Target-Blind Redundancy / Stage B`
+**Current project stage:** `A8 — Label Materialization / Access Control (governance boundary)`
 
-**Current milestone:** `STAGE_B_REDUNDANCY_V1.2`
+**Current milestone:** `LABEL_EXPOSURE_PRE_FIREWALL_V1`
 
-**Current gate:** `ISSUE #13 LOCK CANDIDATE — independent review and accepted merge required`
+**Current gate:** `LABEL_EXPOSURE_PRE_FIREWALL_V1 — independent review and accepted merge required`
 
 > This file is the project-level progress source of truth. It tracks **where we are**. Detailed mathematical/methodological authority remains in the applicable stage contract; the target architecture explains **where we are going**.
-
-> The `LOCKED` A6 state proposed in this Draft branch becomes mainline project authority only through independent acceptance and an explicitly authorized merge. Draft/branch state alone does not advance A6 or begin the next research stage.
 
 ---
 
@@ -37,22 +35,54 @@ Use these states; do not use a fake project-completion percentage.
 ```text
 Architecture:       v2.2 — BASELINE_ACCEPTED / DESIGN_CLOSED
 Current plane:      PLANE A — RESEARCH / OFFLINE
-Current stage:      A6 — Target-Blind Redundancy
-Current policy:     Stage B Redundancy V1.2 — LOCKED, effective on main only through accepted merge
+Current stage:      A8 — Label Materialization / Access Control governance boundary
+A6 / Stage B V1.2:  LOCKED on main
 Policy controls:    Python / Markdown / semantic registry — LOCKED
-Stage-B artifact execution: DISABLED / gate fails before artifact I/O
+Stage-B artifact execution: DISABLED / pre-I/O gate
+A6 lock merge:      99b5f3302e28523293d31e7df49eb03cff466e2c
+Issue #13:          COMPLETE / CLOSED
 BL-30:              CLOSED / ACCEPT_GENESIS_ATTESTATION / EXACT_BYTES
-Issue #9 breakers:  REMEDIATED / independently reviewed / Issue #9 CLOSED
-Remediation merge:  e16bb5a432bcc98052b6a19167c396af0167ba86
+Issue #9 breakers:  REMEDIATED / independently reviewed / CLOSED
+Issue #15 breaker:  REMEDIATED / independently reviewed / CLOSED
 Final audit:        COMPLETE / independently accepted / SAFE_TO_LOCK_V1_2
-PR #14 lock:        CLOSED / unmerged / NOT ACCEPTED / supplies no lock authority
-Issue #15:          COMPLETE / independently accepted / PR #16 merged as bd6611b040ee94b8c73f800d4d157eec3bf9cf0a
-Current breaker:    NONE / V1_2_LOCK_BREAKER_5 remediated by independent policy/execution authority
-Issue #13 lock:     CANDIDATE COMPLETE / independent review and accepted merge required
-Current action:     independent review; only after accepted merge begin LABEL_EXPOSURE_PRE_FIREWALL acknowledgment
+Current breaker:    NONE
+Current gate:       LABEL_EXPOSURE_PRE_FIREWALL_V1 acknowledgment
+Observed access:    L0 governance-only for current acknowledgment
 Live trading:       DISABLED
 Final Test:         SEALED
 ```
+
+### A6 / Stage B V1.2 closure
+
+Stage B V1.2 is locked on `main` after independent review and merge of PR #17 as:
+
+`99b5f3302e28523293d31e7df49eb03cff466e2c`
+
+The locked state is:
+
+```text
+POLICY_STATUS                    LOCKED
+Markdown policy status           LOCKED
+Semantic-registry status         LOCKED
+EXECUTION_STATUS                 DISABLED
+```
+
+Policy lock does not imply execution enablement. Stage-B artifact execution remains disabled before control/artifact I/O, and no Phase B/C/D production implementation or real Stage B production run was authorized by the lock.
+
+The accepted lock provenance is rooted in control commit:
+
+`bb68e6d8be9244564c2d06179cffde775041c8f3`
+
+with the corresponding non-self-referential Python pin commit:
+
+`131cf7a37d0beb41bf258ffa9beaf942c443985d`
+
+Audit/lock records:
+
+- `docs/audits/STAGE_B_V1_2_FINAL_INTEGRATION_AUDIT.md`
+- `docs/audits/STAGE_B_V1_2_LOCK_BREAKER_4_5_REMEDIATION.md`
+- `docs/audits/STAGE_B_V1_2_LOCK_BREAKER_5_POLICY_EXECUTION_SEPARATION_REMEDIATION.md`
+- `docs/audits/STAGE_B_V1_2_LOCK_RECORD.md`
 
 ### BL-30 accepted evidence
 
@@ -66,73 +96,19 @@ Final Test:         SEALED
 - Required upstream provenance hashes: all matched
 - No new acceptance tolerance introduced
 
-Audit records:
+BL-30 records:
 
 - `docs/audits/BL30_GENESIS_REPRODUCTION_AUDIT_SUMMARY.md`
 - `docs/audits/BL30_INDEPENDENT_ATTESTATION.md`
 
-BL-30 acceptance closes the genesis reproduction blocker only. It does **not** by itself lock Stage B V1.2.
+### Lock-breaker history retained as evidence
 
-### Final-audit lock-breaker and remediation
+The final V1.2 convergence path found and remediated two bounded contradictions without reopening architecture design:
 
-The one final V1.2 integration / contradiction / preservation audit started at baseline:
+1. generic rank/SVD discovery still had legacy direct-DROP authority contrary to frozen V1.2 whole-component OPEN / HARD-FAIL rules;
+2. the first mechanical-lock attempt coupled policy lock and execution eligibility in one status field.
 
-`a5d3f40e7edc26d950010401654ce4d6b7822e86`
-
-It stopped under its predefined STOP rule after proving a contradiction between:
-
-```text
-Frozen V1.2 architecture:
-GENERIC SVD / RANK DISCOVERY -> NEVER DIRECT DROP
-```
-
-and the then-current Stage-B V1.1 contract/test authority, which still required generic automatic exact-rank deletion of `k-r` dimensions through retention-priority basis selection.
-
-Minimal reproducer:
-
-```text
-stable unexplained exact dependency {a,b,c}
-c = a + b
-
-V1.2 frozen methodology -> OPEN whole component; no generic direct DROP
-V1.1 contract/test       -> DROP c via exact-basis reduction
-```
-
-The finding was classified as:
-
-- `V1_2_LOCK_BREAKER_4` — KEEP / DROP / OPEN / HARD_FAIL could differ from the frozen methodology.
-- `V1_2_LOCK_BREAKER_5` — one compliant implementation/run could not satisfy both requirements simultaneously.
-
-Issue #9 performed the bounded remediation only. Independent review accepted the remediation with verdict:
-
-`LOCK_BREAKER_4_5_REMEDIATED`
-
-PR #11 was merged to `main` as:
-
-`e16bb5a432bcc98052b6a19167c396af0167ba86`
-
-The remediation preserved Phase-A semantic KEEP/DROP authority while removing generic Phase-B SVD/rank direct-DROP authority. At the Issue #9 remediation merge, Stage B V1.2 remained `PROVISIONAL`, and `run_stage_b()` remained fail-closed before unimplemented Phase B execution.
-
-The resumed Issue #8 final audit completed and was independently accepted with `SAFE_TO_LOCK_V1_2`. Draft PR #14 then attempted the separate Issue #13 mechanical lock; independent review of Draft PR #14 proved a new `V1_2_LOCK_BREAKER_5`: one Python status field simultaneously represented policy lock and execution eligibility. PR #14 is closed and unmerged; its lock candidate is not accepted and supplies no A6 `LOCKED` authority. Its exact archived Issue #8 report is preserved as evidence without reinterpretation.
-
-Issue #15 introduced distinct machine-authoritative policy and execution fields and a conjunctive pre-I/O gate. Independent review accepted that bounded remediation, and PR #16 merged it to `main` as `bd6611b040ee94b8c73f800d4d157eec3bf9cf0a`.
-
-The resumed Issue #13 candidate performs only the mechanical policy lock under that accepted model. Python, Markdown, and semantic-registry policy states are `LOCKED`; artifact execution remains independently `DISABLED`, so policy lock alone stops before path resolution or control/artifact I/O. The lock candidate does not implement or run Phase B/C/D. Its A6 `LOCKED` status becomes mainline authority only if independent review accepts this new Draft PR and an explicitly authorized merge occurs.
-
-Audit/remediation records:
-
-- `docs/audits/STAGE_B_V1_2_FINAL_AUDIT_LOCK_BREAKER.md`
-- `docs/audits/V1_2_LOCK_BREAKER_REMEDIATION_SCOPE.md`
-- `docs/audits/STAGE_B_V1_2_LOCK_BREAKER_4_5_REMEDIATION.md`
-- `docs/audits/STAGE_B_V1_2_FINAL_INTEGRATION_AUDIT.md`
-- `docs/audits/STAGE_B_V1_2_LOCK_BREAKER_5_POLICY_EXECUTION_SEPARATION_REMEDIATION.md`
-- `docs/audits/STAGE_B_V1_2_LOCK_RECORD.md`
-- GitHub Issue #8 — final integration audit complete / independently accepted
-- GitHub Issue #9 — bounded remediation, completed
-- GitHub Issue #15 — bounded policy/execution separation remediation
-- PR #16 — Issue #15 remediation accepted and merged as `bd6611b040ee94b8c73f800d4d157eec3bf9cf0a`
-- Draft PR #14 — closed and unmerged; independent disposition `V1_2_LOCK_CANDIDATE_NOT_ACCEPTED`
-- GitHub Issue #13 — resumed mechanical lock candidate from post-Issue-15 `main`
+Both were handled through the predefined `V1_2_LOCK_BREAKER` path, independently reviewed, remediated, and merged before the accepted lock. The rejected PR #14 was closed unmerged and supplies no authority.
 
 ---
 
@@ -140,18 +116,18 @@ Audit/remediation records:
 
 | Stage | Scope | Status | Evidence / current position | Exit gate / next action |
 |---|---|---|---|---|
-| Plane 0 | Governance & provenance foundation | IN_PROGRESS | Stage-B governance, provenance, target firewall and audit discipline are substantially developed; system-wide governance is not yet complete | Continue only as required by active stage; do not build institutional layers ahead of Edge Sprint |
+| Plane 0 | Governance & provenance foundation | IN_PROGRESS | Stage-B governance, provenance, target firewall and audit discipline are substantially developed; system-wide governance is intentionally not built ahead of need | Continue only as required by active stage; avoid institutional overbuild before Edge Sprint |
 | A1 | Data Foundation | LOCKED | Canonical MES historical data, PIT controls, gap/roll/session audits established | Reopen only for documented defect/version bump |
 | A2 | Decision Universe | LOCKED | Eligibility, session, early-close, horizon-safe and decision-universe logic established | Reopen only for documented defect/version bump |
-| A3 | Cost & Impact Model | DEFERRED | Cost assumptions exist historically but the v2.2 single-source canonical cost contract is not yet formalized | Define only to the level required for Edge Sprint protocol; do not build full production cost stack first |
-| A4 | Label / Target Contract | IN_PROGRESS | Historical label logic exists; v2.2 separates target contract from realized-label access | Before Edge Sprint, record pre-firewall exposure and freeze sprint target/cost assumptions |
-| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1 feature build: 29 candidate features, PIT-safe Development output; BL-30 independently reproduced exact bytes | Reopen only for documented defect/version bump |
-| **A6** | **Target-Blind Redundancy / Stage B** | **LOCKED** | Post-merge state proposed by the new Issue #13 Draft candidate: Issue #8 final audit accepted; Issue #9 methodology preserved; Issue #15 separation accepted in PR #16; policy controls locked in `bb68e6d8be9244564c2d06179cffde775041c8f3`; execution remains disabled. This `LOCKED` state is effective on `main` only through independent acceptance and explicitly authorized merge of this candidate | **Before merge: independent review only. After accepted merge: reopen only for documented defect/version bump; policy lock does not mean Phase B/C/D execution is complete or enabled** |
-| A7 | Regime / Context | DEFERRED | Not required before first Edge Sprint | Do not build before Edge Sprint evidence justifies continuation |
-| A8 | Label Materialization / access control | IN_PROGRESS | Historical labels exist; new L0/L1/L2/L3 governance not yet formalized | Create `LABEL_EXPOSURE_PRE_FIREWALL` acknowledgment; enforce access levels before Sprint/Validation |
-| Exploratory Lane | TRAIN-only edge discovery | NOT_STARTED | One-page charter design closed | Freeze one-page charter + Sprint 1 protocol only after A6 lock |
+| A3 | Cost & Impact Model | DEFERRED | Cost assumptions exist historically; full v2.2 production cost stack intentionally deferred | Freeze only the cost assumption required by Edge Sprint protocol before Sprint execution |
+| A4 | Label / Target Contract | IN_PROGRESS | Historical Cell 10 target logic exists; current governance separates target definition from realized-label access | Complete the pre-firewall acknowledgment, then freeze Sprint target/cost assumptions before L1 exploration |
+| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1 feature build: 29 candidate features, PIT-safe Development output; BL-30 reproduced exact bytes | Reopen only for documented defect/version bump |
+| **A6** | **Target-Blind Redundancy / Stage B** | **LOCKED** | Issue #8 final audit accepted; Issue #9 and #15 breakers remediated; PR #17 accepted and merged as `99b5f3302e28523293d31e7df49eb03cff466e2c`; policy locked while execution remains disabled | **Reopen only for a documented defect/version bump; policy lock does not mean Phase B/C/D execution is implemented or enabled** |
+| A7 | Regime / Context | DEFERRED | Not required before first Edge Sprint | Do not build before Sprint evidence justifies continuation |
+| **A8** | **Label Materialization / Access Control** | **IN_PROGRESS** | Historical labels predate the formal firewall; current task records `LABEL_EXPOSURE_PRE_FIREWALL_V1` at L0 without reopening realized rows | **Independent acceptance/merge of acknowledgment -> freeze Exploratory Lane V1 one-page charter** |
+| Exploratory Lane | TRAIN-only edge discovery | NOT_STARTED | One-page charter design is closed conceptually but not yet frozen as an artifact | Freeze one-page charter after acknowledgment; no L1 access before charter acceptance |
 | A9 | Predictive Model Layer | NOT_STARTED | Intentionally not built ahead of edge evidence | Start confirmatory model work only after Sprint produces a lockable hypothesis |
-| A10 | Validation & Model Selection | NOT_STARTED | Validation must remain clean during L1 exploration | Before first L2 opening, freeze validation protocol and opening budget |
+| A10 | Validation & Model Selection | NOT_STARTED | Validation remains clean during L1 exploration | Before first L2 opening, freeze validation protocol and opening budget |
 | A11 | Calibration | NOT_STARTED | Global calibration baseline / regime challenger architecture defined only | Build after predictive hypothesis survives validation path |
 | A12 | Net EV | NOT_STARTED | Architecture defined only | Build after model/calibration/cost evidence exists |
 | A13 | Risk & Sizing Simulation | NOT_STARTED | Architecture defined only | Build after edge survives confirmatory research |
@@ -163,37 +139,28 @@ Audit/remediation records:
 
 ---
 
-## Current A6 / Stage-B exit gate
-
-V1.2 methodology convergence is complete. The mechanical lock candidate remains subject to independent review and accepted merge:
+## A6 / Stage-B closure sequence
 
 ```text
 BL-30 reproduction evidence                    COMPLETE
 -> independent BL-30 audit                     COMPLETE / ACCEPT
--> ONE final integration / contradiction /
-   preservation audit                          STARTED
+-> final integration / contradiction audit     COMPLETE
    -> V1_2_LOCK_BREAKER_4 + 5                  PROVEN / STOP
--> bounded breaker remediation                 COMPLETE
--> independent remediation review              COMPLETE / ACCEPT
--> PR #11 remediation merge                    COMPLETE
--> resume the SAME final audit (Issue #8)      COMPLETE / ACCEPT
--> Issue #13 mechanical lock / Draft PR #14    ATTEMPTED
-   -> V1_2_LOCK_BREAKER_5 policy/execution     PROVEN / STOP
--> PR #14                                      CLOSED / UNMERGED / NOT ACCEPTED
--> Issue #15 bounded separation remediation    COMPLETE / ACCEPT
--> PR #16 remediation merge                    COMPLETE / bd6611b040ee94b8c73f800d4d157eec3bf9cf0a
--> resume the SAME Issue #13 from new main     COMPLETE
--> mechanical policy-lock candidate            COMPLETE
-   -> policy status                             LOCKED
-   -> artifact execution                       DISABLED / PRE-I/O STOP
--> independent review + explicit merge         CURRENT GATE
--> A6 LOCKED on main                           EFFECTIVE ONLY AFTER ACCEPTED MERGE
--> LABEL_EXPOSURE_PRE_FIREWALL acknowledgment  NEXT GATE
+-> bounded generic-rank remediation            COMPLETE / ACCEPT / MERGED
+-> resumed same final audit                    COMPLETE / SAFE_TO_LOCK_V1_2
+-> first Issue #13 lock candidate / PR #14     REJECTED / CLOSED UNMERGED
+   -> policy/execution coupling breaker         PROVEN / STOP
+-> Issue #15 bounded status separation         COMPLETE / ACCEPT / MERGED
+-> resumed same Issue #13 mechanical lock       COMPLETE
+-> PR #17 independent review                    ACCEPT
+-> PR #17 merge                                 COMPLETE / 99b5f3302e28523293d31e7df49eb03cff466e2c
+-> A6 / Stage B V1.2                            LOCKED ON MAIN
+-> artifact execution                           DISABLED
 ```
 
-This sequence does **not** reopen architecture design and does not create an unlimited new audit cycle. The Issue #8 audit result remains accepted. Issue #15 removed the policy/execution coupling, and the resumed Issue #13 uses that accepted machine model. The Draft candidate itself grants no mainline lock or next-stage authority before independent acceptance and an explicitly authorized merge.
+The A6 convergence cycle is closed. Later improvements that are not a documented defect in the locked result go to a later version rather than reopening V1.2 casually.
 
-V1.2 may be blocked only by a predefined `V1_2_LOCK_BREAKER`:
+The predefined `V1_2_LOCK_BREAKER` classes retained for historical interpretation were:
 
 1. authoritative Phase-B mathematical result can be wrong;
 2. feature/member identity can make Phase B analyze the wrong ground set;
@@ -201,29 +168,55 @@ V1.2 may be blocked only by a predefined `V1_2_LOCK_BREAKER`:
 4. KEEP/DROP/OPEN/HARD_FAIL can differ from the frozen methodology;
 5. two locked requirements cannot be satisfied simultaneously by one compliant implementation/run.
 
-Everything else goes to V1.3 backlog.
+---
+
+## Current label-exposure gate
+
+Current task: `LABEL_EXPOSURE_PRE_FIREWALL_V1`.
+
+Required boundary:
+
+```text
+current observed access level       L0
+new realized TRAIN rows             FORBIDDEN
+Validation outcomes                 FORBIDDEN
+Final Test                          SEALED
+P&L / future-return outcomes        FORBIDDEN
+existing committed aggregate audit  ALLOWED AS GOVERNANCE EVIDENCE
+```
+
+The acknowledgment must distinguish:
+
+- known historical facts;
+- repository-corroborated facts;
+- unknown / not reconstructable facts.
+
+Unknown historical exposure must remain unknown rather than being converted into a PASS claim. Reading an already-committed aggregate audit is allowed for this governance acknowledgment; reopening the underlying realized-label dataset merely to prove history is not.
+
+Artifact under review:
+
+- `docs/audits/LABEL_EXPOSURE_PRE_FIREWALL_V1.md`
 
 ---
 
-## Frozen next sequence after accepted A6 lock merge
+## Frozen next sequence
 
 ```text
-1. Record LABEL_EXPOSURE_PRE_FIREWALL acknowledgment
-2. Freeze Exploratory Lane V1 one-page charter
+1. Independently accept and merge LABEL_EXPOSURE_PRE_FIREWALL_V1
+2. Freeze EXPLORATORY LANE V1 one-page charter
 3. Freeze Edge Discovery Sprint 1 protocol:
    - EXPLORATION_SCOPE_ID
-   - project continuation policy
+   - project continuation / falsification policy
    - baseline(s), including ALWAYS_FLAT
    - one primary decision metric
    - diagnostic secondary metrics
-   - cost assumption
+   - frozen cost assumption
    - interesting-enough continuation criterion
+   - current-scope no-edge criterion
 4. RUN EDGE DISCOVERY SPRINT 1
 ```
 
-None of this sequence begins in the lock-candidate PR. Independent acceptance and an explicitly authorized merge are the mandatory precondition.
-
-Do **not** build the remaining institutional contracts merely because they appear in the target architecture. Sprint 1 remains the next major business/research proof point after A6.
+Do **not** build the remaining institutional contracts merely because they appear in the target architecture. Sprint 1 remains the next major empirical proof point after the minimum required governance boundary is frozen.
 
 ---
 
@@ -231,9 +224,9 @@ Do **not** build the remaining institutional contracts merely because they appea
 
 | Level | Access | Project use |
 |---|---|---|
-| L0 | target contract only; no realized labels | current Stage B / target-blind governance |
-| L1 | TRAIN labels | Exploratory Lane / model fitting |
-| L2 | Validation labels/results | frozen confirmatory protocol; budgeted openings |
+| L0 | target contract / governance evidence only; no new realized-label row access | current pre-firewall acknowledgment and target-blind governance |
+| L1 | TRAIN realized labels | Exploratory Lane / model fitting; automatically `TARGET_AWARE_EXPERIMENT` with experiment ID |
+| L2 | Validation labels/results | frozen confirmatory protocol; budgeted openings only |
 | L3 | Final Test | sealed one-time final confirmation |
 
 Work classification is derived from observed access. Human labels cannot downgrade an L1/L2/L3 run into governance work.
@@ -245,8 +238,9 @@ Work classification is derived from observed access. Human labels cannot downgra
 Progress status is evidence-based:
 
 - `BLOCKED` means a predefined gate failure is proven and must be remediated before advancement.
-- `READY_FOR_AUDIT` means the required remediation/build work is complete but the next independent/final acceptance gate has not yet completed.
+- `READY_FOR_AUDIT` means required remediation/build work is complete but independent/final acceptance has not completed.
 - `LOCKED` means the applicable exit gate has passed and the versioned authority is frozen.
 - A local result or chat statement alone is not enough to mark a stage `LOCKED`.
+- Progress is updated when a milestone materially changes the answer to “where are we now?”, not for every small task/test/refactor.
 
-When a milestone changes, update this file in the same PR/commit series that supplies the corresponding evidence or policy transition whenever practical.
+When a milestone changes, update this file in the same PR/commit series that supplies the corresponding evidence or transition whenever practical.
