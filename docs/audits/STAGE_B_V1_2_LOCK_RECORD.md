@@ -138,7 +138,7 @@ execution outcomes, or Cell 8 assignment rows were opened.
 
 ## Verification results
 
-All commands used the current checkout explicitly via
+All Python commands used the current checkout explicitly via
 `$env:PYTHONPATH=(Resolve-Path 'src').Path`; import sanity verified that
 `contract.__file__` resolves inside this branch. This avoids a pre-existing
 editable installation in a sibling worktree.
