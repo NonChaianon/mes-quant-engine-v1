@@ -17,7 +17,7 @@ def sha256_raw(path: Path) -> str:
 
 
 class StageBLockedControlTests(unittest.TestCase):
-    def test_v12_remediation_and_v11_lock_provenance_are_pinned(self) -> None:
+    def test_v12_lock_and_prior_v11_provenance_are_pinned(self) -> None:
         self.assertEqual(
             contract.POLICY_VERSION,
             "MES_V1_REDUNDANCY_1.2",
@@ -27,8 +27,12 @@ class StageBLockedControlTests(unittest.TestCase):
             "a5d3f40e7edc26d950010401654ce4d6b7822e86",
         )
         self.assertEqual(
-            contract.LOCKED_CONTROL_COMMIT,
+            contract.PRIOR_V1_1_LOCKED_CONTROL_COMMIT,
             "bd9e38c11e01bae18a5ffa0a6a0405a008273d27",
+        )
+        self.assertEqual(
+            contract.LOCKED_CONTROL_COMMIT,
+            "a60d2498754df641e9c8a3308d330f3c4e05fb74",
         )
         self.assertEqual(
             contract.MARKDOWN_CONTRACT_PATH,
@@ -55,7 +59,7 @@ class StageBLockedControlTests(unittest.TestCase):
             contract.SEMANTIC_REGISTRY_SHA256,
         )
 
-    def test_provisional_control_statuses_and_binding_agree(self) -> None:
+    def test_locked_policy_controls_and_disabled_execution_agree(self) -> None:
         markdown = (
             PROJECT_ROOT / contract.MARKDOWN_CONTRACT_PATH
         ).read_text(encoding="utf-8")
@@ -67,11 +71,15 @@ class StageBLockedControlTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "Policy status: **PROVISIONAL**",
+            "Policy status: **LOCKED_EXECUTABLE**",
             markdown,
         )
         self.assertEqual(
             registry["registry_status"],
+            "LOCKED_EXECUTABLE",
+        )
+        self.assertEqual(
+            contract.POLICY_STATUS,
             "PROVISIONAL",
         )
         self.assertEqual(
@@ -109,7 +117,7 @@ class StageBLockedControlTests(unittest.TestCase):
 class StageBConstitutionalPolicyGateDirectTests(
     unittest.TestCase
 ):
-    """Exercise the real gate against the provisional V1.2 controls."""
+    """Exercise locked policy controls with execution disabled by default."""
 
     @staticmethod
     def _call_gate() -> None:
@@ -119,7 +127,7 @@ class StageBConstitutionalPolicyGateDirectTests(
             project_root=PROJECT_ROOT,
         )
 
-    def test_current_provisional_python_status_fails_closed(
+    def test_execution_disabled_python_status_fails_closed(
         self,
     ) -> None:
         self.assertEqual(
@@ -133,7 +141,7 @@ class StageBConstitutionalPolicyGateDirectTests(
         ):
             self._call_gate()
 
-    def test_python_status_patch_cannot_promote_provisional_controls(
+    def test_explicit_execution_status_patch_accepts_locked_controls(
         self,
     ) -> None:
         from unittest.mock import patch
@@ -143,11 +151,7 @@ class StageBConstitutionalPolicyGateDirectTests(
             "POLICY_STATUS",
             "LOCKED_EXECUTABLE",
         ):
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "Markdown policy status is not LOCKED_EXECUTABLE",
-            ):
-                self._call_gate()
+            self._call_gate()
 
     def test_wrong_policy_version_fails_closed(
         self,
@@ -259,33 +263,25 @@ class StageBProjectRootGateSpecificationTests(
             )
 
     @staticmethod
-    def _promote_synthetic_controls_for_gate_test(
+    def _hash_locked_controls_for_gate_test(
         root: Path,
     ) -> tuple[str, str]:
-        """Create an isolated future-lock fixture without changing repo controls."""
+        """Hash isolated copies of the locked policy controls."""
 
         markdown_path = root / contract.MARKDOWN_CONTRACT_PATH
         registry_path = root / contract.SEMANTIC_REGISTRY_PATH
 
         markdown = markdown_path.read_text(encoding="utf-8")
-        markdown = markdown.replace(
-            "Policy status: **PROVISIONAL**",
-            "Policy status: **LOCKED_EXECUTABLE**",
-            1,
-        )
-        markdown_path.write_text(
-            markdown,
-            encoding="utf-8",
-            newline="",
-        )
-
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        registry["registry_status"] = "LOCKED_EXECUTABLE"
-        registry_path.write_text(
-            json.dumps(registry, indent=2) + "\n",
-            encoding="utf-8",
-            newline="",
-        )
+
+        if "Policy status: **LOCKED_EXECUTABLE**" not in markdown:
+            raise AssertionError(
+                "copied Markdown policy control is not locked"
+            )
+        if registry["registry_status"] != "LOCKED_EXECUTABLE":
+            raise AssertionError(
+                "copied semantic registry is not locked"
+            )
 
         return (
             sha256_raw(markdown_path),
@@ -367,7 +363,7 @@ class StageBProjectRootGateSpecificationTests(
             )
 
             markdown_hash, registry_hash = (
-                self._promote_synthetic_controls_for_gate_test(
+                self._hash_locked_controls_for_gate_test(
                     alternate_root
                 )
             )

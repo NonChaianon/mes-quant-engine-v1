@@ -1,10 +1,11 @@
-"""Stage B V1.2 provisional enforcement constants and control-file pins."""
+"""Stage B V1.2 locked-control pins with production execution disabled."""
 
 POLICY_VERSION = "MES_V1_REDUNDANCY_1.2"
+# This existing sentinel remains PROVISIONAL so the production gate stays
+# closed. Issue #13 locks policy controls; it does not enable execution.
 POLICY_STATUS = "PROVISIONAL"
 
-# Issue #9 is a bounded remediation from this exact accepted baseline.
-# The prior V1.1 lock remains historical provenance; V1.2 is not locked here.
+# Issue #9 was a bounded remediation from this exact accepted baseline.
 REMEDIATION_BASE_COMMIT = "a5d3f40e7edc26d950010401654ce4d6b7822e86"
 
 # STEP_14G1_SERIALIZATION_POLICY_IDS_V1_2
@@ -25,15 +26,19 @@ STAGE_B_MULTI_VALUE_SERIALIZATION_POLICY_ID = "MES_V1_MULTI_ID_PIPE_ORDERED_V1"
 
 
 
-# Exact prior V1.1 locked-control provenance from Section 46 Steps 10-11.
-LOCKED_CONTROL_COMMIT = "bd9e38c11e01bae18a5ffa0a6a0405a008273d27"
+# Exact historical V1.1 locked-control provenance from Section 46 Steps 10-11.
+PRIOR_V1_1_LOCKED_CONTROL_COMMIT = (
+    "bd9e38c11e01bae18a5ffa0a6a0405a008273d27"
+)
 
-# Exact current V1.2 provisional control bindings. These hashes do not promote
-# the controls or open the production gate.
+# Exact V1.2 locked-control provenance and byte bindings. The control commit
+# precedes this pin update, avoiding self-referential commit provenance. These
+# bindings do not open the production execution gate.
+LOCKED_CONTROL_COMMIT = "a60d2498754df641e9c8a3308d330f3c4e05fb74"
 MARKDOWN_CONTRACT_PATH = "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
-MARKDOWN_CONTRACT_SHA256 = "173afa7e26717795abb88eef1880af1ce8e3cecca133604840942fa8c6d12a96"
+MARKDOWN_CONTRACT_SHA256 = "b672124603d6f4057c3aa54dc98b04ac056ccf9bbf3d82fb31b4d856f729e33f"
 SEMANTIC_REGISTRY_PATH = "configs/v1/stage_b_semantic_registry_v1.json"
-SEMANTIC_REGISTRY_SHA256 = "056ba7639960c8dd9c65d7e6a7a6a383e432a069651503def8bf05e3cafed861"
+SEMANTIC_REGISTRY_SHA256 = "9c50ed834bf82d66115ab54757d1d04d0a03c2afab1fe7a81d9fcaf8293f91e1"
 
 CELL14_FEATURE_FILE_SHA256 = (
     "aaf606e3d8869a414f0e687835c44529303a9b4e98f0092da39631ab2fc53452"
