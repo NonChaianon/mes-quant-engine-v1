@@ -1,6 +1,27 @@
 # MES Quant Engine V1
 
-สถานะ: **VS CODE CUTOVER COMPLETE / CELL 14 BUILD LOCKED / STAGE B NEXT**
+สถานะ: **ARCHITECTURE v2.2 BASELINE ACCEPTED / A6 STAGE B IN PROGRESS / LIVE DISABLED**
+
+## Project status
+
+- **Architecture:** `MES_QUANT_TARGET_ARCHITECTURE_v2.2` — `BASELINE_ACCEPTED / DESIGN_CLOSED`
+- **Current Plane:** Plane A — Research / Offline
+- **Current Stage:** `A6 — Target-Blind Redundancy`
+- **Current Milestone:** `STAGE_B_REDUNDANCY_V1.2`
+- **Current Gate:** BL-30 Genesis Reproduction Evidence → independent review → one final integration audit
+- **Execution:** `RESEARCH_ONLY / LIVE_DISABLED`
+- **Final Test:** `SEALED`
+
+เอกสารภาพรวมที่ใช้ติดตามโครงการ:
+
+- Architecture — `docs/architecture/MES_QUANT_TARGET_ARCHITECTURE_v2.2.md`
+- Progress — `docs/architecture/ARCHITECTURE_PROGRESS.md`
+- Architecture history — `docs/architecture/ARCHITECTURE_CHANGELOG.md`
+- Current detailed Stage-B authority — `docs/STAGE_B_REDUNDANCY_CONTRACT.md`
+
+Architecture บอกว่า **เราจะไปไหน**, Progress บอกว่า **ตอนนี้เราอยู่ไหน**, และ Stage Contract บอกว่า **stage ปัจจุบันต้องทำอย่างไร**
+
+---
 
 โครงการนี้เป็นเวอร์ชัน repository ของงาน MES Quant / Auto-Trading ที่ผ่าน Colab
 Cells 0–13 แล้ว จุดประสงค์ของการย้ายคือแยกโค้ดจริงออกจาก notebook globals,
@@ -9,11 +30,13 @@ Cells 0–13 แล้ว จุดประสงค์ของการย้
 ## นักพัฒนาควรเริ่มที่ไหน
 
 1. อ่าน `START_HERE_TH.md`
-2. อ่านสถานะเต็มที่ `docs/MIGRATION_STATUS.md`
-3. ตรวจสัญญา feature ที่ `docs/CELL14_FEATURE_CONTRACT.md`
-4. งานถัดไปเริ่มที่ `docs/STAGE_B_REDUNDANCY_CONTRACT.md`
-5. ห้ามแก้ Cell 14 ที่ LOCKED โดยไม่มี defect/version bump
-6. รัน tests และตัวตรวจ release ก่อนสร้าง artifact ทุกครั้ง
+2. อ่าน Architecture ที่ `docs/architecture/MES_QUANT_TARGET_ARCHITECTURE_v2.2.md`
+3. อ่าน progress ปัจจุบันที่ `docs/architecture/ARCHITECTURE_PROGRESS.md`
+4. อ่านสถานะ migration ที่ `docs/MIGRATION_STATUS.md`
+5. ตรวจสัญญา feature ที่ `docs/CELL14_FEATURE_CONTRACT.md`
+6. งานปัจจุบันใช้ `docs/STAGE_B_REDUNDANCY_CONTRACT.md` เป็น detailed stage authority
+7. ห้ามแก้ Cell 14 ที่ LOCKED โดยไม่มี defect/version bump
+8. รัน tests และตัวตรวจ release ก่อนสร้าง artifact ทุกครั้ง
 
 Cell 14 รันกับข้อมูลจริงสองรอบแล้ว: `31,193` Development rows, `29` candidate features,
 `30,197` แถว usable, Final Test rows = `0`, และ artifact ทั้งสองรอบตรงกันแบบ byte-for-byte
