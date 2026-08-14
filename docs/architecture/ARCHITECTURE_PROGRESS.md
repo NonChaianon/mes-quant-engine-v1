@@ -10,7 +10,7 @@
 
 **Current milestone:** `STAGE_B_REDUNDANCY_V1.2`
 
-**Current gate:** `BL-30 Genesis Reproduction Evidence → independent review → one final integration audit`
+**Current gate:** `ONE FINAL V1.2 integration / contradiction / preservation audit`
 
 > This file is the project-level progress source of truth. It tracks **where we are**. Detailed mathematical/methodological authority remains in the applicable stage contract; the target architecture explains **where we are going**.
 
@@ -37,13 +37,30 @@ Architecture:      v2.2 — BASELINE_ACCEPTED / DESIGN_CLOSED
 Current plane:     PLANE A — RESEARCH / OFFLINE
 Current stage:     A6 — Target-Blind Redundancy
 Current policy:    Stage B Redundancy V1.2 — PROVISIONAL until final lock
-Current gate:      BL-30 reproduction evidence + independent review
-Next gate:         one final integration / contradiction / preservation audit
+BL-30:             CLOSED / ACCEPT_GENESIS_ATTESTATION / EXACT_BYTES
+Current gate:      ONE FINAL V1.2 integration / contradiction / preservation audit
 Live trading:      DISABLED
 Final Test:        SEALED
 ```
 
-**BL-30 note:** Code X has reported the scratch reproduction task complete. At the time this tracker was created, the corresponding BL-30 evidence/commit was **not yet visible on the remote `main` history reviewed from GitHub**, so the evidence itself is not marked `LOCKED` here. Treat it as `READY_FOR_AUDIT` until the evidence bundle is independently inspected.
+### BL-30 accepted evidence
+
+- Independent disposition: `ACCEPT_GENESIS_ATTESTATION`
+- Classification: `EXACT_BYTES`
+- Machine-readable evidence SHA-256: `20f4e2150e5ad49ef4e75b576b4e9b859a6aa3979764f2f80bbbc70d76eca29a`
+- Frozen Cell 14 feature artifact SHA-256: `aaf606e3d8869a414f0e687835c44529303a9b4e98f0092da39631ab2fc53452`
+- Two clean-process reproductions: byte-identical to frozen reference and to each other
+- Exact mismatches: `0`
+- Max absolute / relative / ULP deviation: `0`
+- Required upstream provenance hashes: all matched
+- No new acceptance tolerance introduced
+
+Audit records:
+
+- `docs/audits/BL30_GENESIS_REPRODUCTION_AUDIT_SUMMARY.md`
+- `docs/audits/BL30_INDEPENDENT_ATTESTATION.md`
+
+BL-30 acceptance closes the genesis reproduction blocker only. It does **not** by itself lock Stage B V1.2.
 
 ---
 
@@ -56,8 +73,8 @@ Final Test:        SEALED
 | A2 | Decision Universe | LOCKED | Eligibility, session, early-close, horizon-safe and decision-universe logic established | Reopen only for documented defect/version bump |
 | A3 | Cost & Impact Model | DEFERRED | Cost assumptions exist historically but the v2.2 single-source canonical cost contract is not yet formalized | Define only to the level required for Edge Sprint protocol; do not build full production cost stack first |
 | A4 | Label / Target Contract | IN_PROGRESS | Historical label logic exists; v2.2 separates target contract from realized-label access | Before Edge Sprint, record pre-firewall exposure and freeze sprint target/cost assumptions |
-| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1 feature build: 29 candidate features, PIT-safe Development output | Reopen only for documented defect/version bump |
-| **A6** | **Target-Blind Redundancy / Stage B** | **READY_FOR_AUDIT** | Phase A hardening/decision bridge complete; V1.2 methodology design closed; BL-30 reported complete but evidence not yet independently verified here | BL-30 audit → one final integration/contradiction/preservation audit → lock V1.2 unless V1_2_LOCK_BREAKER 1–5 |
+| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1 feature build: 29 candidate features, PIT-safe Development output; BL-30 independently reproduced exact bytes | Reopen only for documented defect/version bump |
+| **A6** | **Target-Blind Redundancy / Stage B** | **READY_FOR_AUDIT** | Phase A hardening/decision bridge complete; V1.2 methodology design closed; BL-30 CLOSED with `ACCEPT_GENESIS_ATTESTATION / EXACT_BYTES` | **ONE final integration/contradiction/preservation audit → lock V1.2 unless V1_2_LOCK_BREAKER 1–5** |
 | A7 | Regime / Context | DEFERRED | Not required before first Edge Sprint | Do not build before Edge Sprint evidence justifies continuation |
 | A8 | Label Materialization / access control | IN_PROGRESS | Historical labels exist; new L0/L1/L2/L3 governance not yet formalized | Create `LABEL_EXPOSURE_PRE_FIREWALL` acknowledgment; enforce access levels before Sprint/Validation |
 | Exploratory Lane | TRAIN-only edge discovery | NOT_STARTED | One-page charter design closed | Freeze one-page charter + Sprint 1 protocol, then run Sprint 1 |
@@ -79,9 +96,10 @@ Final Test:        SEALED
 V1.2 convergence is frozen as:
 
 ```text
-BL-30 reproduction evidence
-→ independent audit
-→ ONE final integration / contradiction / preservation audit
+BL-30 reproduction evidence                    COMPLETE
+→ independent audit                            COMPLETE / ACCEPT
+→ ONE final integration / contradiction /
+  preservation audit                           CURRENT GATE
 → V1.2 LOCK
 ```
 
@@ -100,12 +118,11 @@ Everything else goes to V1.3 backlog.
 ## Frozen next sequence after A6
 
 ```text
-1. Verify / audit BL-30 reproduction evidence
-2. Run one final Stage-B V1.2 integration / contradiction / preservation audit
-3. LOCK V1.2 unless a predefined lock-breaker exists
-4. Record LABEL_EXPOSURE_PRE_FIREWALL acknowledgment
-5. Freeze Exploratory Lane V1 one-page charter
-6. Freeze Edge Discovery Sprint 1 protocol:
+1. Run ONE final Stage-B V1.2 integration / contradiction / preservation audit
+2. LOCK V1.2 unless a predefined lock-breaker exists
+3. Record LABEL_EXPOSURE_PRE_FIREWALL acknowledgment
+4. Freeze Exploratory Lane V1 one-page charter
+5. Freeze Edge Discovery Sprint 1 protocol:
    - EXPLORATION_SCOPE_ID
    - project continuation policy
    - baseline(s), including ALWAYS_FLAT
@@ -113,7 +130,7 @@ Everything else goes to V1.3 backlog.
    - diagnostic secondary metrics
    - cost assumption
    - interesting-enough continuation criterion
-7. RUN EDGE DISCOVERY SPRINT 1
+6. RUN EDGE DISCOVERY SPRINT 1
 ```
 
 Do **not** build the remaining institutional contracts merely because they appear in the target architecture. Sprint 1 is the next major business/research proof point after A6.
@@ -137,7 +154,7 @@ Work classification is derived from observed access. Human labels cannot downgra
 
 Progress status is evidence-based:
 
-- `READY_FOR_AUDIT` means execution/work is reported complete but independent acceptance has not yet occurred.
+- `READY_FOR_AUDIT` means execution/work is reported complete but the next required independent acceptance gate has not yet occurred.
 - `LOCKED` means the applicable exit gate has passed and the versioned authority is frozen.
 - A local result or chat statement alone is not enough to mark a stage `LOCKED`.
 
