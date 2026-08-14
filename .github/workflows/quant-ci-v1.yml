@@ -78,7 +78,9 @@ jobs:
             echo "::notice title=Environmental fixture exclusion::The external Cell14 feature-registry artifact is not present. StageBPhaseADecisionBridgeRedSpecificationTests is external-fixture-dependent and is intentionally not executed in checkout-only CI. This environmental absence is not a pass; artifact-enabled validation remains separately required where applicable."
           fi
 
-          focused_tests+=(tests/test_redundancy.py::StageBExactBasisPrimitiveRedSpecificationTests)
+          focused_tests+=(tests/test_redundancy.py::StageBGenericRankAuthorityV12SpecificationTests)
+          focused_tests+=(tests/test_redundancy.py::StageBGroupRankAndPhaseCSensitivitySpecificationTests)
+          focused_tests+=(tests/test_redundancy.py::StageBProductionBoundarySpecificationTests)
           python -m pytest -p no:cacheprovider "${focused_tests[@]}"
 
       - name: Run checkout-safe Stage B redundancy suite

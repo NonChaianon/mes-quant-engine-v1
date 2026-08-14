@@ -17,10 +17,14 @@ def sha256_raw(path: Path) -> str:
 
 
 class StageBLockedControlTests(unittest.TestCase):
-    def test_v11_control_provenance_is_pinned(self) -> None:
+    def test_v12_remediation_and_v11_lock_provenance_are_pinned(self) -> None:
         self.assertEqual(
             contract.POLICY_VERSION,
-            "MES_V1_REDUNDANCY_1.1",
+            "MES_V1_REDUNDANCY_1.2",
+        )
+        self.assertEqual(
+            contract.REMEDIATION_BASE_COMMIT,
+            "a5d3f40e7edc26d950010401654ce4d6b7822e86",
         )
         self.assertEqual(
             contract.LOCKED_CONTROL_COMMIT,
@@ -51,7 +55,7 @@ class StageBLockedControlTests(unittest.TestCase):
             contract.SEMANTIC_REGISTRY_SHA256,
         )
 
-    def test_locked_control_statuses_and_binding_agree(self) -> None:
+    def test_provisional_control_statuses_and_binding_agree(self) -> None:
         markdown = (
             PROJECT_ROOT / contract.MARKDOWN_CONTRACT_PATH
         ).read_text(encoding="utf-8")
@@ -63,12 +67,12 @@ class StageBLockedControlTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "Policy status: **LOCKED_EXECUTABLE**",
+            "Policy status: **PROVISIONAL**",
             markdown,
         )
         self.assertEqual(
             registry["registry_status"],
-            "LOCKED_EXECUTABLE",
+            "PROVISIONAL",
         )
         self.assertEqual(
             registry["policy_version"],
@@ -105,7 +109,7 @@ class StageBLockedControlTests(unittest.TestCase):
 class StageBConstitutionalPolicyGateDirectTests(
     unittest.TestCase
 ):
-    """Exercise the real production gate against locked control bytes."""
+    """Exercise the real gate against the provisional V1.2 controls."""
 
     @staticmethod
     def _call_gate() -> None:
@@ -129,7 +133,7 @@ class StageBConstitutionalPolicyGateDirectTests(
         ):
             self._call_gate()
 
-    def test_controlled_locked_state_passes_all_gate_invariants(
+    def test_python_status_patch_cannot_promote_provisional_controls(
         self,
     ) -> None:
         from unittest.mock import patch
@@ -139,7 +143,11 @@ class StageBConstitutionalPolicyGateDirectTests(
             "POLICY_STATUS",
             "LOCKED_EXECUTABLE",
         ):
-            self._call_gate()
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Markdown policy status is not LOCKED_EXECUTABLE",
+            ):
+                self._call_gate()
 
     def test_wrong_policy_version_fails_closed(
         self,
@@ -250,6 +258,40 @@ class StageBProjectRootGateSpecificationTests(
                 source.read_bytes()
             )
 
+    @staticmethod
+    def _promote_synthetic_controls_for_gate_test(
+        root: Path,
+    ) -> tuple[str, str]:
+        """Create an isolated future-lock fixture without changing repo controls."""
+
+        markdown_path = root / contract.MARKDOWN_CONTRACT_PATH
+        registry_path = root / contract.SEMANTIC_REGISTRY_PATH
+
+        markdown = markdown_path.read_text(encoding="utf-8")
+        markdown = markdown.replace(
+            "Policy status: **PROVISIONAL**",
+            "Policy status: **LOCKED_EXECUTABLE**",
+            1,
+        )
+        markdown_path.write_text(
+            markdown,
+            encoding="utf-8",
+            newline="",
+        )
+
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["registry_status"] = "LOCKED_EXECUTABLE"
+        registry_path.write_text(
+            json.dumps(registry, indent=2) + "\n",
+            encoding="utf-8",
+            newline="",
+        )
+
+        return (
+            sha256_raw(markdown_path),
+            sha256_raw(registry_path),
+        )
+
     def test_gate_requires_explicit_keyword_only_project_root(
         self,
     ) -> None:
@@ -324,10 +366,28 @@ class StageBProjectRootGateSpecificationTests(
                 alternate_root
             )
 
-            with patch.object(
-                contract,
-                "POLICY_STATUS",
-                "LOCKED_EXECUTABLE",
+            markdown_hash, registry_hash = (
+                self._promote_synthetic_controls_for_gate_test(
+                    alternate_root
+                )
+            )
+
+            with (
+                patch.object(
+                    contract,
+                    "POLICY_STATUS",
+                    "LOCKED_EXECUTABLE",
+                ),
+                patch.object(
+                    contract,
+                    "MARKDOWN_CONTRACT_SHA256",
+                    markdown_hash,
+                ),
+                patch.object(
+                    contract,
+                    "SEMANTIC_REGISTRY_SHA256",
+                    registry_hash,
+                ),
             ):
                 analyzer.assert_stage_b_contract_locked(
                     project_root=alternate_root,
@@ -1126,187 +1186,150 @@ class StageBZeroVarianceAndSVDSpecificationTests(unittest.TestCase):
 class StageBGroupRankAndPhaseCSensitivitySpecificationTests(
     unittest.TestCase
 ):
-    def test_group_common_only_dependency_creates_conflict(self) -> None:
+    def test_generic_c_equals_a_plus_b_opens_entire_component(self) -> None:
+        import pandas as pd
+
         from mes_quant.redundancy import analyzer
 
-        resolve = getattr(
-            analyzer,
-            "resolve_generic_group_rank_verification",
-            None,
+        frame = pd.DataFrame(
+            {
+                "a": [-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0],
+                "b": [2.0, -1.0, 4.0, 0.5, -3.0, 1.5, 5.0, -2.0],
+            },
+            dtype="float64",
+        )
+        frame["c"] = frame["a"] + frame["b"]
+
+        diagnostics = analyzer.compute_svd_diagnostics(
+            analyzer.build_standardized_matrix(
+                frame=frame,
+                feature_columns=["a", "b", "c"],
+            )
+        )
+        self.assertEqual(diagnostics["deficiency"], 1)
+
+        result = analyzer.classify_generic_rank_discovery(
+            component_features=["a", "b", "c"],
+            discovery_status=(
+                "STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY"
+            ),
         )
 
-        self.assertTrue(
-            callable(resolve),
-            "analyzer.resolve_generic_group_rank_verification must exist",
-        )
-
-        result = resolve(
-            common_deficiency_by_fold={
-                "role_wf_2022": 1,
-                "role_wf_2023": 1,
-                "role_wf_2024": 1,
-            },
-            group_available_deficiency_by_fold={
-                "role_wf_2022": 1,
-                "role_wf_2023": 0,
-                "role_wf_2024": 1,
-            },
-            retained_basis_rank_preserved_by_fold={
-                "role_wf_2022": True,
-                "role_wf_2023": True,
-                "role_wf_2024": True,
-            },
-            proposed_drop_count=1,
-        )
-
+        self.assertEqual(result["decision_class"], "OPEN")
         self.assertEqual(
-            result["group_cohort_rank_status"],
-            "GROUP_COHORT_RANK_CONFLICT",
+            result["component_dispositions"],
+            {"a": "OPEN", "b": "OPEN", "c": "OPEN"},
         )
+        self.assertEqual(result["dropped_features"], ())
+        self.assertFalse(result["direct_drop_authorized"])
+        self.assertFalse(result["environment_change_resolves_open"])
+        self.assertFalse(result["stage_c_release_allowed"])
 
-        self.assertFalse(
-            result["drop_allowed"]
-        )
-
-        self.assertEqual(
-            result["base_decision"],
-            "KEEP",
-        )
-
-    def test_group_rank_persistence_can_support_exact_drop(self) -> None:
-        from mes_quant.redundancy import analyzer
-
-        resolve = getattr(
-            analyzer,
-            "resolve_generic_group_rank_verification",
-            None,
-        )
-
-        self.assertTrue(
-            callable(resolve),
-            "analyzer.resolve_generic_group_rank_verification must exist",
-        )
-
-        result = resolve(
-            common_deficiency_by_fold={
-                "role_wf_2022": 1,
-                "role_wf_2023": 1,
-                "role_wf_2024": 1,
-            },
-            group_available_deficiency_by_fold={
-                "role_wf_2022": 1,
-                "role_wf_2023": 1,
-                "role_wf_2024": 1,
-            },
-            retained_basis_rank_preserved_by_fold={
-                "role_wf_2022": True,
-                "role_wf_2023": True,
-                "role_wf_2024": True,
-            },
-            proposed_drop_count=1,
-        )
-
-        self.assertTrue(
-            result["drop_allowed"]
-        )
-
-        self.assertEqual(
-            result["minimum_supported_deficiency"],
-            1,
-        )
-
-    def test_group_exact_drop_count_cannot_exceed_supported_deficiency(
+    def test_cohort_conditional_localized_dependency_opens_component(
         self,
     ) -> None:
         from mes_quant.redundancy import analyzer
 
-        resolve = getattr(
-            analyzer,
-            "resolve_generic_group_rank_verification",
-            None,
+        result = analyzer.classify_generic_rank_discovery(
+            component_features=["a", "b", "c"],
+            discovery_status=(
+                "COHORT_CONDITIONAL_LOCALIZED_EXACT_DEPENDENCY"
+            ),
         )
 
-        self.assertTrue(
-            callable(resolve),
-            "analyzer.resolve_generic_group_rank_verification must exist",
-        )
-
-        result = resolve(
-            common_deficiency_by_fold={
-                "role_wf_2022": 2,
-                "role_wf_2023": 2,
-                "role_wf_2024": 2,
-            },
-            group_available_deficiency_by_fold={
-                "role_wf_2022": 2,
-                "role_wf_2023": 1,
-                "role_wf_2024": 2,
-            },
-            retained_basis_rank_preserved_by_fold={
-                "role_wf_2022": True,
-                "role_wf_2023": True,
-                "role_wf_2024": True,
-            },
-            proposed_drop_count=2,
-        )
-
+        self.assertEqual(result["decision_class"], "OPEN")
         self.assertEqual(
-            result["minimum_supported_deficiency"],
-            1,
+            set(result["component_dispositions"].values()),
+            {"OPEN"},
         )
+        self.assertFalse(result["stage_c_release_allowed"])
 
-        self.assertFalse(
-            result["drop_allowed"]
-        )
-
-        self.assertEqual(
-            result["base_decision"],
-            "KEEP",
-        )
-
-    def test_group_drop_requires_retained_basis_rank_preservation(
+    def test_inconsistent_generic_evidence_hard_fails_without_drop(
         self,
     ) -> None:
         from mes_quant.redundancy import analyzer
 
-        resolve = getattr(
-            analyzer,
-            "resolve_generic_group_rank_verification",
-            None,
+        statuses = (
+            "UNSTABLE_EXACT_DEPENDENCY",
+            "UNLOCALIZABLE_EXACT_DEPENDENCY",
+            "TOLERANCE_INCONSISTENT_EXACT_DEPENDENCY",
+            "NUMERICALLY_INCONSISTENT_EXACT_DEPENDENCY",
         )
 
-        self.assertTrue(
-            callable(resolve),
-            "analyzer.resolve_generic_group_rank_verification must exist",
-        )
+        for status in statuses:
+            with self.subTest(status=status):
+                result = analyzer.classify_generic_rank_discovery(
+                    component_features=["a", "b", "c"],
+                    discovery_status=status,
+                )
+                self.assertEqual(result["decision_class"], "HARD_FAIL")
+                self.assertEqual(result["dropped_features"], ())
+                self.assertNotIn("base_decision", result)
+                self.assertFalse(result["direct_drop_authorized"])
+                self.assertFalse(result["stage_c_release_allowed"])
 
-        result = resolve(
-            common_deficiency_by_fold={
-                "role_wf_2022": 1,
-                "role_wf_2023": 1,
-                "role_wf_2024": 1,
-            },
-            group_available_deficiency_by_fold={
-                "role_wf_2022": 1,
-                "role_wf_2023": 1,
-                "role_wf_2024": 1,
-            },
-            retained_basis_rank_preserved_by_fold={
-                "role_wf_2022": True,
-                "role_wf_2023": False,
-                "role_wf_2024": True,
-            },
-            proposed_drop_count=1,
-        )
+    def test_old_generic_drop_resolver_is_retired(self) -> None:
+        from mes_quant.redundancy import analyzer
 
         self.assertFalse(
-            result["drop_allowed"]
+            hasattr(analyzer, "resolve_generic_group_rank_verification")
         )
+        for retired_helper in (
+            "_prefer_retention_candidate",
+            "_minimum_fold_availability",
+            "_compare_lookback_preference",
+        ):
+            self.assertFalse(hasattr(analyzer, retired_helper))
 
-        self.assertEqual(
-            result["base_decision"],
-            "KEEP",
-        )
+    def test_environment_change_cannot_be_enabled_as_open_resolution(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer, contract
+
+        with (
+            patch.object(
+                contract,
+                "GENERIC_RANK_ENVIRONMENT_CHANGE_RESOLVES_OPEN",
+                True,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "Environment change must not resolve generic rank OPEN",
+            ),
+        ):
+            analyzer.classify_generic_rank_discovery(
+                component_features=["a", "b", "c"],
+                discovery_status=(
+                    "STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY"
+                ),
+            )
+
+    def test_generic_direct_drop_authority_fails_closed_if_enabled(
+        self,
+    ) -> None:
+        from unittest.mock import patch
+
+        from mes_quant.redundancy import analyzer, contract
+
+        with (
+            patch.object(
+                contract,
+                "GENERIC_RANK_DIRECT_DROP_AUTHORIZED",
+                True,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "direct DROP authority must remain disabled",
+            ),
+        ):
+            analyzer.classify_generic_rank_discovery(
+                component_features=["a", "b", "c"],
+                discovery_status=(
+                    "STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY"
+                ),
+            )
 
     def test_primary_hard_plus_sensitivity_hard_is_supported(self) -> None:
         from mes_quant.redundancy import analyzer
@@ -1742,11 +1765,11 @@ class StageBPhase0FirewallSpecificationTests(
                 expected_registry_sha256=hashlib.sha256(
                     registry
                 ).hexdigest(),
-                python_policy_version="MES_V1_REDUNDANCY_1.1",
+                python_policy_version=contract.POLICY_VERSION,
                 python_policy_status="LOCKED_EXECUTABLE",
-                markdown_policy_version="MES_V1_REDUNDANCY_1.1",
+                markdown_policy_version=contract.POLICY_VERSION,
                 markdown_policy_status="LOCKED_EXECUTABLE",
-                registry_policy_version="MES_V1_REDUNDANCY_1.1",
+                registry_policy_version=contract.POLICY_VERSION,
                 registry_status="LOCKED_EXECUTABLE",
                 registry_source_contract=(
                     "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
@@ -1784,11 +1807,11 @@ class StageBPhase0FirewallSpecificationTests(
                 expected_registry_sha256=hashlib.sha256(
                     registry
                 ).hexdigest(),
-                python_policy_version="MES_V1_REDUNDANCY_1.1",
+                python_policy_version=contract.POLICY_VERSION,
                 python_policy_status="LOCKED_EXECUTABLE",
-                markdown_policy_version="MES_V1_REDUNDANCY_1.1",
+                markdown_policy_version=contract.POLICY_VERSION,
                 markdown_policy_status="LOCKED_EXECUTABLE",
-                registry_policy_version="MES_V1_REDUNDANCY_1.1",
+                registry_policy_version=contract.POLICY_VERSION,
                 registry_status="LOCKED_EXECUTABLE",
                 registry_source_contract=(
                     "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
@@ -1823,11 +1846,11 @@ class StageBPhase0FirewallSpecificationTests(
             "expected_registry_sha256": hashlib.sha256(
                 registry
             ).hexdigest(),
-            "python_policy_version": "MES_V1_REDUNDANCY_1.1",
+            "python_policy_version": contract.POLICY_VERSION,
             "python_policy_status": "LOCKED_EXECUTABLE",
-            "markdown_policy_version": "MES_V1_REDUNDANCY_1.1",
+            "markdown_policy_version": contract.POLICY_VERSION,
             "markdown_policy_status": "LOCKED_EXECUTABLE",
-            "registry_policy_version": "MES_V1_REDUNDANCY_1.1",
+            "registry_policy_version": contract.POLICY_VERSION,
             "registry_status": "LOCKED_EXECUTABLE",
             "registry_source_contract": (
                 "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
@@ -2281,333 +2304,11 @@ class StageBPhase0FirewallSpecificationTests(
 class StageBRetentionAndDecisionRegistrySpecificationTests(
     unittest.TestCase
 ):
-    @staticmethod
-    def _fold_availability(
-        a: float,
-        b: float,
-        c: float,
-    ):
-        return {
-            "role_wf_2022": a,
-            "role_wf_2023": b,
-            "role_wf_2024": c,
-        }
-
-    @staticmethod
-    def _candidate(
-        *,
-        feature,
-        protected=False,
-        availability=(1.0, 1.0, 1.0),
-        mode="FIXED",
-        minutes=60,
-        start_rule=None,
-    ):
-        return {
-            "feature": feature,
-            "semantic_basis_protected": protected,
-            "fold_availability": {
-                "role_wf_2022": availability[0],
-                "role_wf_2023": availability[1],
-                "role_wf_2024": availability[2],
-            },
-            "lookback_mode": mode,
-            "lookback_minutes": minutes,
-            "lookback_start_rule": start_rule,
-        }
-
-    def test_minimum_fold_availability_uses_worst_train_fold(self) -> None:
+    def test_generic_retention_candidate_authority_is_retired(self) -> None:
         from mes_quant.redundancy import analyzer
 
-        compute = getattr(
-            analyzer,
-            "_minimum_fold_availability",
-            None,
-        )
-
-        self.assertTrue(
-            callable(compute),
-            "analyzer._minimum_fold_availability must exist",
-        )
-
-        result = compute(
-            self._fold_availability(
-                0.99,
-                0.93,
-                0.97,
-            )
-        )
-
-        self.assertAlmostEqual(
-            result,
-            0.93,
-        )
-
-        with self.assertRaises(
-            (ValueError, RuntimeError)
-        ):
-            compute(
-                {
-                    "role_wf_2022": 0.99,
-                    "role_wf_2023": 0.93,
-                }
-            )
-
-    def test_protected_status_precedes_availability_and_lookback(self) -> None:
-        from mes_quant.redundancy import analyzer
-
-        prefer = getattr(
-            analyzer,
-            "_prefer_retention_candidate",
-            None,
-        )
-
-        self.assertTrue(
-            callable(prefer),
-            "analyzer._prefer_retention_candidate must exist",
-        )
-
-        protected = self._candidate(
-            feature="protected_feature",
-            protected=True,
-            availability=(0.91, 0.91, 0.91),
-            mode="FIXED",
-            minutes=240,
-        )
-
-        unprotected = self._candidate(
-            feature="unprotected_feature",
-            protected=False,
-            availability=(1.0, 1.0, 1.0),
-            mode="FIXED",
-            minutes=0,
-        )
-
-        winner = prefer(
-            candidate_a=unprotected,
-            candidate_b=protected,
-            canonical_order=[
-                "unprotected_feature",
-                "protected_feature",
-            ],
-        )
-
-        self.assertEqual(
-            winner,
-            "protected_feature",
-        )
-
-    def test_higher_minimum_availability_wins_when_protection_ties(
-        self,
-    ) -> None:
-        from mes_quant.redundancy import analyzer
-
-        prefer = getattr(
-            analyzer,
-            "_prefer_retention_candidate",
-            None,
-        )
-
-        self.assertTrue(
-            callable(prefer),
-            "analyzer._prefer_retention_candidate must exist",
-        )
-
-        a = self._candidate(
-            feature="feature_a",
-            availability=(0.96, 0.96, 0.96),
-            minutes=120,
-        )
-
-        b = self._candidate(
-            feature="feature_b",
-            availability=(0.99, 0.94, 0.99),
-            minutes=15,
-        )
-
-        winner = prefer(
-            candidate_a=a,
-            candidate_b=b,
-            canonical_order=[
-                "feature_a",
-                "feature_b",
-            ],
-        )
-
-        self.assertEqual(
-            winner,
-            "feature_a",
-        )
-
-    def test_fixed_lookback_prefers_shorter_and_accepts_zero(self) -> None:
-        from mes_quant.redundancy import analyzer
-
-        compare = getattr(
-            analyzer,
-            "_compare_lookback_preference",
-            None,
-        )
-
-        self.assertTrue(
-            callable(compare),
-            "analyzer._compare_lookback_preference must exist",
-        )
-
-        zero = {
-            "lookback_mode": "FIXED",
-            "lookback_minutes": 0,
-            "lookback_start_rule": None,
-        }
-
-        sixty = {
-            "lookback_mode": "FIXED",
-            "lookback_minutes": 60,
-            "lookback_start_rule": None,
-        }
-
-        self.assertEqual(
-            compare(
-                metadata_a=zero,
-                metadata_b=sixty,
-            ),
-            "A",
-        )
-
-        self.assertEqual(
-            compare(
-                metadata_a=sixty,
-                metadata_b=zero,
-            ),
-            "B",
-        )
-
-    def test_session_to_date_comparison_requires_same_start_rule(
-        self,
-    ) -> None:
-        from mes_quant.redundancy import analyzer
-
-        compare = getattr(
-            analyzer,
-            "_compare_lookback_preference",
-            None,
-        )
-
-        self.assertTrue(
-            callable(compare),
-            "analyzer._compare_lookback_preference must exist",
-        )
-
-        a = {
-            "lookback_mode": "SESSION_TO_DATE",
-            "lookback_minutes": 120,
-            "lookback_start_rule": "NYSE_SESSION_START",
-        }
-
-        b = {
-            "lookback_mode": "SESSION_TO_DATE",
-            "lookback_minutes": 330,
-            "lookback_start_rule": "NYSE_SESSION_START",
-        }
-
-        self.assertEqual(
-            compare(
-                metadata_a=a,
-                metadata_b=b,
-            ),
-            "A",
-        )
-
-        b_different_start = dict(
-            b
-        )
-
-        b_different_start[
-            "lookback_start_rule"
-        ] = "OTHER_START"
-
-        self.assertEqual(
-            compare(
-                metadata_a=a,
-                metadata_b=b_different_start,
-            ),
-            "NON_COMPARABLE",
-        )
-
-    def test_fixed_vs_session_to_date_goes_to_canonical_tiebreak(
-        self,
-    ) -> None:
-        from mes_quant.redundancy import analyzer
-
-        prefer = getattr(
-            analyzer,
-            "_prefer_retention_candidate",
-            None,
-        )
-
-        self.assertTrue(
-            callable(prefer),
-            "analyzer._prefer_retention_candidate must exist",
-        )
-
-        fixed = self._candidate(
-            feature="canonical_first",
-            mode="FIXED",
-            minutes=240,
-        )
-
-        session = self._candidate(
-            feature="canonical_second",
-            mode="SESSION_TO_DATE",
-            minutes=15,
-            start_rule="NYSE_SESSION_START",
-        )
-
-        winner = prefer(
-            candidate_a=session,
-            candidate_b=fixed,
-            canonical_order=[
-                "canonical_first",
-                "canonical_second",
-            ],
-        )
-
-        self.assertEqual(
-            winner,
-            "canonical_first",
-        )
-
-    def test_canonical_order_is_final_total_order_tiebreak(self) -> None:
-        from mes_quant.redundancy import analyzer
-
-        prefer = getattr(
-            analyzer,
-            "_prefer_retention_candidate",
-            None,
-        )
-
-        self.assertTrue(
-            callable(prefer),
-            "analyzer._prefer_retention_candidate must exist",
-        )
-
-        a = self._candidate(
-            feature="feature_a",
-        )
-
-        b = self._candidate(
-            feature="feature_b",
-        )
-
-        self.assertEqual(
-            prefer(
-                candidate_a=b,
-                candidate_b=a,
-                canonical_order=[
-                    "feature_a",
-                    "feature_b",
-                ],
-            ),
-            "feature_a",
+        self.assertFalse(
+            hasattr(analyzer, "_prefer_retention_candidate")
         )
 
     def test_relationship_id_serialization_is_deterministic(self) -> None:
@@ -2788,6 +2489,64 @@ class StageBRetentionAndDecisionRegistrySpecificationTests(
                         row=row,
                     )
 
+    def test_generic_exact_set_rows_cannot_encode_keep_drop_or_basis(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        generic_open = {
+            "feature": "feature_a",
+            "base_decision": "OPEN",
+            "decision_basis": (
+                "STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY"
+            ),
+            "semantic_dependency_groups": "",
+            "exact_set_dependency_groups": "GENERIC_COMPONENT_1",
+            "empirical_pair_ids": "",
+            "semantic_basis_protected": False,
+            "chosen_representative_or_basis": None,
+            "direct_substitute": None,
+            "group_cohort_rank_status": (
+                "STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY"
+            ),
+            "cohort_sensitivity_status": None,
+            "linear_overlay_decision": "BLOCKED_BY_OPEN",
+            "tree_overlay_decision": "BLOCKED_BY_OPEN",
+            "reason": "Generic rank discovery opened the whole component.",
+        }
+
+        result = analyzer._validate_feature_decision_registry_row(
+            row=generic_open,
+        )
+        self.assertTrue(result["decision_registry_row_valid"])
+
+        for forbidden_decision in ("KEEP", "DROP_REDUNDANT"):
+            with self.subTest(base_decision=forbidden_decision):
+                row = dict(generic_open)
+                row["base_decision"] = forbidden_decision
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "direct KEEP/DROP is forbidden",
+                ):
+                    analyzer._validate_feature_decision_registry_row(
+                        row=row,
+                    )
+
+        for forbidden_field in (
+            "chosen_representative_or_basis",
+            "direct_substitute",
+        ):
+            with self.subTest(field=forbidden_field):
+                row = dict(generic_open)
+                row[forbidden_field] = "feature_b"
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    forbidden_field,
+                ):
+                    analyzer._validate_feature_decision_registry_row(
+                        row=row,
+                    )
+
     def test_stage_c_is_blocked_by_open_decisions(self) -> None:
         from mes_quant.redundancy import analyzer
 
@@ -2824,7 +2583,7 @@ class StageBRetentionAndDecisionRegistrySpecificationTests(
                 phase_c_rank_loss_review_status="NOT_REQUIRED",
             )
 
-    def test_deterministic_veto_keep_does_not_create_open(self) -> None:
+    def test_cohort_conditional_generic_component_blocks_stage_c(self) -> None:
         from mes_quant.redundancy import analyzer
 
         validate = getattr(
@@ -2838,37 +2597,51 @@ class StageBRetentionAndDecisionRegistrySpecificationTests(
             "analyzer._validate_stage_c_readiness must exist",
         )
 
+        disposition = analyzer.classify_generic_rank_discovery(
+            component_features=["a", "b"],
+            discovery_status=(
+                "COHORT_CONDITIONAL_LOCALIZED_EXACT_DEPENDENCY"
+            ),
+        )
         decisions = [
             {
-                "feature": "a",
-                "base_decision": "KEEP",
-                "decision_basis": "GROUP_COHORT_RANK_CONFLICT",
-            },
-            {
-                "feature": "b",
-                "base_decision": "KEEP",
-                "decision_basis": (
-                    "EMPIRICAL_DROP_VETOED_COHORT_SENSITIVITY"
-                ),
-            },
+                "feature": feature,
+                "base_decision": decision,
+            }
+            for feature, decision in disposition[
+                "component_dispositions"
+            ].items()
         ]
 
-        result = validate(
-            decision_rows=decisions,
-            yearly_review_required=False,
-            yearly_review_status="NOT_REQUIRED",
-            phase_c_rank_loss_review_required=False,
-            phase_c_rank_loss_review_status="NOT_REQUIRED",
-        )
+        with self.assertRaises((ValueError, RuntimeError)):
+            validate(
+                decision_rows=decisions,
+                yearly_review_required=False,
+                yearly_review_status="NOT_REQUIRED",
+                phase_c_rank_loss_review_required=False,
+                phase_c_rank_loss_review_status="NOT_REQUIRED",
+            )
 
-        self.assertEqual(
-            result["open_count"],
-            0,
-        )
+    def test_generic_exact_set_drop_cannot_pass_stage_c_readiness(self) -> None:
+        from mes_quant.redundancy import analyzer
 
-        self.assertTrue(
-            result["stage_c_ready"]
-        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "forbidden generic Phase-B direct KEEP/DROP state",
+        ):
+            analyzer._validate_stage_c_readiness(
+                decision_rows=[
+                    {
+                        "feature": "c",
+                        "base_decision": "DROP_REDUNDANT",
+                        "exact_set_dependency_groups": "GENERIC_COMPONENT_1",
+                    },
+                ],
+                yearly_review_required=False,
+                yearly_review_status="NOT_REQUIRED",
+                phase_c_rank_loss_review_required=False,
+                phase_c_rank_loss_review_status="NOT_REQUIRED",
+            )
 
     def test_required_target_blind_acknowledgments_gate_stage_c(self) -> None:
         from mes_quant.redundancy import analyzer
@@ -4091,7 +3864,7 @@ class StageBProductionOutputSerializationSpecificationTests(
 
         manifest = build(
             artifacts=artifacts,
-            policy_version="MES_V1_REDUNDANCY_1.1",
+            policy_version=contract.POLICY_VERSION,
             control_hashes={
                 "markdown_sha256": "a" * 64,
                 "semantic_registry_sha256": "b" * 64,
@@ -4129,7 +3902,7 @@ class StageBProductionOutputSerializationSpecificationTests(
             manifest[
                 "policy_version"
             ],
-            "MES_V1_REDUNDANCY_1.1",
+            contract.POLICY_VERSION,
         )
 
     def test_audit_self_hash_policy_is_explicitly_non_recursive(
@@ -4214,7 +3987,10 @@ class StageBParquetAndAuditSchemaSpecificationTests(
         "common_cohort_zero_variance_diagnostics",
         "phase_a_decisions",
         "generic_phase_b_group_available_verification_results",
-        "group_cohort_rank_conflict_count",
+        "generic_phase_b_component_dispositions",
+        "generic_phase_b_open_component_count",
+        "generic_phase_b_hard_fail_count",
+        "generic_phase_b_direct_drop_count",
         "phase_b_rank",
         "phase_c_rank",
         "phase_c_rank_loss",
@@ -4226,7 +4002,7 @@ class StageBParquetAndAuditSchemaSpecificationTests(
         "cohort_sensitivity_unavailable_count",
         "empirical_drops_vetoed_by_cohort_sensitivity",
         "full_set_condition_number",
-        "exact_basis_condition_number",
+        "post_phase_a_condition_number",
         "clustering_metric",
         "clustering_linkage",
         "clustering_cut",
@@ -4250,7 +4026,7 @@ class StageBParquetAndAuditSchemaSpecificationTests(
 
         payload.update(
             {
-                "policy_version": "MES_V1_REDUNDANCY_1.1",
+                "policy_version": contract.POLICY_VERSION,
                 "markdown_sha256": "a" * 64,
                 "semantic_registry_sha256": "b" * 64,
                 "locked_markdown_git_commit": "c" * 40,
@@ -4319,7 +4095,10 @@ class StageBParquetAndAuditSchemaSpecificationTests(
                 "common_cohort_zero_variance_diagnostics": {},
                 "phase_a_decisions": [],
                 "generic_phase_b_group_available_verification_results": [],
-                "group_cohort_rank_conflict_count": 0,
+                "generic_phase_b_component_dispositions": [],
+                "generic_phase_b_open_component_count": 0,
+                "generic_phase_b_hard_fail_count": 0,
+                "generic_phase_b_direct_drop_count": 0,
                 "phase_b_rank": 20,
                 "phase_c_rank": 19,
                 "phase_c_rank_loss": 1,
@@ -4331,7 +4110,7 @@ class StageBParquetAndAuditSchemaSpecificationTests(
                 "cohort_sensitivity_unavailable_count": 0,
                 "empirical_drops_vetoed_by_cohort_sensitivity": 0,
                 "full_set_condition_number": 100.0,
-                "exact_basis_condition_number": 20.0,
+                "post_phase_a_condition_number": 20.0,
                 "clustering_metric": "1-ABS_SPEARMAN",
                 "clustering_linkage": "COMPLETE",
                 "clustering_cut": 0.10,
@@ -4547,7 +4326,7 @@ class StageBParquetAndAuditSchemaSpecificationTests(
                 ],
             )
 
-    def test_required_audit_fields_match_locked_minimum_contract(
+    def test_required_audit_fields_match_v12_minimum_contract(
         self,
     ) -> None:
         from mes_quant.redundancy import analyzer
@@ -4609,6 +4388,20 @@ class StageBParquetAndAuditSchemaSpecificationTests(
                 self.EXPECTED_AUDIT_FIELDS
             ),
         )
+
+    def test_audit_rejects_any_generic_phase_b_direct_drop(self) -> None:
+        from mes_quant.redundancy import analyzer
+
+        payload = self._complete_audit_payload()
+        payload["generic_phase_b_direct_drop_count"] = 1
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "forbidden generic Phase-B direct DROP authority",
+        ):
+            analyzer._validate_stage_b_audit_payload(
+                payload=payload,
+            )
 
     def test_missing_any_required_audit_field_fails_closed(
         self,
@@ -5099,7 +4892,7 @@ class StageBMinimalV11PrerequisiteSpecificationTests(
                 "rank": 2,
                 "deficiency": 1,
             },
-            basis_kind="FULL_SET",
+            diagnostic_scope="FULL_SET",
         )
 
         self.assertTrue(
@@ -5112,14 +4905,16 @@ class StageBMinimalV11PrerequisiteSpecificationTests(
 
         self.assertEqual(
             result[
-                "basis_kind"
+                "diagnostic_scope"
             ],
             "FULL_SET",
         )
 
-    def test_exact_basis_rank_deficiency_fails_closed(
+    def test_post_phase_a_rank_deficiency_requires_generic_discovery(
         self,
     ) -> None:
+        import math
+
         from mes_quant.redundancy import analyzer
 
         resolve = getattr(
@@ -5133,27 +4928,28 @@ class StageBMinimalV11PrerequisiteSpecificationTests(
             "analyzer._resolve_stage_b_condition_number must exist",
         )
 
-        with self.assertRaises(
-            (ValueError, RuntimeError)
-        ):
-            resolve(
-                svd_diagnostics={
-                    "matrix_shape": (
-                        100,
-                        3,
-                    ),
-                    "singular_values": [
-                        10.0,
-                        2.0,
-                        0.0,
-                    ],
-                    "rank": 2,
-                    "deficiency": 1,
-                },
-                basis_kind="EXACT_BASIS",
-            )
+        result = resolve(
+            svd_diagnostics={
+                "matrix_shape": (
+                    100,
+                    3,
+                ),
+                "singular_values": [
+                    10.0,
+                    2.0,
+                    0.0,
+                ],
+                "rank": 2,
+                "deficiency": 1,
+            },
+            diagnostic_scope="POST_PHASE_A_CANDIDATE_SET",
+        )
 
-    def test_exact_basis_full_rank_condition_number_is_sigma_ratio(
+        self.assertTrue(math.isinf(result["condition_number"]))
+        self.assertTrue(result["generic_rank_discovery_required"])
+        self.assertEqual(result["decision_effect"], "REPORT_ONLY")
+
+    def test_post_phase_a_full_rank_condition_number_is_sigma_ratio(
         self,
     ) -> None:
         from mes_quant.redundancy import analyzer
@@ -5182,7 +4978,7 @@ class StageBMinimalV11PrerequisiteSpecificationTests(
                 "rank": 2,
                 "deficiency": 0,
             },
-            basis_kind="EXACT_BASIS",
+            diagnostic_scope="POST_PHASE_A_CANDIDATE_SET",
         )
 
         self.assertAlmostEqual(
@@ -5191,6 +4987,7 @@ class StageBMinimalV11PrerequisiteSpecificationTests(
             ],
             5.0,
         )
+        self.assertFalse(result["generic_rank_discovery_required"])
 
     def test_stage_c_masks_are_deterministic_and_deduplicated(
         self,
@@ -5771,11 +5568,24 @@ class StageBProductionBoundarySpecificationTests(
             forbidden_used,
             [],
             (
-                "run_stage_b must use locked V1.1 "
+                "run_stage_b must use the bounded V1.2 Phase 0/A "
                 "runtime instead of legacy "
                 f"decision paths: {forbidden_used}"
             ),
         )
+
+    def test_run_stage_b_remains_fail_closed_before_phase_b(self) -> None:
+        import inspect
+
+        source = inspect.getsource(self._run_stage_b())
+
+        phase_a_call = source.index("_run_stage_b_phase_a(")
+        fail_closed = source.index(
+            'raise RuntimeError(\n        "Stage B Phase B boundary is not yet "'
+        )
+
+        self.assertLess(phase_a_call, fail_closed)
+        self.assertNotIn("classify_generic_rank_discovery(", source)
 
     def test_run_stage_b_boundary_has_no_label_aware_input_parameters(
         self,
@@ -9008,43 +8818,26 @@ class StageBPhaseADecisionBridgeRedSpecificationTests(
             )
 
 
-class StageBExactBasisPrimitiveRedSpecificationTests(
+class StageBGenericRankAuthorityV12SpecificationTests(
     unittest.TestCase
 ):
-    """Issue #2 RED contract for the future pure exact-basis primitive."""
+    """Issue #9 proof that generic rank discovery has no DROP authority."""
 
-    @staticmethod
-    def _helper():
-        from mes_quant.redundancy import analyzer
-
-        helper = getattr(
-            analyzer,
-            "_select_rank_preserving_exact_basis",
-            None,
-        )
-        if not callable(helper):
-            raise RuntimeError(
-                "Missing pure exact-basis primitive: "
-                "analyzer._select_rank_preserving_exact_basis"
-            )
-        return helper
-
-    def test_exact_basis_primitive_has_pure_locked_interface(
+    def test_generic_classifier_is_target_blind_and_has_no_basis_selector(
         self,
-    ):
+    ) -> None:
         import inspect
 
-        helper = self._helper()
-        signature = inspect.signature(
-            helper
-        )
+        from mes_quant.redundancy import analyzer
+
+        classifier = analyzer.classify_generic_rank_discovery
+        signature = inspect.signature(classifier)
 
         self.assertEqual(
             tuple(signature.parameters),
             (
-                "frame",
-                "feature_columns",
-                "retention_order",
+                "component_features",
+                "discovery_status",
             ),
         )
         self.assertTrue(
@@ -9055,20 +8848,14 @@ class StageBExactBasisPrimitiveRedSpecificationTests(
             )
         )
 
-        source = inspect.getsource(
-            helper
+        source = inspect.getsource(classifier).lower()
+        self.assertNotIn("retention_order", source)
+        self.assertNotIn("selected_basis", source)
+        self.assertFalse(
+            hasattr(analyzer, "resolve_generic_group_rank_verification")
         )
-        self.assertIn(
-            "build_standardized_matrix(",
-            source,
-        )
-        self.assertIn(
-            "compute_svd_diagnostics(",
-            source,
-        )
-        self.assertNotIn(
-            "np.linalg.svd(",
-            source,
+        self.assertFalse(
+            hasattr(analyzer, "_prefer_retention_candidate")
         )
 
         forbidden = (
@@ -9093,92 +8880,15 @@ class StageBExactBasisPrimitiveRedSpecificationTests(
             "model_score",
         )
         for operation in forbidden:
-            self.assertNotIn(
-                operation,
-                source.lower(),
-            )
+            self.assertNotIn(operation, source)
 
-    def test_exact_basis_drops_low_priority_linear_redundancy(
+    def test_phase_a_basis_primitive_emits_evidence_not_drop_decision(
         self,
-    ):
-        import pandas as pd
-
-        frame = pd.DataFrame(
-            {
-                "a": [
-                    -3.0,
-                    -2.0,
-                    -1.0,
-                    0.0,
-                    1.0,
-                    2.0,
-                    3.0,
-                    4.0,
-                ],
-                "b": [
-                    2.0,
-                    -1.0,
-                    4.0,
-                    0.5,
-                    -3.0,
-                    1.5,
-                    5.0,
-                    -2.0,
-                ],
-            },
-            dtype="float64",
-        )
-        frame["c"] = (
-            frame["a"]
-            + frame["b"]
-        )
-
-        result = self._helper()(
-            frame=frame,
-            feature_columns=[
-                "a",
-                "b",
-                "c",
-            ],
-            retention_order=[
-                "a",
-                "b",
-                "c",
-            ],
-        )
-
-        self.assertEqual(
-            result["original_rank"],
-            2,
-        )
-        self.assertEqual(
-            tuple(
-                result["retained_features"]
-            ),
-            ("a", "b"),
-        )
-        self.assertEqual(
-            tuple(
-                result["dropped_features"]
-            ),
-            ("c",),
-        )
-        self.assertEqual(
-            result[
-                "redundant_dimension_count"
-            ],
-            1,
-        )
-        self.assertEqual(
-            result["final_retained_rank"],
-            2,
-        )
-
-    def test_exact_basis_preserves_four_one_hot_dimensions(
-        self,
-    ):
+    ) -> None:
         import numpy as np
         import pandas as pd
+
+        from mes_quant.redundancy import analyzer
 
         categories = np.tile(
             np.arange(5),
@@ -9199,38 +8909,48 @@ class StageBExactBasisPrimitiveRedSpecificationTests(
             }
         )
 
-        result = self._helper()(
+        result = analyzer._select_phase_a_semantic_rank_basis(
             frame=frame,
             feature_columns=features,
-            retention_order=features,
+            semantic_reference_order=features,
         )
 
+        self.assertEqual(result["original_rank"], 4)
         self.assertEqual(
-            result["original_rank"],
-            4,
-        )
-        self.assertEqual(
-            tuple(
-                result["retained_features"]
-            ),
+            tuple(result["retained_features"]),
             tuple(features[:4]),
         )
         self.assertEqual(
-            tuple(
-                result["dropped_features"]
-            ),
+            tuple(result["excluded_features"]),
             (features[4],),
         )
-        self.assertEqual(
-            result[
-                "redundant_dimension_count"
-            ],
-            1,
-        )
+        self.assertNotIn("dropped_features", result)
+        self.assertNotIn("base_decision", result)
         self.assertEqual(
             result["final_retained_rank"],
             result["original_rank"],
         )
+
+    def test_phase_a_basis_requires_explicit_registry_authority(
+        self,
+    ) -> None:
+        from mes_quant.redundancy import analyzer
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "requires explicit locked registry authority",
+        ):
+            analyzer._resolve_phase_a_undirected_semantic_basis(
+                feature_frame=None,
+                entry={
+                    "check_type": "EXACT_AFFINE_DEPENDENCY",
+                    "decision_effect": "KEEP_ALL",
+                },
+                canonical_features=(),
+                protected_features=(),
+                metadata_by_feature={},
+                fold_role_columns=(),
+            )
 
 
 if __name__ == "__main__":

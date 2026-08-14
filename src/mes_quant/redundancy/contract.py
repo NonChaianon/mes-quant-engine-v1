@@ -1,9 +1,13 @@
-"""Stage B V1.1 enforcement constants and locked control-file pins."""
+"""Stage B V1.2 provisional enforcement constants and control-file pins."""
 
-POLICY_VERSION = "MES_V1_REDUNDANCY_1.1"
+POLICY_VERSION = "MES_V1_REDUNDANCY_1.2"
 POLICY_STATUS = "PROVISIONAL"
 
-# STEP_14G1_SERIALIZATION_POLICY_IDS_V1_1
+# Issue #9 is a bounded remediation from this exact accepted baseline.
+# The prior V1.1 lock remains historical provenance; V1.2 is not locked here.
+REMEDIATION_BASE_COMMIT = "a5d3f40e7edc26d950010401654ce4d6b7822e86"
+
+# STEP_14G1_SERIALIZATION_POLICY_IDS_V1_2
 #
 # These identifiers define the deterministic Stage B
 # production-output byte profiles required by the locked
@@ -12,7 +16,7 @@ STAGE_B_CSV_SERIALIZATION_POLICY_ID = "MES_V1_CSV_UTF8_LF_SCHEMA_ROW_ORDER_V1"
 STAGE_B_JSON_SERIALIZATION_POLICY_ID = "MES_V1_JSON_CANONICAL_UTF8_LF_V1"
 STAGE_B_AUDIT_HASH_POLICY_ID = "MES_V1_AUDIT_HASH_NON_RECURSIVE_EXTERNAL_MANIFEST_V1"
 
-# STEP_14G1B_PARQUET_AND_MULTI_VALUE_POLICY_IDS_V1_1
+# STEP_14G1B_PARQUET_AND_MULTI_VALUE_POLICY_IDS_V1_2
 #
 # Explicit Stage B deterministic serialization profiles.
 # These constants do not open the production gate.
@@ -21,12 +25,15 @@ STAGE_B_MULTI_VALUE_SERIALIZATION_POLICY_ID = "MES_V1_MULTI_ID_PIPE_ORDERED_V1"
 
 
 
-# Exact locked-control provenance from ?46 Steps 10-11.
+# Exact prior V1.1 locked-control provenance from Section 46 Steps 10-11.
 LOCKED_CONTROL_COMMIT = "bd9e38c11e01bae18a5ffa0a6a0405a008273d27"
+
+# Exact current V1.2 provisional control bindings. These hashes do not promote
+# the controls or open the production gate.
 MARKDOWN_CONTRACT_PATH = "docs/STAGE_B_REDUNDANCY_CONTRACT.md"
-MARKDOWN_CONTRACT_SHA256 = "4d7df08de288858003bba1e59e78197d647c822355918678c9991f45cf6f2229"
+MARKDOWN_CONTRACT_SHA256 = "173afa7e26717795abb88eef1880af1ce8e3cecca133604840942fa8c6d12a96"
 SEMANTIC_REGISTRY_PATH = "configs/v1/stage_b_semantic_registry_v1.json"
-SEMANTIC_REGISTRY_SHA256 = "b91e173de834592292a13d1d69f5ef32f264189a6b83ef18512527c4af46b186"
+SEMANTIC_REGISTRY_SHA256 = "056ba7639960c8dd9c65d7e6a7a6a383e432a069651503def8bf05e3cafed861"
 
 CELL14_FEATURE_FILE_SHA256 = (
     "aaf606e3d8869a414f0e687835c44529303a9b4e98f0092da39631ab2fc53452"
@@ -61,6 +68,25 @@ HARD_REDUNDANCY_PEARSON_ABS = 0.95
 HARD_REDUNDANCY_SPEARMAN_ABS = 0.95
 REVIEW_CORRELATION_ABS = 0.90
 SEMANTIC_IDENTITY_TOLERANCE = 1e-12
+
+# ------------------------------------------------------------
+# Stage B V1.2 generic exact-rank discovery authority
+# ------------------------------------------------------------
+
+GENERIC_RANK_DIRECT_DROP_AUTHORIZED = False
+GENERIC_RANK_ENVIRONMENT_CHANGE_RESOLVES_OPEN = False
+
+GENERIC_RANK_OPEN_STATUSES = (
+    "STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY",
+    "COHORT_CONDITIONAL_LOCALIZED_EXACT_DEPENDENCY",
+)
+
+GENERIC_RANK_HARD_FAIL_STATUSES = (
+    "UNSTABLE_EXACT_DEPENDENCY",
+    "UNLOCALIZABLE_EXACT_DEPENDENCY",
+    "TOLERANCE_INCONSISTENT_EXACT_DEPENDENCY",
+    "NUMERICALLY_INCONSISTENT_EXACT_DEPENDENCY",
+)
 
 # ------------------------------------------------------------
 # Stage B cohort / missingness policy

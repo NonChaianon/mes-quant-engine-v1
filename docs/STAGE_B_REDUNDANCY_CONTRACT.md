@@ -1,8 +1,8 @@
 # Stage B — Feature redundancy and stability contract
 
-Policy version: `MES_V1_REDUNDANCY_1.1`
+Policy version: `MES_V1_REDUNDANCY_1.2`
 
-Policy status: **LOCKED_EXECUTABLE**
+Policy status: **PROVISIONAL**
 
 Upstream status:
 
@@ -12,7 +12,7 @@ Upstream status:
 
 ---
 
-## 1. Why v1.1 exists
+## 1. Why v1.2 exists
 
 Stage B V1.0 was reopened after audit identified a policy-enforcement defect:
 
@@ -22,13 +22,21 @@ Stage B V1.0 was reopened after audit identified a policy-enforcement defect:
 Therefore executable policy could pass even though the governing research
 contract had not actually been locked.
 
-V1.1 corrects both:
+V1.1 corrected both:
 
 1. the research methodology, and
 2. the mechanism that binds executable policy to the governing document.
 
 No Stage B result produced under the incomplete V1.0 implementation may be
 used to KEEP or DROP a feature.
+
+V1.2 is the bounded remediation of `V1_2_LOCK_BREAKER_4` and
+`V1_2_LOCK_BREAKER_5` proven at baseline
+`a5d3f40e7edc26d950010401654ce4d6b7822e86`.
+
+It removes generic numerical rank/SVD deletion authority. Phase-A semantic
+KEEP/DROP authority remains unchanged. This provisional remediation does not
+lock V1.2 and does not implement the Phase-B production execution path.
 
 ---
 
@@ -116,7 +124,7 @@ in `.gitattributes`.
 Git line-ending normalization is therefore disabled for tracked files under
 the current repository byte policy.
 
-Stage B V1.1 does not alter this repository-wide policy.
+Stage B V1.2 does not alter this repository-wide policy.
 
 Changing `.gitattributes` belongs to a separate repository-policy migration
 because existing frozen/source hashes are byte-sensitive.
@@ -206,7 +214,7 @@ Therefore an independent:
 
 is mandatory:
 
-1. before the first V1.1 lock, and
+1. before the first V1.2 lock, and
 2. after every later Stage B policy version bump before new hashes are pinned.
 
 The joint audit must verify that the executable semantic parameters in the
@@ -682,6 +690,9 @@ Higher-precedence evidence governs interpretation of lower-precedence evidence.
 
 Lower-precedence evidence remains visible.
 
+Evidence precedence does not itself grant member-level KEEP/DROP authority.
+Generic exact set-level evidence is dispositioned only by the §22 firewall.
+
 A pair may legitimately be:
 
 `PAIRWISE_DISTINCT`
@@ -718,12 +729,13 @@ The top-level semantic-registry object must contain at minimum:
 - `source_contract`
 - `semantic_checks`
 
-For V1.1:
+For V1.2:
 
 - before lock, `registry_status` must equal `PROVISIONAL`,
-- after the approved status-only promotion in Section 46,
+- after a later, separately authorized status-only promotion under §46.1
+  step 9,
   `registry_status` must equal `LOCKED_EXECUTABLE`,
-- `policy_version` must equal `MES_V1_REDUNDANCY_1.1`,
+- `policy_version` must equal `MES_V1_REDUNDANCY_1.2`,
 - `source_contract` must equal
   `docs/STAGE_B_REDUNDANCY_CONTRACT.md`.
 
@@ -781,7 +793,7 @@ Every semantic-check entry must contain at minimum:
 
 ### 13.2 Check-type structural invariants
 
-The following table is governing V1.1 structural policy:
+The following table is governing V1.2 structural policy:
 
 | `check_type` | `dependent_features` | `determining_features` | `required_drop_count` |
 |---|---|---|---:|
@@ -861,9 +873,10 @@ A future model-specific overlay may impose an additional restriction only
 under its separately locked overlay policy and must record explicitly that it
 removes a BASE-protected feature.
 
-### 14.1 V1.1 protected-set safety sentinel
+### 14.1 V1.2 protected-set safety sentinel
 
-For the approved V1.1 semantic policy, registry derivation is expected to
+V1.2 preserves the approved V1.1 semantic policy. Registry derivation is
+therefore expected to
 produce exactly these six canonical protected features:
 
 - `ret_log_15m_lag0`
@@ -885,7 +898,7 @@ contain:
 - `realized_vol_60m`
 - `minutes_to_horizon_safe_close`
 
-For V1.1:
+For V1.2:
 
 - §15.1 has `protect_determining_features = true`,
 - §15.3 has `protect_determining_features = true`,
@@ -894,8 +907,10 @@ For V1.1:
 - §15.5 has `protect_determining_features = false`,
 - §15.6 has `protect_determining_features = false`.
 
-The weekday dependency must remain unprotected because §15.4 requires one
-weekday dummy to be removed by deterministic exact-basis construction.
+The weekday dependency must remain unprotected because §15.4 explicitly
+authorizes one registry-directed Phase-A semantic reference dummy to be
+removed. That Phase-A authority does not grant generic Phase-B rank/SVD
+deletion authority.
 
 The sentinel is a safety control.
 
@@ -940,7 +955,7 @@ For this dependency:
 - retained information dimension = 4
 - required drop count = 1
 
-V1.1 resolves:
+V1.2 preserves the V1.1 semantic resolution:
 
 - KEEP all four canonical 15-minute return lags,
 - `DROP_REDUNDANT` `momentum_log_60m`.
@@ -983,7 +998,7 @@ in the canonical V1 formula.
 This feature contains no new raw information beyond the four return lags, but
 it is a nonlinear representation.
 
-V1.1 does not automatically drop it in BASE because representation usefulness
+V1.2 does not automatically drop it in BASE because representation usefulness
 can depend on later model class.
 
 Therefore:
@@ -1043,7 +1058,7 @@ For this dependency:
 - retained information dimension = 2
 - required drop count = 1
 
-V1.1 resolves:
+V1.2 preserves the V1.1 semantic resolution:
 
 - KEEP `minutes_since_nyse_open`
 - KEEP `early_close_session`
@@ -1093,8 +1108,9 @@ It must not collapse all five to one representative.
 
 No weekday member is predeclared as the semantic determining basis.
 
-The reference category is resolved through the deterministic exact-basis
-procedure and canonical retention rules.
+The reference category is resolved through registry-authorized Phase-A
+semantic reference selection and canonical ordering. This explicit semantic
+authority does not grant generic Phase-B rank/SVD deletion authority.
 
 ---
 
@@ -1124,7 +1140,7 @@ Therefore:
 
 `required_drop_count = 0`
 
-V1.1 retains both components in BASE.
+V1.2 preserves the V1.1 decision to retain both components in BASE.
 
 The ledger must not describe the pair as independent raw information.
 
@@ -1158,7 +1174,7 @@ Its evidence is subject to:
 Therefore Phase C may not remove `ret_log_15m_lag0`.
 
 If this pair satisfies all empirical HARD requirements, the only automatic
-BASE compression direction available under V1.1 is to remove the unprotected
+BASE compression direction preserved under V1.2 is to remove the unprotected
 candidate if all other Phase-C gates pass.
 
 ---
@@ -1179,7 +1195,7 @@ This is:
 - not a gate,
 - not a forced REVIEW result.
 
-V1.1 recomputes evidence under locked procedure.
+V1.2 recomputes evidence under locked procedure.
 
 New locked evidence is reported as-is even if it differs from the prior
 expectation.
@@ -1480,47 +1496,58 @@ Record:
 - rank,
 - deficiency.
 
+Numerical rank and deficiency are evidence only. They do not authorize a
+generic Phase-B member selection or direct DROP.
+
 ---
 
-## 22. Exact set-level rank reduction
+## 22. Generic exact-rank discovery firewall
 
 Full-set SVD is reported first.
 
-Generic automatic exact-rank deletion occurs **after Phase-A semantic
-resolution**.
+Generic Phase-B rank/SVD evidence has **no direct KEEP/DROP authority**.
 
-This prevents semantic dependencies already resolved in Phase A from being
-counted and deleted again.
+Phase A first resolves only the exact semantic relationships whose direction
+is explicitly authorized by the locked semantic registry. Phase B then detects
+and localizes any remaining exact numerical dependency without selecting a
+retained basis or redundant member.
 
 For a remaining Phase-B dependency component:
 
 - k = remaining features
 - r = numerical rank
 
-minimum exact linearly redundant dimensions:
+the observed exact rank deficiency is:
 
 `k - r`
 
-Stage B removes exactly the minimum number required for a rank-preserving
-basis.
+`k - r` is diagnostic evidence only. It is not a deletion obligation and may
+not be converted into member-level KEEP/DROP decisions through retention
+priority, canonical order, availability, lookback, or environment choice.
 
-A general dependency does not mean "keep one representative."
+The frozen V1.2 disposition is:
 
-After removal, rank must be recomputed.
+- stable, localized, unexplained exact dependency -> `OPEN` every member of the
+  localized component;
+- cohort-conditional but localized exact dependency -> `OPEN` every member of
+  the localized component;
+- unstable, unlocalizable, tolerance-inconsistent, or numerically inconsistent
+  dependency -> `HARD_FAIL`.
 
-A Phase-B deletion that reduces retained exact information dimension below
-`r` is forbidden.
+No generic Phase-B finding may produce `DROP_REDUNDANT`.
+`HARD_FAIL` is a run disposition; it releases no feature-level BASE decision.
 
-### Deterministic exact-basis construction
+### No generic retention-basis construction
 
-Where semantic direction does not identify the redundant member:
+Where semantic direction is absent, Stage B must not:
 
-1. order candidates by locked retention priority,
-2. start with an empty basis,
-3. visit candidates in that order,
-4. retain a feature if it increases numerical rank,
-5. otherwise classify it exact-set redundant,
-6. verify final rank equals original Phase-B rank.
+- choose one representative or basis,
+- order component members to select a DROP target,
+- classify a non-rank-increasing member as `DROP_REDUNDANT`,
+- use a BLAS/runtime/environment change to resolve an `OPEN` component.
+
+Deterministic ordering remains permitted only for evidence serialization. It
+does not confer decision direction.
 
 ### 22.1 Group-available re-verification
 
@@ -1542,9 +1569,8 @@ No imputation is allowed.
 Using the same locked float64 standardization and SVD tolerance, Stage B must
 recompute numerical rank for `G` on this wider group-available cohort.
 
-A generic automatic Phase-B exact deletion is permitted only when the proposed
-rank deficiency remains present on `GROUP_AVAILABLE_TRAIN_ROWS` in every TRAIN
-fold.
+The group-available result classifies the discovery; it never authorizes a
+generic DROP.
 
 For each fold, record:
 
@@ -1554,21 +1580,21 @@ For each fold, record:
 - singular values,
 - rank tolerance.
 
-The automatic exact drop count may not exceed the minimum supported rank
-deficiency across the three TRAIN folds.
+If the localized dependency persists consistently on the group-available
+cohort in every required TRAIN fold, classify the entire component:
 
-In addition, the specific proposed retained basis and deletion set must remain
-rank-preserving independently in every group-available TRAIN fold.
+`STABLE_LOCALIZED_UNEXPLAINED_EXACT_DEPENDENCY -> OPEN`
 
 If a dependency appears on the full-29 common cohort but does not persist on
 the group-available cohort, classify:
 
-`GROUP_COHORT_RANK_CONFLICT`
+`COHORT_CONDITIONAL_LOCALIZED_EXACT_DEPENDENCY`
 
-No generic Phase-B automatic DROP is permitted from that dependency.
+and classify the entire localized component `OPEN`.
 
-Affected features remain KEEP unless another higher-precedence locked rule
-resolves them.
+If the component cannot be localized consistently, or if fold/tolerance/
+numerical evidence is inconsistent, classify `HARD_FAIL` and release no
+feature decision.
 
 This re-verification rule is not required to rediscover predeclared exact
 semantic identities whose algebraic form is independently defined and verified
@@ -1611,21 +1637,24 @@ Phase-A determining features marked protected become:
 
 `SEMANTIC_BASIS_PROTECTED`
 
-### Phase B — Exact set-level numerical resolution
+### Phase B — Generic exact-rank / SVD discovery firewall
 
-After Phase A, resolve remaining exact linear dependencies using SVD/rank.
+After Phase A, detect and localize remaining exact numerical dependencies using
+SVD/rank.
 
-Every proposed generic dependency must pass §22.1 group-available
-re-verification.
+Every generic dependency must pass §22.1 group-available re-verification and
+receive exactly one frozen disposition:
 
-Every Phase-B deletion preserves exact retained information dimension on all
-required group-available TRAIN cohorts.
+- whole localized component `OPEN`, or
+- `HARD_FAIL`.
 
-The Phase-B basis is rank-verified.
+Phase B does not select a basis and cannot produce a direct DROP.
 
 ### Phase C — Empirical HARD pairwise reduction
 
-Only Phase-B retained candidates proceed to empirical compression.
+Phase C cannot proceed while any Phase-B component is `OPEN` or Phase B is in
+`HARD_FAIL`. Otherwise the candidates remaining after Phase A proceed without
+generic Phase-B deletion.
 
 Phase C is explicitly:
 
@@ -1666,7 +1695,7 @@ It cannot independently DROP a feature.
 
 ## 24. Phase-C rank-loss review
 
-There is no arbitrary numerical cap on permitted Phase-C rank loss in V1.1.
+There is no arbitrary numerical cap on permitted Phase-C rank loss in V1.2.
 
 A cap invented after observing results would create another data-informed
 selection threshold without established justification.
@@ -1731,8 +1760,8 @@ Stage B reports at least:
 
 ### Full-set condition number
 
-Before exact semantic/rank reduction, after handling common-cohort
-zero-variance columns separately.
+Before Phase-A semantic resolution, after handling common-cohort zero-variance
+columns separately.
 
 If rank deficient:
 
@@ -1740,19 +1769,22 @@ If rank deficient:
 
 This may be expected when known exact dependencies remain.
 
-### Exact-basis condition number
+### Post-Phase-A candidate-set condition number
 
-After Phase A and Phase B:
+After Phase-A semantic resolution and before any generic Phase-B disposition:
 
-`exact_basis_condition_number = sigma_max / sigma_min`
+`post_phase_a_condition_number = sigma_max / sigma_min`
 
-using SVD of the exact retained basis.
+using SVD of the Phase-A retained candidate set.
 
-If the exact retained basis is unexpectedly rank deficient:
+Rank deficiency here is generic Phase-B discovery evidence and must route to
+the §22 `OPEN`/`HARD_FAIL` firewall. It does not authorize basis selection.
+
+If this diagnostic is numerically inconsistent:
 
 Stage B fails.
 
-Condition number alone does not DROP features in V1.1.
+Condition number alone does not DROP features in V1.2.
 
 An optional:
 
@@ -1930,7 +1962,7 @@ No qualitative category such as:
 
 `insufficiently variable`
 
-is permitted in V1.1.
+is permitted in V1.2.
 
 No minimum unique-value threshold, mode-share threshold, or other discretionary
 empirical variability threshold is introduced.
@@ -2042,7 +2074,14 @@ A HARD B and B HARD C does not imply A HARD C.
 
 ## 34. Retention priority
 
-Target-blind deterministic priority:
+This target-blind deterministic priority is authorized only for:
+
+- registry-directed Phase-A undirected semantic reference selection, and
+- locked Phase-C empirical direct-substitute processing.
+
+It is forbidden as a generic Phase-B rank/SVD KEEP/DROP selector.
+
+Within those authorized scopes, deterministic priority is:
 
 1. explicit semantic dependency direction,
 2. `SEMANTIC_BASIS_PROTECTED` status,
@@ -2115,7 +2154,7 @@ Canonical zero-valued metadata does not.
 
 ### 34.3 Locked lookback-mode comparability
 
-V1.1 uses these deterministic rules:
+V1.2 uses these deterministic rules within the authorized §34 scopes:
 
 | Mode A | Mode B | Comparison rule |
 |---|---|---|
@@ -2138,7 +2177,7 @@ zero-lookback feature and participates in FIXED-vs-FIXED comparison as zero.
 
 ### 34.4 Stability
 
-TRAIN-history stability is descriptive in V1.1.
+TRAIN-history stability is descriptive in V1.2.
 
 It is not an automatic retention tie-break because no sufficiently precise
 stability metric has been locked.
@@ -2153,7 +2192,7 @@ more available approximate substitute.
 
 That behavior is intentional.
 
-V1.1 prioritizes preservation of the explicitly selected exact semantic basis
+V1.2 prioritizes preservation of the explicitly selected exact semantic basis
 over later approximate empirical compression.
 
 This consequence must not be described as an accidental side effect of the
@@ -2188,6 +2227,15 @@ Required decision-registry fields include at minimum:
 - `tree_overlay_decision`
 - `reason`
 
+For generic Phase-B rank/SVD relationships,
+`chosen_representative_or_basis` must be empty and non-authoritative. It may be
+populated only by a registry-authorized Phase-A semantic decision or an
+applicable locked Phase-C rule.
+
+Any released feature row with a non-empty `exact_set_dependency_groups` field
+must have `base_decision = OPEN`; its `chosen_representative_or_basis` and
+`direct_substitute` fields must both be empty. A generic `HARD_FAIL` releases no
+feature-level decision row.
 
 `required_drop_count` is relationship-level evidence, not one singular
 feature-level decision-registry value.
@@ -2195,8 +2243,10 @@ feature-level decision-registry value.
 For semantic relationships, the governing value is carried by the semantic
 registry and corresponding semantic-ledger record.
 
-For generic exact-set relationships, applicable rank-deficiency and supported
-drop-count evidence belong in the set-level diagnostics.
+For generic exact-set relationships, component membership, rank-deficiency,
+localization evidence, cohort classification, and `OPEN`/`HARD_FAIL`
+disposition belong in the set-level diagnostics. No supported generic
+drop-count field exists in V1.2.
 
 Stage B must not collapse multiple relationship-specific drop counts into one
 ambiguous feature-level scalar.
@@ -2230,7 +2280,7 @@ Ordering policy:
 
 - `semantic_dependency_groups` follows semantic-registry check order,
 - `exact_set_dependency_groups` follows deterministic Phase-B
-  discovery/basis order,
+  component-discovery order only,
 - `empirical_pair_ids` follows canonical pair-processing order.
 
 Allowed BASE decisions:
@@ -2242,11 +2292,11 @@ Allowed BASE decisions:
 Decision basis must distinguish:
 
 - exact semantic redundancy,
-- exact set-level linear redundancy,
+- generic exact numerical dependency classified `OPEN` or `HARD_FAIL`,
 - zero-variance/no-information degeneration,
 - empirical approximate compression,
 - empirical drop vetoed by cohort sensitivity,
-- generic exact drop vetoed by group-cohort conflict.
+- localized cohort-conditional generic dependency classified `OPEN`.
 
 ---
 
@@ -2273,14 +2323,16 @@ OPEN.
 
 It stops Stage B before decisions are released.
 
-Deterministic vetoes such as:
+A localized cohort-conditional generic rank dependency requires `OPEN` for
+every component member. Unstable, unlocalizable, tolerance-inconsistent, or
+numerically inconsistent generic evidence requires `HARD_FAIL`.
 
-- `GROUP_COHORT_RANK_CONFLICT`,
-- `COHORT_SENSITIVITY_CONFLICT`,
-- `COHORT_SENSITIVITY_UNAVAILABLE`
+Changing BLAS, thread configuration, runtime, or environment does not itself
+resolve a generic `OPEN`, authorize a basis, or authorize a DROP. A separately
+approved policy resolution would be required.
 
-do not require OPEN when the locked policy already specifies KEEP as the
-result.
+Phase-C-only vetoes such as `COHORT_SENSITIVITY_CONFLICT` and
+`COHORT_SENSITIVITY_UNAVAILABLE` retain their separately locked behavior.
 
 ---
 
@@ -2327,7 +2379,7 @@ Stage B observations are time-series observations containing:
 
 Raw row count is not iid effective sample size.
 
-V1.1 does not use naive iid:
+V1.2 does not use naive iid:
 
 - p-values,
 - confidence intervals,
@@ -2353,6 +2405,11 @@ Production artifact-reading entry point:
 `run_stage_b(...)`
 
 All production Stage B artifact access must pass through this entry point.
+
+Issue #9 does not implement Phase-B production execution. The authoritative
+entry point must continue to execute Phase 0 and Phase A only, then fail closed
+before Phase B. The isolated V1.2 generic-discovery classifier is specification
+evidence, not an alternative artifact-reading or production path.
 
 Mathematical analyzer helpers must:
 
@@ -2412,7 +2469,7 @@ The gated production run then governs:
 
 ## 41. Required policy/control files
 
-Stage B V1.1 requires:
+Stage B V1.2 requires:
 
 - `docs/STAGE_B_REDUNDANCY_CONTRACT.md`
 - `configs/v1/stage_b_semantic_registry_v1.json`
@@ -2493,7 +2550,9 @@ Set-level diagnostics must distinguish:
 
 - full-29 common cohort,
 - group-available verification cohort,
-- exact retained basis.
+- Phase-A retained candidate set,
+- localized generic dependency components and their `OPEN`/`HARD_FAIL`
+  dispositions.
 
 ### 42.1 Deterministic artifact serialization
 
@@ -2515,7 +2574,7 @@ Multi-value identifier fields defined in §35 use the reserved delimiter:
 
 and must follow the deterministic ordering rules in §35.1.
 
-Stage B V1.1 does not change the repository-wide:
+Stage B V1.2 does not change the repository-wide:
 
 `* -text`
 
@@ -2571,7 +2630,10 @@ The implementation must not silently rely on OS defaults.
 - common-cohort zero-variance diagnostics,
 - Phase-A decisions,
 - generic Phase-B group-available verification results,
-- `GROUP_COHORT_RANK_CONFLICT` count,
+- generic component membership and localization status,
+- generic component `OPEN` count,
+- generic `HARD_FAIL` status/count,
+- generic direct-DROP count, which must equal zero,
 - Phase-B rank,
 - Phase-C rank,
 - Phase-C rank loss,
@@ -2582,7 +2644,7 @@ The implementation must not silently rely on OS defaults.
 - cohort-sensitivity unavailable count,
 - empirical drops vetoed by cohort sensitivity,
 - full-set condition number,
-- exact-basis condition number,
+- post-Phase-A candidate-set condition number,
 - clustering metric,
 - clustering linkage,
 - clustering cut,
@@ -2680,11 +2742,16 @@ covers at minimum:
 - `ddof=0`,
 - deterministic rank tolerance,
 - exact rank deficiency detected,
-- `k-r` rule after Phase A,
-- exact basis preserves rank,
+- `k-r` recorded as evidence only after Phase A,
+- generic `c = a + b` evidence cannot create a direct DROP,
+- stable localized unexplained dependency opens every component member,
+- cohort-conditional localized dependency opens every component member,
+- unstable/unlocalizable/tolerance-inconsistent/numerically inconsistent
+  evidence hard-fails,
+- generic retention priority cannot select a basis or DROP target,
 - intercept diagnostic,
 - full-set condition number,
-- exact-basis condition number.
+- post-Phase-A candidate-set condition number.
 
 ### Generic Phase-B group verification
 
@@ -2692,10 +2759,9 @@ covers at minimum:
   `GROUP_AVAILABLE_TRAIN_ROWS`,
 - group-available row count is explicit,
 - dependency persisting in all folds may remain exact evidence,
-- common-cohort-only dependency creates `GROUP_COHORT_RANK_CONFLICT`,
-- group conflict vetoes generic Phase-B DROP,
-- proposed retained basis preserves supported rank in every required fold,
-- Phase-B exact drop count does not exceed minimum supported deficiency.
+- localized cohort-conditional dependency opens the whole component,
+- no group-verification outcome authorizes a generic Phase-B DROP,
+- unlocalizable or inconsistent group evidence hard-fails.
 
 ### Ordered phases
 
@@ -2739,8 +2805,9 @@ covers at minimum:
 - Pearson-only REVIEW need not cluster,
 - clustering cannot independently DROP.
 
-### Retention and lookback
+### Registry-authorized Phase-A / locked Phase-C retention and lookback
 
+- these checks apply only within the §34-authorized Phase-A and Phase-C scopes,
 - availability deterministic,
 - canonical `FIXED / 0 minutes` accepted,
 - fixed-vs-fixed shorter lookback deterministic,
@@ -2782,7 +2849,7 @@ covers at minimum:
 
 - protected set derived only from `determining_features` where
   `protect_determining_features = true`,
-- expected V1.1 safety sentinel contains exactly six features,
+- expected V1.2 safety sentinel preserves exactly the six V1.1 features,
 - all five weekday features excluded from the protected set,
 - `momentum_log_60m` excluded,
 - `realized_vol_60m` excluded,
@@ -2841,7 +2908,7 @@ covers at minimum:
 
 Real-data Stage B decisions may be released only when:
 
-- V1.1 policy controls are formally locked,
+- V1.2 policy controls are formally locked by a later authorized lock action,
 - Markdown hash passes,
 - semantic-registry hash passes,
 - locked Git commit recorded,
@@ -2868,10 +2935,12 @@ Real-data Stage B decisions may be released only when:
 - protected-set derivation/sentinel passes,
 - dual zero-variance diagnostics complete,
 - Phase A exact decisions complete,
-- every generic Phase-B candidate dependency passes
-  `GROUP_AVAILABLE_TRAIN_ROWS` re-verification,
-- no unresolved `GROUP_COHORT_RANK_CONFLICT` causes an exact DROP,
-- Phase B exact basis is rank-preserving in every required verification cohort,
+- every generic Phase-B dependency is localized and classified from
+  `GROUP_AVAILABLE_TRAIN_ROWS` evidence,
+- every localized generic dependency is `OPEN` for the whole component,
+- every unstable/unlocalizable/tolerance-inconsistent/numerically inconsistent
+  dependency is `HARD_FAIL`,
+- generic Phase-B direct-DROP count = 0,
 - Phase C cohort-sensitivity gates complete,
 - no subjective empirical variability criterion is used,
 - no protected feature removed in Phase C,
@@ -2888,6 +2957,25 @@ Real-data Stage B decisions may be released only when:
 ---
 
 ## 46. Final pre-lock, lock, and implementation order
+
+### 46.1 V1.2 lock-breaker 4/5 remediation sequence
+
+1. Preserve remediation baseline
+   `a5d3f40e7edc26d950010401654ce4d6b7822e86`.
+2. Change only the proven generic rank/SVD direct-DROP contradiction.
+3. Preserve every existing Phase-A semantic decision and protected-basis rule.
+4. Keep Markdown, semantic registry, and Python policy status `PROVISIONAL`.
+5. Keep `run_stage_b()` fail-closed after Phase A; do not implement full Phase
+   B, C, or D production execution.
+6. Run the Issue #9 checkout-safe verification and publish the bounded
+   remediation report.
+7. Obtain independent review of the remediation PR.
+8. If accepted, resume Issue #8 from the remediation commit as continuation of
+   the same final integration audit.
+9. Do not lock V1.2 in Issue #9. Any later status promotion is a separate,
+   explicitly authorized action after independent review.
+
+### 46.2 Historical V1.1 R6 lock sequence
 
 1. Preserve the R5 baseline commit:
 
@@ -2988,7 +3076,10 @@ Real-data Stage B decisions may be released only when:
     - `OPEN count = 0`
     - yearly concentration review acknowledged when required
     - Phase-C rank-loss review acknowledged when required
-    - generic Phase-B cohort conflicts handled deterministically
+    - generic Phase-B direct-DROP count equals zero
+    - localized generic dependencies route to whole-component `OPEN`
+    - unstable/unlocalizable/tolerance-inconsistent/numerically inconsistent
+      generic evidence routes to `HARD_FAIL`
     - cohort-sensitivity conflicts handled deterministically
     - protected-set derivation/sentinel passes
     - no protected semantic-basis feature was removed improperly
