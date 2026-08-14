@@ -1,6 +1,6 @@
 {
   "policy_version": "MES_V1_REDUNDANCY_1.2",
-  "registry_status": "PROVISIONAL",
+  "registry_status": "LOCKED_EXECUTABLE",
   "source_contract": "docs/STAGE_B_REDUNDANCY_CONTRACT.md",
   "semantic_checks": [
     {
