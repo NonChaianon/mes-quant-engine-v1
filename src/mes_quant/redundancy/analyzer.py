@@ -1146,13 +1146,18 @@ def compute_svd_diagnostics(
 
 
 
-def _select_rank_preserving_exact_basis(
+def _select_phase_a_semantic_rank_basis(
     *,
     frame,
     feature_columns,
-    retention_order,
+    semantic_reference_order,
 ):
-    """Select one deterministic basis using the locked rank machinery."""
+    """Build numerical evidence for one registry-authorized Phase-A basis.
+
+    This helper has no generic Phase-B decision authority.  Its excluded
+    members become semantic drops only in ``_resolve_phase_a_relationship``
+    after the locked registry selects the explicit Phase-A decision effect.
+    """
 
     if not isinstance(
         frame,
@@ -1171,18 +1176,18 @@ def _select_rank_preserving_exact_basis(
         )
 
     if not isinstance(
-        retention_order,
+        semantic_reference_order,
         (list, tuple),
     ):
         raise TypeError(
-            "retention_order must be a list or tuple."
+            "semantic_reference_order must be a list or tuple."
         )
 
     candidates = list(
         feature_columns
     )
     ordered_candidates = list(
-        retention_order
+        semantic_reference_order
     )
 
     if not candidates:
@@ -1203,7 +1208,7 @@ def _select_rank_preserving_exact_basis(
         != len(set(ordered_candidates))
     ):
         raise ValueError(
-            "retention_order contains duplicates."
+            "semantic_reference_order contains duplicates."
         )
 
     if (
@@ -1213,7 +1218,7 @@ def _select_rank_preserving_exact_basis(
         != set(candidates)
     ):
         raise ValueError(
-            "retention_order must contain each candidate exactly once."
+            "semantic_reference_order must contain each candidate exactly once."
         )
 
     original_matrix = build_standardized_matrix(
@@ -1231,7 +1236,7 @@ def _select_rank_preserving_exact_basis(
 
     if original_rank <= 0:
         raise RuntimeError(
-            "Exact-basis candidate rank must be positive."
+            "Phase-A semantic-basis candidate rank must be positive."
         )
 
     retained: list[str] = []
@@ -1268,7 +1273,7 @@ def _select_rank_preserving_exact_basis(
 
     if not retained:
         raise RuntimeError(
-            "Exact-basis selection retained no features."
+            "Phase-A semantic-basis selection retained no features."
         )
 
     final_matrix = build_standardized_matrix(
@@ -1290,17 +1295,17 @@ def _select_rank_preserving_exact_basis(
 
     if len(redundant) != required_redundant_count:
         raise RuntimeError(
-            "Exact-basis redundant count does not equal k-r."
+            "Phase-A semantic-basis excluded count does not equal k-r."
         )
 
     if len(retained) != original_rank:
         raise RuntimeError(
-            "Exact-basis retained count does not equal rank."
+            "Phase-A semantic-basis retained count does not equal rank."
         )
 
     if final_rank != original_rank:
         raise RuntimeError(
-            "Exact-basis final rank does not preserve original rank."
+            "Phase-A semantic-basis final rank does not preserve original rank."
         )
 
     return {
@@ -1311,7 +1316,7 @@ def _select_rank_preserving_exact_basis(
         "retained_features": tuple(
             retained
         ),
-        "dropped_features": tuple(
+        "excluded_features": tuple(
             redundant
         ),
         "redundant_dimension_count": (
@@ -1327,7 +1332,7 @@ def _select_rank_preserving_exact_basis(
     }
 
 
-# STEP_14C_GROUP_RANK_AND_PHASE_C_RUNTIME_V1_1
+# ISSUE_9_GENERIC_RANK_DISCOVERY_CLASSIFIER_V1_2
 
 
 def _validate_exact_fold_mapping(
@@ -1355,240 +1360,90 @@ def _validate_exact_fold_mapping(
     return required_folds
 
 
-def resolve_generic_group_rank_verification(
+def classify_generic_rank_discovery(
     *,
-    common_deficiency_by_fold: dict[str, int],
-    group_available_deficiency_by_fold: dict[str, int],
-    retained_basis_rank_preserved_by_fold: dict[str, bool],
-    proposed_drop_count: int,
+    component_features: list[str] | tuple[str, ...],
+    discovery_status: str,
 ) -> dict[str, object]:
+    """Classify frozen V1.2 generic-rank evidence without selecting a basis.
+
+    This pure classifier is deliberately not wired into ``run_stage_b``.
+    Issue #9 does not authorize full Phase-B production execution.  It only
+    removes the former numerical-basis deletion authority and makes the
+    already-frozen OPEN/HARD_FAIL boundary executable in isolation.
+
+    ``component_dispositions`` is diagnostic.  An OPEN disposition may be
+    represented as a feature-level OPEN state, while HARD_FAIL stops the run
+    and must never be released as a feature-level BASE decision.
     """
-    Verify that a generic exact rank dependency survives
-    the group-available TRAIN cohort in every fold.
-    """
 
-    required_folds = _validate_exact_fold_mapping(
-        name="common_deficiency_by_fold",
-        mapping=common_deficiency_by_fold,
-    )
+    from . import contract as _contract
 
-    _validate_exact_fold_mapping(
-        name="group_available_deficiency_by_fold",
-        mapping=group_available_deficiency_by_fold,
-    )
+    if not isinstance(component_features, (list, tuple)):
+        raise TypeError(
+            "component_features must be a list or tuple."
+        )
 
-    _validate_exact_fold_mapping(
-        name="retained_basis_rank_preserved_by_fold",
-        mapping=retained_basis_rank_preserved_by_fold,
-    )
+    members = tuple(component_features)
+    if not members:
+        raise ValueError(
+            "component_features must not be empty."
+        )
 
-    if (
-        not isinstance(proposed_drop_count, int)
-        or isinstance(proposed_drop_count, bool)
-        or proposed_drop_count <= 0
+    if any(
+        not isinstance(feature, str) or not feature
+        for feature in members
     ):
         raise ValueError(
-            "proposed_drop_count must be a positive int."
+            "component_features must contain non-empty strings."
         )
 
-    for name, mapping in [
-        (
-            "common_deficiency_by_fold",
-            common_deficiency_by_fold,
-        ),
-        (
-            "group_available_deficiency_by_fold",
-            group_available_deficiency_by_fold,
-        ),
-    ]:
-        for fold in required_folds:
-            value = mapping[fold]
-
-            if (
-                not isinstance(value, int)
-                or isinstance(value, bool)
-                or value < 0
-            ):
-                raise ValueError(
-                    f"{name}[{fold!r}] must be "
-                    "a non-negative int."
-                )
-
-    for fold in required_folds:
-        value = retained_basis_rank_preserved_by_fold[
-            fold
-        ]
-
-        if not isinstance(value, bool):
-            raise TypeError(
-                "retained_basis_rank_preserved_by_fold"
-                f"[{fold!r}] must be bool."
-            )
-
-    common_values = [
-        int(common_deficiency_by_fold[fold])
-        for fold in required_folds
-    ]
-
-    group_values = [
-        int(
-            group_available_deficiency_by_fold[
-                fold
-            ]
+    if len(members) != len(set(members)):
+        raise ValueError(
+            "component_features contains duplicates."
         )
-        for fold in required_folds
-    ]
 
-    minimum_common_deficiency = min(
-        common_values
-    )
+    if not isinstance(discovery_status, str):
+        raise TypeError(
+            "discovery_status must be str."
+        )
 
-    minimum_supported_deficiency = min(
-        group_values
-    )
+    if discovery_status in _contract.GENERIC_RANK_OPEN_STATUSES:
+        decision_class = "OPEN"
+        stage_c_release_allowed = False
+    elif discovery_status in _contract.GENERIC_RANK_HARD_FAIL_STATUSES:
+        decision_class = "HARD_FAIL"
+        stage_c_release_allowed = False
+    else:
+        raise ValueError(
+            "Unsupported generic rank discovery_status."
+        )
 
-    group_cohort_matches_common = all(
-        group_available_deficiency_by_fold[
-            fold
-        ]
-        == common_deficiency_by_fold[
-            fold
-        ]
-        for fold in required_folds
-    )
+    if _contract.GENERIC_RANK_DIRECT_DROP_AUTHORIZED is not False:
+        raise RuntimeError(
+            "Generic rank/SVD direct DROP authority must remain disabled."
+        )
 
-    retained_basis_rank_preserved_all_folds = all(
-        retained_basis_rank_preserved_by_fold[
-            fold
-        ]
-        for fold in required_folds
-    )
-
-    common_supports_proposed_drop = (
-        minimum_common_deficiency
-        >= proposed_drop_count
-    )
-
-    group_supports_proposed_drop = (
-        minimum_supported_deficiency
-        >= proposed_drop_count
-    )
-
-    if not group_cohort_matches_common:
-        return {
-            "group_cohort_rank_status": (
-                "GROUP_COHORT_RANK_CONFLICT"
-            ),
-            "minimum_common_deficiency": (
-                minimum_common_deficiency
-            ),
-            "minimum_supported_deficiency": (
-                minimum_supported_deficiency
-            ),
-            "retained_basis_rank_preserved_all_folds": (
-                retained_basis_rank_preserved_all_folds
-            ),
-            "proposed_drop_count": (
-                proposed_drop_count
-            ),
-            "drop_allowed": False,
-            "base_decision": "KEEP",
-            "decision_basis": (
-                "GROUP_COHORT_RANK_CONFLICT"
-            ),
-        }
-
-    if not common_supports_proposed_drop:
-        return {
-            "group_cohort_rank_status": (
-                "GROUP_COHORT_RANK_SUPPORTED"
-            ),
-            "minimum_common_deficiency": (
-                minimum_common_deficiency
-            ),
-            "minimum_supported_deficiency": (
-                minimum_supported_deficiency
-            ),
-            "retained_basis_rank_preserved_all_folds": (
-                retained_basis_rank_preserved_all_folds
-            ),
-            "proposed_drop_count": (
-                proposed_drop_count
-            ),
-            "drop_allowed": False,
-            "base_decision": "KEEP",
-            "decision_basis": (
-                "COMMON_COHORT_DEFICIENCY_INSUFFICIENT"
-            ),
-        }
-
-    if not group_supports_proposed_drop:
-        return {
-            "group_cohort_rank_status": (
-                "GROUP_COHORT_RANK_CONFLICT"
-            ),
-            "minimum_common_deficiency": (
-                minimum_common_deficiency
-            ),
-            "minimum_supported_deficiency": (
-                minimum_supported_deficiency
-            ),
-            "retained_basis_rank_preserved_all_folds": (
-                retained_basis_rank_preserved_all_folds
-            ),
-            "proposed_drop_count": (
-                proposed_drop_count
-            ),
-            "drop_allowed": False,
-            "base_decision": "KEEP",
-            "decision_basis": (
-                "GROUP_SUPPORTED_DEFICIENCY_INSUFFICIENT"
-            ),
-        }
-
-    if not retained_basis_rank_preserved_all_folds:
-        return {
-            "group_cohort_rank_status": (
-                "GROUP_COHORT_RANK_SUPPORTED"
-            ),
-            "minimum_common_deficiency": (
-                minimum_common_deficiency
-            ),
-            "minimum_supported_deficiency": (
-                minimum_supported_deficiency
-            ),
-            "retained_basis_rank_preserved_all_folds": False,
-            "proposed_drop_count": (
-                proposed_drop_count
-            ),
-            "drop_allowed": False,
-            "base_decision": "KEEP",
-            "decision_basis": (
-                "RETAINED_BASIS_RANK_NOT_PRESERVED"
-            ),
-        }
+    if (
+        _contract.GENERIC_RANK_ENVIRONMENT_CHANGE_RESOLVES_OPEN
+        is not False
+    ):
+        raise RuntimeError(
+            "Environment change must not resolve generic rank OPEN."
+        )
 
     return {
-        "group_cohort_rank_status": (
-            "GROUP_COHORT_RANK_SUPPORTED"
-        ),
-        "minimum_common_deficiency": (
-            minimum_common_deficiency
-        ),
-        "minimum_supported_deficiency": (
-            minimum_supported_deficiency
-        ),
-        "retained_basis_rank_preserved_all_folds": True,
-        "proposed_drop_count": (
-            proposed_drop_count
-        ),
-        "drop_allowed": True,
-        "base_decision": (
-            "DROP_REDUNDANT"
-        ),
-        "decision_basis": (
-            "EXACT_RANK_DEPENDENCY_VERIFIED"
-        ),
+        "discovery_status": discovery_status,
+        "component_features": members,
+        "decision_class": decision_class,
+        "component_dispositions": {
+            feature: decision_class
+            for feature in members
+        },
+        "direct_drop_authorized": False,
+        "dropped_features": (),
+        "stage_c_release_allowed": stage_c_release_allowed,
+        "environment_change_resolves_open": False,
     }
 
 
@@ -2815,396 +2670,6 @@ def _canonical_orient_pair(
 
 
 
-# STEP_14E_RETENTION_AND_DECISION_REGISTRY_RUNTIME_V1_1
-
-
-def _minimum_fold_availability(
-    fold_availability: dict[str, float],
-) -> float:
-    """
-    Return the worst TRAIN-fold availability.
-
-    The three expanding folds are a deterministic robustness
-    requirement, not three independent replications.
-    """
-
-    required_folds = _validate_exact_fold_mapping(
-        name="fold_availability",
-        mapping=fold_availability,
-    )
-
-    values: list[float] = []
-
-    for fold in required_folds:
-        value = fold_availability[fold]
-
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-        ):
-            raise TypeError(
-                f"fold_availability[{fold!r}] "
-                "must be numeric."
-            )
-
-        value_float = float(value)
-
-        if not np.isfinite(value_float):
-            raise ValueError(
-                f"fold_availability[{fold!r}] "
-                "must be finite."
-            )
-
-        if not (
-            0.0
-            <= value_float
-            <= 1.0
-        ):
-            raise ValueError(
-                f"fold_availability[{fold!r}] "
-                "must be between 0 and 1."
-            )
-
-        values.append(
-            value_float
-        )
-
-    return float(
-        min(values)
-    )
-
-
-def _compare_lookback_preference(
-    *,
-    metadata_a: dict[str, object],
-    metadata_b: dict[str, object],
-) -> str:
-    """
-    Compare lookback only under the locked V1.1
-    comparability rules.
-
-    Returns:
-        A
-        B
-        TIE
-        NON_COMPARABLE
-    """
-
-    for name, metadata in [
-        ("metadata_a", metadata_a),
-        ("metadata_b", metadata_b),
-    ]:
-        if not isinstance(metadata, dict):
-            raise TypeError(
-                f"{name} must be a dict."
-            )
-
-        for required in [
-            "lookback_mode",
-            "lookback_minutes",
-            "lookback_start_rule",
-        ]:
-            if required not in metadata:
-                raise ValueError(
-                    f"{name} missing {required!r}."
-                )
-
-        mode = metadata[
-            "lookback_mode"
-        ]
-
-        if mode not in {
-            "FIXED",
-            "SESSION_TO_DATE",
-        }:
-            raise ValueError(
-                f"{name} has unsupported "
-                f"lookback_mode {mode!r}."
-            )
-
-        minutes = metadata[
-            "lookback_minutes"
-        ]
-
-        if (
-            not isinstance(minutes, int)
-            or isinstance(minutes, bool)
-            or minutes < 0
-        ):
-            raise ValueError(
-                f"{name}.lookback_minutes "
-                "must be a non-negative int."
-            )
-
-        if mode == "SESSION_TO_DATE":
-            start_rule = metadata[
-                "lookback_start_rule"
-            ]
-
-            if (
-                not isinstance(start_rule, str)
-                or not start_rule.strip()
-            ):
-                raise ValueError(
-                    f"{name}: SESSION_TO_DATE "
-                    "requires a start rule."
-                )
-
-    mode_a = metadata_a[
-        "lookback_mode"
-    ]
-
-    mode_b = metadata_b[
-        "lookback_mode"
-    ]
-
-    minutes_a = int(
-        metadata_a[
-            "lookback_minutes"
-        ]
-    )
-
-    minutes_b = int(
-        metadata_b[
-            "lookback_minutes"
-        ]
-    )
-
-    if (
-        mode_a == "FIXED"
-        and mode_b == "FIXED"
-    ):
-        if minutes_a < minutes_b:
-            return "A"
-
-        if minutes_b < minutes_a:
-            return "B"
-
-        return "TIE"
-
-    if (
-        mode_a == "SESSION_TO_DATE"
-        and mode_b == "SESSION_TO_DATE"
-    ):
-        start_a = metadata_a[
-            "lookback_start_rule"
-        ]
-
-        start_b = metadata_b[
-            "lookback_start_rule"
-        ]
-
-        if start_a != start_b:
-            return "NON_COMPARABLE"
-
-        if minutes_a < minutes_b:
-            return "A"
-
-        if minutes_b < minutes_a:
-            return "B"
-
-        return "TIE"
-
-    return "NON_COMPARABLE"
-
-
-def _prefer_retention_candidate(
-    *,
-    candidate_a: dict[str, object],
-    candidate_b: dict[str, object],
-    canonical_order: list[str],
-) -> str:
-    """
-    Apply the locked generic retention tie-break.
-
-    This helper is used only after any governing semantic
-    directional KEEP/DROP rule has already been resolved.
-
-    Generic priority:
-      1. semantic-basis protection,
-      2. higher minimum TRAIN-fold availability,
-      3. shorter comparable lookback,
-      4. canonical feature order.
-    """
-
-    for name, candidate in [
-        ("candidate_a", candidate_a),
-        ("candidate_b", candidate_b),
-    ]:
-        if not isinstance(candidate, dict):
-            raise TypeError(
-                f"{name} must be a dict."
-            )
-
-        required = {
-            "feature",
-            "semantic_basis_protected",
-            "fold_availability",
-            "lookback_mode",
-            "lookback_minutes",
-            "lookback_start_rule",
-        }
-
-        missing = required.difference(
-            candidate
-        )
-
-        if missing:
-            raise ValueError(
-                f"{name} missing fields: "
-                f"{sorted(missing)}"
-            )
-
-        feature = candidate[
-            "feature"
-        ]
-
-        if (
-            not isinstance(feature, str)
-            or not feature
-        ):
-            raise ValueError(
-                f"{name}.feature must be "
-                "a non-empty string."
-            )
-
-        if not isinstance(
-            candidate[
-                "semantic_basis_protected"
-            ],
-            bool,
-        ):
-            raise TypeError(
-                f"{name}.semantic_basis_protected "
-                "must be bool."
-            )
-
-    feature_a = candidate_a[
-        "feature"
-    ]
-
-    feature_b = candidate_b[
-        "feature"
-    ]
-
-    if feature_a == feature_b:
-        raise ValueError(
-            "Retention candidates must be distinct."
-        )
-
-    if not isinstance(
-        canonical_order,
-        list,
-    ):
-        raise TypeError(
-            "canonical_order must be a list."
-        )
-
-    if (
-        len(canonical_order)
-        != len(set(canonical_order))
-    ):
-        raise ValueError(
-            "canonical_order contains duplicates."
-        )
-
-    for feature in [
-        feature_a,
-        feature_b,
-    ]:
-        if feature not in canonical_order:
-            raise ValueError(
-                f"{feature!r} is absent from "
-                "canonical_order."
-            )
-
-    protected_a = candidate_a[
-        "semantic_basis_protected"
-    ]
-
-    protected_b = candidate_b[
-        "semantic_basis_protected"
-    ]
-
-    if protected_a != protected_b:
-        return (
-            feature_a
-            if protected_a
-            else feature_b
-        )
-
-    availability_a = (
-        _minimum_fold_availability(
-            candidate_a[
-                "fold_availability"
-            ]
-        )
-    )
-
-    availability_b = (
-        _minimum_fold_availability(
-            candidate_b[
-                "fold_availability"
-            ]
-        )
-    )
-
-    if availability_a > availability_b:
-        return feature_a
-
-    if availability_b > availability_a:
-        return feature_b
-
-    lookback_result = (
-        _compare_lookback_preference(
-            metadata_a={
-                "lookback_mode": candidate_a[
-                    "lookback_mode"
-                ],
-                "lookback_minutes": candidate_a[
-                    "lookback_minutes"
-                ],
-                "lookback_start_rule": candidate_a[
-                    "lookback_start_rule"
-                ],
-            },
-            metadata_b={
-                "lookback_mode": candidate_b[
-                    "lookback_mode"
-                ],
-                "lookback_minutes": candidate_b[
-                    "lookback_minutes"
-                ],
-                "lookback_start_rule": candidate_b[
-                    "lookback_start_rule"
-                ],
-            },
-        )
-    )
-
-    if lookback_result == "A":
-        return feature_a
-
-    if lookback_result == "B":
-        return feature_b
-
-    index = {
-        feature: position
-        for position, feature
-        in enumerate(
-            canonical_order
-        )
-    }
-
-    if (
-        index[feature_a]
-        < index[feature_b]
-    ):
-        return feature_a
-
-    return feature_b
-
-
 def _serialize_relationship_ids(
     *,
     identifiers: object,
@@ -3370,7 +2835,7 @@ def _validate_feature_decision_registry_row(
     Validate the feature-level decision-registry schema.
 
     required_drop_count is deliberately not a feature-level
-    scalar in locked V1.1.
+    scalar in V1.2.
     """
 
     if not isinstance(row, dict):
@@ -3498,6 +2963,34 @@ def _validate_feature_decision_registry_row(
                 "or a non-empty string."
             )
 
+    if row["exact_set_dependency_groups"]:
+        from . import contract as _contract
+
+        if row["base_decision"] != "OPEN":
+            raise RuntimeError(
+                "Generic Phase-B exact-set relationships may release only "
+                "OPEN feature states; direct KEEP/DROP is forbidden."
+            )
+
+        for field_name in (
+            "chosen_representative_or_basis",
+            "direct_substitute",
+        ):
+            if row[field_name] is not None:
+                raise RuntimeError(
+                    "Generic Phase-B exact-set relationships may not select "
+                    f"{field_name}."
+                )
+
+        if (
+            row["group_cohort_rank_status"]
+            not in _contract.GENERIC_RANK_OPEN_STATUSES
+        ):
+            raise RuntimeError(
+                "Generic Phase-B OPEN row must record an authorized OPEN "
+                "discovery status."
+            )
+
     for field_name in [
         "linear_overlay_decision",
         "tree_overlay_decision",
@@ -3596,6 +3089,15 @@ def _validate_stage_c_readiness(
             raise ValueError(
                 f"decision_rows[{index}] "
                 f"has invalid BASE state {decision!r}."
+            )
+
+        if (
+            row.get("exact_set_dependency_groups")
+            and decision != "OPEN"
+        ):
+            raise RuntimeError(
+                f"decision_rows[{index}] encodes a forbidden generic "
+                "Phase-B direct KEEP/DROP state."
             )
 
         if decision == "OPEN":
@@ -5293,7 +4795,10 @@ def _required_stage_b_audit_fields(
         "common_cohort_zero_variance_diagnostics",
         "phase_a_decisions",
         "generic_phase_b_group_available_verification_results",
-        "group_cohort_rank_conflict_count",
+        "generic_phase_b_component_dispositions",
+        "generic_phase_b_open_component_count",
+        "generic_phase_b_hard_fail_count",
+        "generic_phase_b_direct_drop_count",
         "phase_b_rank",
         "phase_c_rank",
         "phase_c_rank_loss",
@@ -5305,7 +4810,7 @@ def _required_stage_b_audit_fields(
         "cohort_sensitivity_unavailable_count",
         "empirical_drops_vetoed_by_cohort_sensitivity",
         "full_set_condition_number",
-        "exact_basis_condition_number",
+        "post_phase_a_condition_number",
         "clustering_metric",
         "clustering_linkage",
         "clustering_cut",
@@ -5470,6 +4975,40 @@ def _validate_stage_b_audit_payload(
         raise RuntimeError(
             "Audit protected-set sentinel failed."
         )
+
+    generic_direct_drop_count = payload[
+        "generic_phase_b_direct_drop_count"
+    ]
+    if (
+        not isinstance(generic_direct_drop_count, int)
+        or isinstance(generic_direct_drop_count, bool)
+        or generic_direct_drop_count != 0
+    ):
+        raise RuntimeError(
+            "Audit records forbidden generic Phase-B direct DROP authority."
+        )
+
+    dispositions = payload[
+        "generic_phase_b_component_dispositions"
+    ]
+    if not isinstance(dispositions, (list, tuple)):
+        raise TypeError(
+            "Audit generic Phase-B component dispositions must be a list or tuple."
+        )
+
+    for field in (
+        "generic_phase_b_open_component_count",
+        "generic_phase_b_hard_fail_count",
+    ):
+        value = payload[field]
+        if (
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 0
+        ):
+            raise RuntimeError(
+                f"Audit {field} must be a non-negative int."
+            )
 
     yearly_review_required = payload[
         "yearly_concentration_review_required"
@@ -6083,7 +5622,7 @@ def _compute_intercept_rank_diagnostic(
 def _resolve_stage_b_condition_number(
     *,
     svd_diagnostics: dict[str, object],
-    basis_kind: str,
+    diagnostic_scope: str,
 ) -> dict[str, object]:
     """
     Resolve the locked Stage B condition-number policy.
@@ -6091,8 +5630,8 @@ def _resolve_stage_b_condition_number(
     FULL_SET:
       rank deficient -> infinity.
 
-    EXACT_BASIS:
-      unexpected rank deficiency -> hard failure.
+    POST_PHASE_A_CANDIDATE_SET:
+      rank deficiency -> infinity plus generic discovery required.
 
     A full-rank condition number is sigma_max / sigma_min.
     Condition number never independently drops a feature.
@@ -6106,13 +5645,13 @@ def _resolve_stage_b_condition_number(
             "svd_diagnostics must be a dict."
         )
 
-    if basis_kind not in {
+    if diagnostic_scope not in {
         "FULL_SET",
-        "EXACT_BASIS",
+        "POST_PHASE_A_CANDIDATE_SET",
     }:
         raise ValueError(
-            "basis_kind must be FULL_SET "
-            "or EXACT_BASIS."
+            "diagnostic_scope must be FULL_SET or "
+            "POST_PHASE_A_CANDIDATE_SET."
         )
 
     required = {
@@ -6230,34 +5769,14 @@ def _resolve_stage_b_condition_number(
         singular_values[-1]
     )
 
-    if basis_kind == "FULL_SET":
-        if deficiency > 0:
-            condition_number = float(
-                "inf"
-            )
-
-        else:
-            if sigma_min <= 0.0:
-                raise RuntimeError(
-                    "Full-rank FULL_SET has "
-                    "non-positive sigma_min."
-                )
-
-            condition_number = (
-                sigma_max
-                / sigma_min
-            )
-
+    if deficiency > 0:
+        condition_number = float(
+            "inf"
+        )
     else:
-        if deficiency > 0:
-            raise RuntimeError(
-                "Exact retained basis is unexpectedly "
-                "rank deficient."
-            )
-
         if sigma_min <= 0.0:
             raise RuntimeError(
-                "Exact retained basis has "
+                f"Full-rank {diagnostic_scope} has "
                 "non-positive sigma_min."
             )
 
@@ -6267,8 +5786,8 @@ def _resolve_stage_b_condition_number(
         )
 
     return {
-        "basis_kind": (
-            basis_kind
+        "diagnostic_scope": (
+            diagnostic_scope
         ),
         "rank": (
             rank
@@ -6286,6 +5805,11 @@ def _resolve_stage_b_condition_number(
             condition_number
         ),
         "decision_effect": "REPORT_ONLY",
+        "generic_rank_discovery_required": (
+            diagnostic_scope
+            == "POST_PHASE_A_CANDIDATE_SET"
+            and deficiency > 0
+        ),
     }
 
 
@@ -6998,7 +6522,7 @@ def _minimum_train_fold_availability(
     )
 
 
-def _order_exact_basis_candidates(
+def _order_phase_a_semantic_basis_candidates(
     *,
     features,
     canonical_features,
@@ -7006,7 +6530,7 @@ def _order_exact_basis_candidates(
     minimum_availability,
     metadata_by_feature,
 ):
-    """Apply the locked deterministic retention priority without scores."""
+    """Order members for a registry-authorized Phase-A semantic basis."""
 
     feature_set = set(
         features
@@ -7156,7 +6680,7 @@ def _order_exact_basis_candidates(
     )
 
 
-def _resolve_undirected_exact_basis(
+def _resolve_phase_a_undirected_semantic_basis(
     *,
     feature_frame,
     entry,
@@ -7165,7 +6689,18 @@ def _resolve_undirected_exact_basis(
     metadata_by_feature,
     fold_role_columns,
 ):
-    """Release one exact basis and verify it inside every TRAIN fold."""
+    """Resolve one registry-authorized Phase-A basis in every TRAIN fold."""
+
+    if (
+        entry.get("check_type")
+        != "EXACT_AFFINE_DEPENDENCY"
+        or entry.get("decision_effect")
+        != "DROP_ONE_DETERMINISTIC_REFERENCE_KEEP_FOUR_DIMENSIONS"
+    ):
+        raise RuntimeError(
+            "Phase-A semantic-basis selection requires explicit locked "
+            "registry authority."
+        )
 
     features = tuple(
         entry[
@@ -7193,7 +6728,7 @@ def _resolve_undirected_exact_basis(
         features=features,
         fold_role_columns=fold_role_columns,
     )
-    retention_order = _order_exact_basis_candidates(
+    semantic_reference_order = _order_phase_a_semantic_basis_candidates(
         features=features,
         canonical_features=canonical_features,
         protected_features=protected_features,
@@ -7222,11 +6757,11 @@ def _resolve_undirected_exact_basis(
     ]
 
     try:
-        basis = _select_rank_preserving_exact_basis(
+        basis = _select_phase_a_semantic_rank_basis(
             frame=global_train_frame,
             feature_columns=list(features),
-            retention_order=list(
-                retention_order
+            semantic_reference_order=list(
+                semantic_reference_order
             ),
         )
     except (
@@ -7252,7 +6787,7 @@ def _resolve_undirected_exact_basis(
         ] != information_dimension
         or len(
             basis[
-                "dropped_features"
+                "excluded_features"
             ]
         ) != required_drop_count
     ):
@@ -7362,7 +6897,7 @@ def _resolve_undirected_exact_basis(
         "retained_features": retained_features,
         "dropped_features": tuple(
             basis[
-                "dropped_features"
+                "excluded_features"
             ]
         ),
         "information_dimension": (
@@ -7375,7 +6910,7 @@ def _resolve_undirected_exact_basis(
             "explicit_semantic_direction": False,
             "protected_features": tuple(
                 feature
-                for feature in retention_order
+                for feature in semantic_reference_order
                 if feature in set(
                     protected_features
                 )
@@ -7394,7 +6929,7 @@ def _resolve_undirected_exact_basis(
                 for feature in canonical_features
                 if feature in set(features)
             ),
-            "ordered_features": retention_order,
+            "ordered_features": semantic_reference_order,
         },
     }
 
@@ -7451,7 +6986,7 @@ def _resolve_phase_a_relationship(
         retained_features = features
         dropped_features = ()
     elif decision_effect == "DROP_ONE_DETERMINISTIC_REFERENCE_KEEP_FOUR_DIMENSIONS":
-        exact_basis = _resolve_undirected_exact_basis(
+        semantic_basis = _resolve_phase_a_undirected_semantic_basis(
             feature_frame=feature_frame,
             entry=entry,
             canonical_features=canonical_features,
@@ -7460,18 +6995,18 @@ def _resolve_phase_a_relationship(
             fold_role_columns=fold_role_columns,
         )
         retained_features = tuple(
-            exact_basis[
+            semantic_basis[
                 "retained_features"
             ]
         )
         dropped_features = tuple(
-            exact_basis[
+            semantic_basis[
                 "dropped_features"
             ]
         )
         extra_evidence = {
             key: value
-            for key, value in exact_basis.items()
+            for key, value in semantic_basis.items()
             if key not in {
                 "retained_features",
                 "dropped_features",
@@ -9146,15 +8681,15 @@ def run_stage_b(
     phase_c_rank_loss_review_acknowledged,
 ):
     """
-    Sole Stage B V1.1 production artifact-reading boundary.
+    Sole Stage B V1.2 production artifact-reading boundary.
 
     Cell 8 assignments are provenance-bound only and are not
     physically opened by Stage B. Runtime fold authority comes
     from the canonical Cell 14 Development artifact's embedded
     walk-forward role projection.
 
-    Phase 0 -> A -> B -> C -> D execution remains fail-closed
-    until the next RED specification is implemented.
+    Phase 0 -> A executes, then production remains fail-closed before
+    unimplemented Phase B. Issue #9 does not authorize later phases.
     """
 
     # --------------------------------------------------------
