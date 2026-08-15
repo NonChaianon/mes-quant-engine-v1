@@ -115,7 +115,7 @@ class Sprint1MetricTests(unittest.TestCase):
             binary_log_loss([0, 2], [0.2, 0.8])
 
     def test_invalid_probabilities_are_rejected(self) -> None:
-        with self.assertRaisesRegex(SprintHarnessError, "within \[0, 1\]"):
+        with self.assertRaisesRegex(SprintHarnessError, r"within \[0, 1\]"):
             brier_score([0, 1], [-0.1, 1.1])
 
     def test_non_finite_probabilities_are_rejected(self) -> None:
@@ -127,21 +127,21 @@ class Sprint1MetricTests(unittest.TestCase):
             FoldEvaluationInput(
                 fold_id="FOLD_ZERO_PRIOR",
                 train_labels=[0, 0, 0, 0],
-                holdout_labels=[0, 1],
-                candidate_probabilities=[0.25, 0.75],
+                holdout_labels=[0, 0],
+                candidate_probabilities=[0.25, 0.25],
             )
         )
         one_prior = evaluate_fold(
             FoldEvaluationInput(
                 fold_id="FOLD_ONE_PRIOR",
                 train_labels=[1, 1, 1, 1],
-                holdout_labels=[0, 1],
-                candidate_probabilities=[0.25, 0.75],
+                holdout_labels=[0, 0],
+                candidate_probabilities=[0.25, 0.25],
             )
         )
         self.assertEqual(zero_prior.train_long_rate, 0.0)
         self.assertEqual(one_prior.train_long_rate, 1.0)
-        self.assertNotEqual(zero_prior.baseline_log_loss, one_prior.baseline_log_loss)
+        self.assertLess(zero_prior.baseline_log_loss, one_prior.baseline_log_loss)
 
     def test_better_candidate_passes_strict_continuation_rule(self) -> None:
         evaluation = evaluate_sprint(
