@@ -6,27 +6,13 @@
 
 **Execution status:** `RESEARCH_ONLY / LIVE_DISABLED`
 
-**Current project stage:** `Exploratory Lane — governance setup`
+**Current project stage:** `Exploratory Lane — Sprint 1 protocol freeze`
 
-**Current milestone:** `EXPLORATORY_LANE_V1_CHARTER`
+**Current milestone:** `EDGE_DISCOVERY_SPRINT_1_PROTOCOL`
 
-**Current gate:** `EXPLORATORY_LANE_V1_CHARTER — owner review and accepted merge required`
+**Current gate:** `EDGE_DISCOVERY_SPRINT_1_PROTOCOL — owner review and accepted merge required`
 
-> This file is the project-level progress source of truth. It tracks **where we are**. Mathematical/methodological authority remains in the applicable stage contract; the target architecture explains **where we are going**.
-
----
-
-## Status vocabulary
-
-- `NOT_STARTED`
-- `IN_PROGRESS`
-- `BLOCKED`
-- `READY_FOR_AUDIT`
-- `LOCKED`
-- `DEFERRED`
-- `REJECTED`
-
-Do not use a fake project-completion percentage.
+> This file is the project-level progress source of truth. Mathematical/methodological authority remains in the applicable stage contract; the target architecture explains where we are going.
 
 ---
 
@@ -39,24 +25,27 @@ A6 / Stage B V1.2:              LOCKED on main
 Stage-B policy controls:        LOCKED
 Stage-B artifact execution:     DISABLED / pre-I/O gate
 A6 lock merge:                  99b5f3302e28523293d31e7df49eb03cff466e2c
-LABEL_EXPOSURE_PRE_FIREWALL_V1: COMPLETE / Issue #18 CLOSED
+LABEL_EXPOSURE_PRE_FIREWALL_V1: COMPLETE
 Acknowledgment merge:           1c6512615a40dbc35a394ed241fde30d18b5dede
-Current milestone:              EXPLORATORY_LANE_V1_CHARTER
+Exploratory Lane V1 charter:    COMPLETE / FROZEN
+Charter merge:                  ed2980c7fc50cf936494e6f750bbea8d0d78926a
+Current milestone:              EDGE_DISCOVERY_SPRINT_1_PROTOCOL
 Current work access:            L0 governance-only
 L1 TRAIN-label exploration:     NOT STARTED / NOT YET AUTHORIZED
-Validation:                     UNOPENED for current research path
+Validation:                     UNOPENED
 Final Test:                     SEALED
 Live trading:                   DISABLED
 Real Stage B production runs:   0
+Sprint 1 runs:                  0
 ```
 
-The current charter PR describes the future L1 boundary but does not itself exercise L1. Sprint 1 may not begin until both the charter and the separate Sprint 1 protocol have been accepted.
+The accepted charter defines the future L1 lane. The current protocol candidate freezes Sprint 1 scope, target mapping, cost assumption, baselines, primary metric, diagnostics, candidate families, and continuation/no-edge criteria before any realized TRAIN-label run.
 
 ---
 
 ## A6 / Stage B V1.2 closure
 
-Stage B V1.2 was independently accepted and locked on `main` by PR #17:
+Stage B V1.2 is locked on `main` by PR #17 at:
 
 `99b5f3302e28523293d31e7df49eb03cff466e2c`
 
@@ -69,34 +58,76 @@ Semantic-registry status         LOCKED
 EXECUTION_STATUS                 DISABLED
 ```
 
-Policy lock does not imply execution enablement. Stage-B execution remains disabled before control/artifact I/O. Phase B/C/D production execution remains unimplemented/not authorized by the lock.
-
-Accepted control provenance:
-
-- locked-control commit: `bb68e6d8be9244564c2d06179cffde775041c8f3`
-- non-self-referential Python pin commit: `131cf7a37d0beb41bf258ffa9beaf942c443985d`
-- final audit: `SAFE_TO_LOCK_V1_2`
-- Issue #9 generic-rank breaker remediation: accepted/merged
-- Issue #15 policy/execution separation remediation: accepted/merged
-- rejected PR #14: closed unmerged; no authority
-
-Audit/lock records remain under `docs/audits/` and locked methodology is reopened only for a documented defect/version bump.
+Policy lock does not imply execution enablement. Stage-B execution remains disabled before control/artifact I/O. Locked methodology is reopened only for a documented defect/version bump.
 
 ---
 
 ## Pre-firewall label exposure boundary
 
-Issue #18 / `LABEL_EXPOSURE_PRE_FIREWALL_V1` is complete and merged as:
-
-`1c6512615a40dbc35a394ed241fde30d18b5dede`
-
-Artifact:
+`LABEL_EXPOSURE_PRE_FIREWALL_V1` is complete and committed in:
 
 `docs/audits/LABEL_EXPOSURE_PRE_FIREWALL_V1.md`
 
-It conservatively records historical exposure without reopening realized-label rows. It distinguishes known historical facts, repository-corroborated aggregate evidence, and unknown/not-reconstructable exposure.
+It records historical exposure conservatively without reopening realized-label rows and preserves unknown historical facts as unknown.
 
-The acknowledgment itself used L0 governance-only access. Validation and Final Test were not opened.
+---
+
+## Exploratory Lane V1 charter
+
+Issue #20 is complete. The accepted charter is:
+
+`docs/research/EXPLORATORY_LANE_V1_CHARTER.md`
+
+merged as:
+
+`ed2980c7fc50cf936494e6f750bbea8d0d78926a`
+
+The charter freezes lane-level rules:
+
+- future L1 access is TRAIN data + TRAIN realized labels only;
+- Validation is forbidden during exploration;
+- Final Test remains sealed;
+- every label-aware run requires a unique `EXPERIMENT_ID`;
+- search history must be logged;
+- canonical upstream artifacts remain read-only;
+- exploratory evidence has no Release-Gate authority;
+- no L2 opening before confirmatory hypothesis + Validation protocol freeze;
+- no Exploratory Lane V2 before Sprint 1 runs.
+
+The charter merge did not itself exercise L1.
+
+---
+
+## Current Sprint 1 protocol gate
+
+Candidate artifact:
+
+`docs/research/EDGE_DISCOVERY_SPRINT_1_PROTOCOL.md`
+
+Frozen candidate decisions include:
+
+```text
+EXPLORATION_SCOPE_ID
+MES_V1_EDGE_SPRINT_1_LOCKED29_LONG_FLAT_60M
+
+market                  MES
+spacing                 15m
+horizon                 +60m
+features                locked Cell 14 V1 universe only
+research action         LONG / FLAT
+Sprint target           LONG=1; SHORT/NO_TRADE=0
+cost                    CONSERVATIVE / USD 4.97 round trip / 0.994 points
+required baselines      ALWAYS_FLAT + fold-correct TRAIN_PRIOR_PROBABILITY
+primary metric          OOF_BINARY_LOG_LOSS
+primary improvement     baseline log loss - candidate log loss
+continuation            overall improvement > 0 AND median fold improvement > 0
+Validation              FORBIDDEN
+Final Test              SEALED
+```
+
+Allowed model families are deliberately simple: regularized logistic regression, bounded shallow trees/ensemble, and predeclared small-feature rules. HMM/GARCH/deep learning/stacking/model-zoo/macro-regime expansion are outside Sprint 1.
+
+Protocol authoring remains L0. No Sprint result has been observed.
 
 ---
 
@@ -104,70 +135,42 @@ The acknowledgment itself used L0 governance-only access. Validation and Final T
 
 | Stage | Scope | Status | Evidence / current position | Exit gate / next action |
 |---|---|---|---|---|
-| Plane 0 | Governance & provenance foundation | IN_PROGRESS | Required controls are added only as needed by the active research stage | Avoid institutional overbuild before empirical evidence |
-| A1 | Data Foundation | LOCKED | Canonical MES historical data, PIT controls, gap/roll/session audits established | Reopen only for documented defect/version bump |
-| A2 | Decision Universe | LOCKED | Eligibility/session/horizon-safe decision universe established | Reopen only for documented defect/version bump |
-| A3 | Cost & Impact Model | DEFERRED | Historical cost assumptions exist; full production stack intentionally deferred | Freeze the Sprint-specific cost assumption in Sprint 1 protocol |
-| A4 | Label / Target Contract | IN_PROGRESS | Historical Cell 10 target logic exists; label access is now governed separately | Freeze Sprint target/cost references before L1 execution |
-| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1 feature build, 29 candidate features; BL-30 exact reproduction accepted | Reopen only for documented defect/version bump |
-| **A6** | **Target-Blind Redundancy / Stage B** | **LOCKED** | Final audit accepted; breaker remediations merged; PR #17 lock accepted; execution independently disabled | **Reopen only for documented defect/version bump** |
-| A7 | Regime / Context | DEFERRED | Not required before first Edge Sprint | Do not build before Sprint evidence justifies continuation |
-| **A8** | **Label Materialization / Access Control** | **IN_PROGRESS** | `LABEL_EXPOSURE_PRE_FIREWALL_V1` complete; L0/L1/L2/L3 boundary defined | Complete charter + Sprint protocol before first new L1 run |
-| **Exploratory Lane** | **TRAIN-only edge discovery** | **READY_FOR_AUDIT** | V1 charter candidate created under Issue #20; no L1 experiment has begun | **Owner acceptance/merge of charter -> freeze Sprint 1 protocol** |
-| A9 | Predictive Model Layer | NOT_STARTED | Intentionally not built ahead of edge evidence | Confirmatory work only after Sprint produces a lockable hypothesis |
-| A10 | Validation & Model Selection | NOT_STARTED | Validation remains clean during L1 exploration | Freeze validation protocol and opening budget before first L2 access |
-| A11 | Calibration | NOT_STARTED | Architecture only | Build after predictive hypothesis survives validation path |
-| A12 | Net EV | NOT_STARTED | Architecture only | Build after model/calibration/cost evidence exists |
-| A13 | Risk & Sizing Simulation | NOT_STARTED | Architecture only | Build after edge survives confirmatory research |
+| Plane 0 | Governance & provenance foundation | IN_PROGRESS | Controls added only as required by active research | Avoid institutional overbuild |
+| A1 | Data Foundation | LOCKED | Canonical MES history and PIT controls established | Reopen only for documented defect/version bump |
+| A2 | Decision Universe | LOCKED | Decision/session/horizon-safe universe established | Reopen only for documented defect/version bump |
+| A3 | Cost & Impact Model | DEFERRED | Full production cost stack deferred | Sprint 1 freezes only existing conservative cost assumption |
+| A4 | Label / Target Contract | IN_PROGRESS | Historical Cell 10 labels preserved; Sprint-1 Long/Flat mapping proposed separately | Accept protocol before first L1 use |
+| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1, 29 candidate features; BL-30 exact reproduction accepted | Reopen only for documented defect/version bump |
+| **A6** | **Target-Blind Redundancy / Stage B** | **LOCKED** | Final audit accepted; breakers remediated; policy locked; execution disabled | **Reopen only for documented defect/version bump** |
+| A7 | Regime / Context | DEFERRED | Not required for Sprint 1 | Do not build before Sprint evidence justifies continuation |
+| **A8** | **Label Materialization / Access Control** | **IN_PROGRESS** | Pre-firewall acknowledgment complete; L0/L1/L2/L3 boundary established | First L1 access only after protocol acceptance and explicit run authorization |
+| **Exploratory Lane** | **TRAIN-only edge discovery** | **IN_PROGRESS** | V1 charter frozen; Sprint 1 protocol candidate created at L0 | **Owner acceptance/merge of protocol -> build minimal experiment harness -> explicit first L1 run** |
+| A9 | Predictive Model Layer | NOT_STARTED | Confirmatory layer intentionally not built ahead of edge evidence | Start only after Sprint yields lockable hypothesis |
+| A10 | Validation & Model Selection | NOT_STARTED | Validation remains unopened | Freeze confirmatory protocol + opening budget before first L2 access |
+| A11 | Calibration | NOT_STARTED | Architecture only | After confirmatory hypothesis survives appropriate path |
+| A12 | Net EV | NOT_STARTED | Architecture only | After model/calibration/cost evidence exists |
+| A13 | Risk & Sizing Simulation | NOT_STARTED | Architecture only | After edge survives confirmatory research |
 | A14 | Execution Simulation / Parity | NOT_STARTED | Architecture only | Required before production promotion |
-| Release Gate | Research -> production | NOT_STARTED | Gate categories defined in v2.2 | Implement when a release candidate exists |
-| Plane B | Production / Online | NOT_STARTED | Live trading disabled | No production promotion before Release Gate evidence |
+| Release Gate | Research -> production | NOT_STARTED | Architecture only | Implement when release candidate exists |
+| Plane B | Production / Online | NOT_STARTED | Live disabled | No production promotion before Release Gate |
 | Plane C | Feedback & Control | NOT_STARTED | Architecture only | Build with production readiness |
-| Watchdog | Independent safety process | NOT_STARTED | Required before meaningful live trading | Implement/test before live enablement |
-
----
-
-## Current Exploratory Lane gate
-
-Current artifact under review:
-
-`docs/research/EXPLORATORY_LANE_V1_CHARTER.md`
-
-Current work boundary:
-
-```text
-charter-authoring observed access     L0
-new realized TRAIN labels             0
-Validation outcomes                   0 / FORBIDDEN
-Final Test                            SEALED
-Sprint 1 runs                         0
-```
-
-The charter freezes the lane-level rules only. It deliberately does not choose the Sprint 1 primary metric, cost assumption, continuation threshold, baselines, or no-edge criterion.
-
-Acceptance of the charter authorizes only the next governance step: create and freeze the Sprint 1 protocol.
+| Watchdog | Independent safety | NOT_STARTED | Required before meaningful live trading | Implement/test before live enablement |
 
 ---
 
 ## Frozen next sequence
 
 ```text
-1. Accept / merge EXPLORATORY_LANE_V1 charter
-2. Freeze Edge Discovery Sprint 1 protocol:
-   - EXPLORATION_SCOPE_ID
-   - project continuation / falsification policy
-   - baseline(s), including ALWAYS_FLAT
-   - exactly one primary decision metric
-   - diagnostic secondary metrics
-   - frozen cost assumption
-   - predeclared interesting-enough continuation criterion
-   - current-scope no-edge criterion
-3. Accept / merge Sprint 1 protocol
-4. Begin explicitly authorized L1 TRAIN-label experiments
+1. Owner-review and merge EDGE_DISCOVERY_SPRINT_1_PROTOCOL
+2. Build minimal Sprint-1 experiment harness without opening labels during build where avoidable
+3. Verify experiment logging + L1 access boundary
+4. Explicitly authorize first TARGET_AWARE_EXPERIMENT / L1 TRAIN-label run
 5. RUN EDGE DISCOVERY SPRINT 1
+6. Apply frozen continuation/no-edge criterion
+7. If interesting enough: freeze confirmatory hypothesis + Validation protocol before any L2 access
 ```
 
-Do not build A7/A9+ institutional machinery ahead of the empirical proof point unless a concrete Sprint requirement forces it.
+Do not build A7/A9+ institutional machinery ahead of this empirical proof point unless a concrete Sprint requirement forces it.
 
 ---
 
@@ -175,8 +178,8 @@ Do not build A7/A9+ institutional machinery ahead of the empirical proof point u
 
 | Level | Access | Project use |
 |---|---|---|
-| L0 | target contract / governance evidence only; no new realized-label rows | governance and charter/protocol authoring |
-| L1 | TRAIN realized labels | Exploratory Lane; every accessing run is `TARGET_AWARE_EXPERIMENT` with `EXPERIMENT_ID` |
+| L0 | contract/governance evidence only; no new realized-label rows | current protocol authoring |
+| L1 | TRAIN realized labels | Exploratory Lane; every run is `TARGET_AWARE_EXPERIMENT` with `EXPERIMENT_ID` |
 | L2 | Validation labels/results | frozen confirmatory protocol; budgeted openings only |
 | L3 | Final Test | sealed one-time final confirmation |
 
@@ -186,8 +189,8 @@ Work classification is derived from observed access. Human labels cannot downgra
 
 ## Evidence discipline
 
-- `BLOCKED` means a predefined gate failure is proven and must be resolved before advancement.
-- `READY_FOR_AUDIT` means the required candidate is complete but acceptance has not completed.
-- `LOCKED` means the applicable exit gate has passed and the versioned authority is frozen.
-- A local result or chat statement alone is insufficient to mark a stage `LOCKED`.
-- Update this dashboard when a milestone materially changes the answer to “where are we now?”, not for every small task or refactor.
+- `BLOCKED` means a proven gate failure prevents advancement.
+- `READY_FOR_AUDIT` means candidate work exists but required acceptance is pending.
+- `LOCKED` means the applicable exit gate is frozen.
+- A local/chat result alone cannot promote a project stage.
+- Update this dashboard only when the answer to “where are we now?” materially changes.
