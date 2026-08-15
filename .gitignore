@@ -15,6 +15,7 @@ __pycache__/
 # Data and generated runs never belong in ordinary Git
 artifacts/cache/**
 artifacts/runs/**
+artifacts/exploration/**
 !artifacts/cache/.gitkeep
 !artifacts/runs/.gitkeep
 
