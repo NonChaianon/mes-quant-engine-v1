@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -259,18 +259,20 @@ class LR001ModelTests(unittest.TestCase):
 
     def test_overlap_boundary_fails_closed(self) -> None:
         features, labels = _synthetic_frames()
-        first_2022 = labels.loc[
-            pd.to_datetime(labels["nyse_session_date"]).dt.year.eq(2022), "decision_time"
-        ].min()
-        last_2021_index = labels.loc[
-            pd.to_datetime(labels["nyse_session_date"]).dt.year.eq(2021)
-        ].index.max()
-        labels.loc[last_2021_index, "label_end_time"] = first_2022
         frame = prepare_joined_train_frame(
             features,
             labels,
             enforce_canonical_train_count=False,
         )
+        role = frame["role_wf_2022_feature"].astype(str)
+        holdout_start = frame.loc[
+            frame["sprint1_eligible"] & role.eq("VALIDATION"),
+            "decision_time_label",
+        ].min()
+        last_train_index = frame.loc[
+            frame["sprint1_eligible"] & role.eq("TRAIN")
+        ].index.max()
+        frame.loc[last_train_index, "label_end_time"] = holdout_start
         with self.assertRaisesRegex(L1AccessError, "overlap"):
             evaluate_lr001_frame(
                 frame,
