@@ -39,14 +39,18 @@ jobs:
           python - <<'PY'
           import mes_quant
           from mes_quant.exploration import HARNESS_EXECUTION_STATUS
+          from mes_quant.exploration.l1_lr001 import FIRST_L1_EXPERIMENT_ID, FOLD_SPECS
           from mes_quant.redundancy import analyzer, contract
 
           assert analyzer.run_stage_b is not None
           assert HARNESS_EXECUTION_STATUS == "DRY_RUN_ONLY_L0"
+          assert FIRST_L1_EXPERIMENT_ID == "MES_S1_LR001_20260815T095100Z"
+          assert [year for _, _, year in FOLD_SPECS] == [2022, 2023]
           print("Active imports passed.")
           print(f"Stage B Python policy status: {contract.POLICY_STATUS}")
           print(f"Stage B execution status: {contract.EXECUTION_STATUS}")
           print(f"Sprint 1 harness status: {HARNESS_EXECUTION_STATUS}")
+          print(f"First L1 experiment ID: {FIRST_L1_EXPERIMENT_ID}")
           PY
 
       - name: Run critical Ruff checks
@@ -110,5 +114,7 @@ jobs:
             tests/test_manifest.py \
             tests/test_feature_builder.py \
             tests/test_reference_freeze.py \
-            tests/test_exploration_harness.py
+            tests/test_exploration_harness.py \
+            tests/test_exploration_l1_lr001.py
           echo "::notice title=Environmental data not present::tests/test_cell14_release.py is not run in checkout-only CI because it requires the complete ignored Cell14 release artifacts."
+          echo "::notice title=L1 real-data run excluded::LR001 CI uses synthetic fixtures only. No realized TRAIN label artifact is present or opened in checkout-only CI."

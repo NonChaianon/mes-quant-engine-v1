@@ -260,7 +260,7 @@ class Sprint1ExperimentHistoryTests(unittest.TestCase):
         self.assertEqual(record["primary_metric"], PRIMARY_METRIC)
         self.assertEqual(record["harness_execution_status"], "DRY_RUN_ONLY_L0")
 
-    def test_new_exploration_package_has_no_real_data_reader_calls(self) -> None:
+    def test_l0_sprint1_harness_has_no_real_data_reader_calls(self) -> None:
         forbidden_calls = {
             "open",
             "read_csv",
@@ -273,7 +273,7 @@ class Sprint1ExperimentHistoryTests(unittest.TestCase):
         }
         exploration_dir = PROJECT_ROOT / "src" / "mes_quant" / "exploration"
         violations: list[str] = []
-        for path in sorted(exploration_dir.glob("*.py")):
+        for path in (exploration_dir / "sprint1.py",):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):

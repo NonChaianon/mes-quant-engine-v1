@@ -6,11 +6,11 @@
 
 **Execution status:** `RESEARCH_ONLY / LIVE_DISABLED`
 
-**Current project stage:** `Exploratory Lane — Sprint 1 harness build`
+**Current project stage:** `Exploratory Lane — first authorized L1 experiment implementation`
 
-**Current milestone:** `SPRINT_1_DRY_RUN_HARNESS`
+**Current milestone:** `MES_S1_LR001_20260815T095100Z`
 
-**Current gate:** `SPRINT_1_DRY_RUN_HARNESS — owner review + local dry-run confirmation required`
+**Current gate:** `Issue #26 — build/test/merge the TRAIN-only LR001 adapter before first realized-label execution`
 
 > This file is the project-level progress source of truth. Mathematical/methodological authority remains in the applicable locked contract or research protocol; the target architecture explains where we are going.
 
@@ -31,9 +31,13 @@ Exploratory Lane V1 charter:    COMPLETE / FROZEN
 Charter merge:                  ed2980c7fc50cf936494e6f750bbea8d0d78926a
 Sprint 1 protocol:              COMPLETE / FROZEN
 Protocol merge:                 17f9fb08c5e5f1e8d672b7f36747b726e1c212a3
-Current milestone:              SPRINT_1_DRY_RUN_HARNESS
-Current work access:            L0 / synthetic-only
-L1 TRAIN-label exploration:     NOT STARTED / NOT AUTHORIZED
+Sprint 1 dry-run harness:       COMPLETE / MERGED
+Harness merge:                  a03eac7485389e4774ce31b1b8c93c4428b0d4f3
+L1 owner authorization:         GRANTED 2026-08-15
+First experiment ID:            MES_S1_LR001_20260815T095100Z
+Current implementation issue:   #26
+Current observed data access:   L0 during code authoring / synthetic tests only
+Authorized next data access:    L1 TRAIN realized labels only
 Validation:                     UNOPENED
 Final Test:                     SEALED
 Live trading:                   DISABLED
@@ -41,7 +45,7 @@ Real Stage B production runs:   0
 Sprint 1 real-data runs:        0
 ```
 
-The Sprint-1 protocol is now frozen on `main`. The current candidate work builds only the synthetic/dry-run evaluation and experiment-governance harness. It deliberately contains no realized-label reader or project-data adapter.
+Authorization and observed access are deliberately separated. The owner has authorized L1, but branch/CI authoring remains L0 until an accepted local runner actually deserializes TRAIN realized labels.
 
 ---
 
@@ -64,41 +68,31 @@ Policy lock does not imply execution enablement. Stage-B execution remains disab
 
 ---
 
-## Pre-firewall label exposure boundary
+## Accepted exploratory authorities
 
-`LABEL_EXPOSURE_PRE_FIREWALL_V1` is complete and committed in:
+### Exploratory Lane V1
 
-`docs/audits/LABEL_EXPOSURE_PRE_FIREWALL_V1.md`
-
-It records historical exposure conservatively without reopening realized-label rows and preserves unknown historical facts as unknown.
-
----
-
-## Exploratory Lane V1 charter
-
-Issue #20 is complete. The accepted charter is:
+Accepted charter:
 
 `docs/research/EXPLORATORY_LANE_V1_CHARTER.md`
 
-merged as:
+merge:
 
 `ed2980c7fc50cf936494e6f750bbea8d0d78926a`
 
-The charter freezes lane-level rules: future L1 access is TRAIN-only; Validation is forbidden during exploration; Final Test remains sealed; every label-aware run requires a unique `EXPERIMENT_ID`; search history must be preserved; canonical upstream artifacts remain read-only; exploratory evidence has no Release-Gate authority.
+Key boundary: L1 is TRAIN-only; Validation is forbidden during exploration; Final Test remains sealed; every label-aware execution requires a unique `EXPERIMENT_ID`; canonical upstream artifacts remain read-only; exploratory evidence has no Release-Gate authority.
 
----
+### Edge Discovery Sprint 1 protocol
 
-## Edge Discovery Sprint 1 protocol
-
-Issue #22 is complete. The accepted protocol is:
+Accepted protocol:
 
 `docs/research/EDGE_DISCOVERY_SPRINT_1_PROTOCOL.md`
 
-merged as:
+merge:
 
 `17f9fb08c5e5f1e8d672b7f36747b726e1c212a3`
 
-Frozen Sprint-1 decisions include:
+Frozen scope:
 
 ```text
 EXPLORATION_SCOPE_ID        MES_V1_EDGE_SPRINT_1_LOCKED29_LONG_FLAT_60M
@@ -117,33 +111,43 @@ Validation                  FORBIDDEN
 Final Test                  SEALED
 ```
 
-Allowed model families remain deliberately simple: regularized logistic regression, bounded shallow trees/ensemble, and predeclared small-feature rules. HMM/GARCH/deep learning/stacking/model-zoo/macro-regime expansion remain outside Sprint 1.
+### Dry-run harness
 
-Protocol freeze did not authorize a label read or Sprint run by itself.
+Issue #24 / PR #25 is complete and merged as:
+
+`a03eac7485389e4774ce31b1b8c93c4428b0d4f3`
+
+The accepted harness provides protocol constants, experiment-spec validation, fold-correct prior evaluation, binary log loss, Brier score, strict continuation logic, and experiment-history construction using synthetic arrays only.
 
 ---
 
-## Current dry-run harness gate
+## Current L1 gate — Issue #26 / LR001
 
-Issue #24 builds a minimal synthetic-testable harness under:
-
-`src/mes_quant/exploration/`
-
-Current candidate boundary:
+Owner authorization has been recorded before any new target-aware run.
 
 ```text
-HARNESS_EXECUTION_STATUS            DRY_RUN_ONLY_L0
-realized TRAIN label I/O            NOT IMPLEMENTED
-project-data path knowledge         NOT IMPLEMENTED
-Validation reader                   NOT IMPLEMENTED
-Final-Test reader                   NOT IMPLEMENTED
-real model fit on project data      0
-Sprint 1 real-data runs             0
+EXPERIMENT_ID              MES_S1_LR001_20260815T095100Z
+EXPLORATION_SCOPE_ID       MES_V1_EDGE_SPRINT_1_LOCKED29_LONG_FLAT_60M
+candidate family           REGULARIZED_LOGISTIC_REGRESSION
+feature set                all 29 locked Cell 14 V1 features
+outer partition            TRAIN only
+OOF folds                  WF_2022 + WF_2023 only
+WF_2024                    FORBIDDEN (2024 is outer Validation)
+primary metric             OOF_BINARY_LOG_LOSS
+Validation                 UNOPENED / FORBIDDEN
+Final Test                 SEALED
 ```
 
-The dry-run harness may encode the frozen protocol constants, validate experiment metadata and feature subsets against the locked Cell 14 universe, evaluate caller-supplied synthetic arrays, compute fold-correct prior/log-loss/Brier results, apply the frozen continuation rule, and construct an in-memory experiment-history record.
+The strongest existing Cell 8 purged chronological folds wholly contained inside outer TRAIN are reused:
 
-It may not open project label artifacts. The actual TRAIN-only data adapter is a separate next gate after this harness is accepted and the owner explicitly authorizes first L1 access.
+- `WF_2022`: expanding TRAIN through 2021 -> 2022 holdout;
+- `WF_2023`: expanding TRAIN through 2022 -> 2023 holdout.
+
+Both retain the frozen +60m purge semantics. `WF_2024` is excluded because its holdout is 2024, the outer Validation partition.
+
+The LR001 numerical policy was frozen on Issue #26 before target-aware execution: fold-local z-score; no imputation; L2 lambda `0.001`; unpenalized intercept; deterministic Newton/IRLS with frozen convergence/backtracking settings; no hyperparameter search; diagnostic action threshold `0.5` only.
+
+Implementation under the current branch may add the TRAIN-only reader, exact artifact-identity gates, deterministic candidate, diagnostics, and experiment logger. GitHub CI and local dry-run must remain synthetic-only. Real L1 access occurs only in the separately executed accepted runner.
 
 ---
 
@@ -153,41 +157,42 @@ It may not open project label artifacts. The actual TRAIN-only data adapter is a
 |---|---|---|---|---|
 | Plane 0 | Governance & provenance foundation | IN_PROGRESS | Controls added only as required by active research | Avoid institutional overbuild |
 | A1 | Data Foundation | LOCKED | Canonical MES history and PIT controls established | Reopen only for documented defect/version bump |
-| A2 | Decision Universe | LOCKED | Decision/session/horizon-safe universe established | Reopen only for documented defect/version bump |
-| A3 | Cost & Impact Model | DEFERRED | Full production cost stack deferred | Sprint 1 uses frozen conservative cost reference only |
-| A4 | Label / Target Contract | IN_PROGRESS | Historical Cell 10 labels preserved; Sprint-1 binary mapping frozen by protocol | L1 use only after explicit authorization |
-| A5 | Feature Construction | LOCKED | Canonical Cell 14 V1, 29 candidate features; BL-30 exact reproduction accepted | Reopen only for documented defect/version bump |
-| **A6** | **Target-Blind Redundancy / Stage B** | **LOCKED** | Final audit accepted; breakers remediated; policy locked; execution disabled | **Reopen only for documented defect/version bump** |
-| A7 | Regime / Context | DEFERRED | Not required for Sprint 1 | Do not build before Sprint evidence justifies continuation |
-| **A8** | **Label Materialization / Access Control** | **IN_PROGRESS** | Pre-firewall acknowledgment complete; L0/L1/L2/L3 boundary established | Explicit first L1 authorization remains pending |
-| **Exploratory Lane** | **TRAIN-only edge discovery** | **IN_PROGRESS** | Charter + Sprint-1 protocol frozen; dry-run harness candidate under Issue #24 | **Accept harness -> explicitly authorize first L1 adapter/run** |
-| A9 | Predictive Model Layer | NOT_STARTED | Confirmatory layer intentionally not built ahead of edge evidence | Start only after Sprint yields lockable hypothesis |
-| A10 | Validation & Model Selection | NOT_STARTED | Validation remains unopened | Freeze confirmatory protocol + opening budget before first L2 access |
-| A11 | Calibration | NOT_STARTED | Architecture only | After confirmatory hypothesis survives appropriate path |
-| A12 | Net EV | NOT_STARTED | Architecture only | After model/calibration/cost evidence exists |
-| A13 | Risk & Sizing Simulation | NOT_STARTED | Architecture only | After edge survives confirmatory research |
-| A14 | Execution Simulation / Parity | NOT_STARTED | Architecture only | Required before production promotion |
-| Release Gate | Research -> production | NOT_STARTED | Architecture only | Implement when release candidate exists |
-| Plane B | Production / Online | NOT_STARTED | Live disabled | No production promotion before Release Gate |
+| A2 | Decision Universe | LOCKED | Purged chronological assignments frozen | Reopen only for documented defect/version bump |
+| A3 | Cost & Impact Model | DEFERRED | Full production stack deferred; Sprint uses frozen conservative reference | Do not retune Sprint cost |
+| A4 | Label / Target Contract | IN_PROGRESS | Cell 10 canonical labels preserved; Sprint binary mapping frozen | Authorized TRAIN-only use under LR001 |
+| A5 | Feature Construction | LOCKED | Cell 14 V1 / 29 candidate features; BL-30 exact reproduction accepted | Reopen only for documented defect/version bump |
+| **A6** | **Target-Blind Redundancy / Stage B** | **LOCKED** | Policy locked; execution disabled | **Reopen only for documented defect/version bump** |
+| A7 | Regime / Context | DEFERRED | Outside Sprint 1 | Do not build before evidence |
+| **A8** | **Label Materialization / Access Control** | **IN_PROGRESS** | L0/L1/L2/L3 boundary frozen; L1 owner authorization granted | Execute only accepted LR001 TRAIN-only path |
+| **Exploratory Lane** | **TRAIN-only edge discovery** | **IN_PROGRESS** | Charter/protocol/harness frozen; LR001 adapter candidate in Issue #26 | **GREEN CI + local synthetic dry-run + owner merge -> run LR001** |
+| A9 | Predictive Model Layer | NOT_STARTED | Confirmatory layer not built | Start only after Sprint continuation evidence |
+| A10 | Validation & Model Selection | NOT_STARTED | Validation unopened | Freeze confirmatory protocol + opening budget before L2 |
+| A11 | Calibration | NOT_STARTED | Architecture only | After confirmatory path |
+| A12 | Net EV | NOT_STARTED | Architecture only | After confirmatory evidence |
+| A13 | Risk & Sizing Simulation | NOT_STARTED | Architecture only | After confirmatory evidence |
+| A14 | Execution Simulation / Parity | NOT_STARTED | Architecture only | Before production promotion |
+| Release Gate | Research -> production | NOT_STARTED | No release candidate | Implement later |
+| Plane B | Production / Online | NOT_STARTED | Live disabled | No production promotion yet |
 | Plane C | Feedback & Control | NOT_STARTED | Architecture only | Build with production readiness |
-| Watchdog | Independent safety | NOT_STARTED | Required before meaningful live trading | Implement/test before live enablement |
+| Watchdog | Independent safety | NOT_STARTED | Required before meaningful live trading | Implement/test before live |
 
 ---
 
 ## Frozen next sequence
 
 ```text
-1. Build + synthetic-test SPRINT_1_DRY_RUN_HARNESS at L0
-2. Owner review + local VS Code dry-run confirmation
-3. Merge accepted harness
-4. Explicit owner authorization for first L1 TARGET_AWARE_EXPERIMENT
-5. Implement/use the minimal TRAIN-only data adapter + candidate path under that authorization
-6. RUN EDGE DISCOVERY SPRINT 1
-7. Apply the frozen continuation/no-edge criterion
-8. If interesting enough: freeze confirmatory hypothesis + Validation protocol before any L2 access
+1. Implement LR001 TRAIN-only adapter/model/logger under Issue #26 using synthetic tests only
+2. GitHub CI GREEN
+3. Local VS Code compile/Ruff/synthetic LR001 tests + preflight
+4. Owner merge authorization for LR001 implementation PR
+5. Merge accepted LR001 runner
+6. Sync local main and execute MES_S1_LR001_20260815T095100Z once
+7. Persist/report experiment record and frozen disposition
+8. If INTERESTING_ENOUGH_TO_CONTINUE: freeze confirmatory hypothesis + Validation protocol before any L2 access
+9. If not: record NO_USABLE_EDGE_IDENTIFIED_IN_SPRINT_1_SCOPE for the governed scope
 ```
 
-Do not build A7/A9+ institutional machinery ahead of this empirical proof point unless a concrete Sprint requirement forces it.
+No Validation or Final-Test opening is authorized by Issue #26.
 
 ---
 
@@ -195,12 +200,12 @@ Do not build A7/A9+ institutional machinery ahead of this empirical proof point 
 
 | Level | Access | Project use |
 |---|---|---|
-| L0 | contract/governance/synthetic arrays only; no new realized-label rows | current dry-run harness build |
-| L1 | TRAIN realized labels | Exploratory Lane; every run is `TARGET_AWARE_EXPERIMENT` with `EXPERIMENT_ID` |
-| L2 | Validation labels/results | frozen confirmatory protocol; budgeted openings only |
+| L0 | governance/contracts/synthetic arrays only | current branch/CI authoring |
+| L1 | TRAIN realized labels | authorized LR001 and logged Sprint exploration |
+| L2 | Validation labels/results | still forbidden; future frozen confirmatory protocol only |
 | L3 | Final Test | sealed one-time final confirmation |
 
-Work classification is derived from observed access. Human labels cannot downgrade an L1/L2/L3 run.
+Work classification is derived from observed access. Permission to use L1 does not make synthetic implementation work L1; actual row access does.
 
 ---
 
@@ -209,5 +214,5 @@ Work classification is derived from observed access. Human labels cannot downgra
 - `BLOCKED` means a proven gate failure prevents advancement.
 - `READY_FOR_AUDIT` means candidate work exists but required acceptance is pending.
 - `LOCKED` means the applicable exit gate is frozen.
-- A local/chat result alone cannot promote a project stage.
+- GitHub CI verifies engineering/test invariants; it does not authorize merge or L2/L3 access.
 - Update this dashboard only when the answer to “where are we now?” materially changes.
