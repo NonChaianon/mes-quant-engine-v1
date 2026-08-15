@@ -8,7 +8,6 @@ from pathlib import Path
 from mes_quant.exploration import l1_tree001
 from mes_quant.exploration.tree001_authorization import (
     TREE001_AUTHORIZATION_STATUS,
-    TREE001_AUTHORIZATION_TOKEN,
     activate_tree001_execution,
 )
 
