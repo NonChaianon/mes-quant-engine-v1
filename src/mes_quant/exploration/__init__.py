@@ -1,0 +1,43 @@
+"""TRAIN-only exploratory research utilities for MES Quant Engine V1."""
+
+from mes_quant.exploration.sprint1 import (
+    ALLOWED_MODEL_FAMILIES,
+    COST_ASSUMPTION_ID,
+    EXPLORATION_SCOPE_ID,
+    HARNESS_EXECUTION_STATUS,
+    PRIMARY_METRIC,
+    TARGET_MAPPING,
+    TARGET_MAPPING_VERSION,
+    ExperimentSpec,
+    FoldEvaluationInput,
+    FoldEvaluationResult,
+    SprintEvaluation,
+    SprintHarnessError,
+    assert_unique_experiment_id,
+    binary_log_loss,
+    brier_score,
+    build_experiment_history_record,
+    evaluate_fold,
+    evaluate_sprint,
+)
+
+__all__ = [
+    "ALLOWED_MODEL_FAMILIES",
+    "COST_ASSUMPTION_ID",
+    "EXPLORATION_SCOPE_ID",
+    "HARNESS_EXECUTION_STATUS",
+    "PRIMARY_METRIC",
+    "TARGET_MAPPING",
+    "TARGET_MAPPING_VERSION",
+    "ExperimentSpec",
+    "FoldEvaluationInput",
+    "FoldEvaluationResult",
+    "SprintEvaluation",
+    "SprintHarnessError",
+    "assert_unique_experiment_id",
+    "binary_log_loss",
+    "brier_score",
+    "build_experiment_history_record",
+    "evaluate_fold",
+    "evaluate_sprint",
+]
