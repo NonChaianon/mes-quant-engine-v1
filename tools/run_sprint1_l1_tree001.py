@@ -5,10 +5,11 @@ import json
 import subprocess
 from pathlib import Path
 
-from mes_quant.exploration.l1_tree001 import (
-    TREE001_EXECUTION_STATUS,
-    preflight_artifacts,
-    run_tree001,
+from mes_quant.exploration import l1_tree001
+from mes_quant.exploration.tree001_authorization import (
+    TREE001_AUTHORIZATION_STATUS,
+    TREE001_AUTHORIZATION_TOKEN,
+    activate_tree001_execution,
 )
 
 
@@ -37,7 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--authorization-token",
         default="",
-        help="Execute mode remains disabled until separate owner authorization is activated.",
+        help="Exact owner-authorization marker required for execute mode.",
     )
     return parser
 
@@ -45,13 +46,15 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = _parser().parse_args()
     if args.mode == "preflight":
-        result = preflight_artifacts(args.features_path, args.labels_path)
+        result = l1_tree001.preflight_artifacts(args.features_path, args.labels_path)
         print(json.dumps(result, indent=2, sort_keys=True))
         print("TREE001_PREFLIGHT_PASS_NO_TARGET_ROWS_DESERIALIZED")
-        print(f"TREE001_EXECUTION_STATUS={TREE001_EXECUTION_STATUS}")
+        print(f"TREE001_EXECUTION_AUTHORIZATION={TREE001_AUTHORIZATION_STATUS}")
+        print(f"TREE001_CORE_EXECUTION_STATUS={l1_tree001.TREE001_EXECUTION_STATUS}")
         return 0
 
-    evaluation = run_tree001(
+    activate_tree001_execution()
+    evaluation = l1_tree001.run_tree001(
         features_path=Path(args.features_path),
         labels_path=Path(args.labels_path),
         output_root=Path(args.output_root),
