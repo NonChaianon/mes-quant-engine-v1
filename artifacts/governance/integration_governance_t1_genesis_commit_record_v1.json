@@ -1,0 +1,74 @@
+{
+  "default_branch_observation": {
+    "contains_exact_t1_identity": true,
+    "git_ls_remote_main_sha": "11348621a1032f63f9e533343859337fe71b20b9",
+    "github_api_main_sha": "11348621a1032f63f9e533343859337fe71b20b9"
+  },
+  "evidence_class_notes": {
+    "class": "E",
+    "gate_authority": "NONE",
+    "known_limitations": [
+      "LLM_REVIEW_BINDING_NOT_MACHINE_VERIFIABLE",
+      "INDEPENDENT_REVIEW_NOT_REPOSITORY_ENFORCED",
+      "AUDITOR_SELF_GOVERNANCE_INDEPENDENCE_NOT_ESTABLISHED"
+    ]
+  },
+  "governance_state": {
+    "marker": "INTEGRATION_GOVERNANCE_GENESIS",
+    "phase_after_t1": "GENESIS_BOOTSTRAP_CONTROL_PLANE",
+    "t1_genesis_identity_machine_recorded": true
+  },
+  "integration_scope": {
+    "changed_paths": [
+      "artifacts/governance/integration_governance_t1_repository_snapshot_v1.json",
+      "docs/governance/INTEGRATION_GOVERNANCE_ARCHITECTURE_DECISION.md"
+    ],
+    "expected_path_count": 2,
+    "integration_diff_paths_from_frozen_parent": [
+      "artifacts/governance/integration_governance_t1_repository_snapshot_v1.json",
+      "docs/governance/INTEGRATION_GOVERNANCE_ARCHITECTURE_DECISION.md"
+    ],
+    "observed_path_count": 2,
+    "scope_status": "EXACTLY_TWO_CANONICAL_PATHS"
+  },
+  "observation_methods": [
+    "git rev-list --parents -n 1",
+    "git rev-parse <commit>^{tree}",
+    "git diff-tree --no-commit-id --name-only -r",
+    "git diff --name-only <frozen-parent> <t1>",
+    "git ls-remote origin refs/heads/main",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/commits/main --jq .sha"
+  ],
+  "observation_timestamp_utc": "2026-08-16T10:56:19Z",
+  "record_schema": "INTEGRATION_GOVERNANCE_T1_GENESIS_COMMIT_RECORD_V1",
+  "record_status": {
+    "applies_to": [
+      "t1_genesis",
+      "default_branch_observation",
+      "integration_scope",
+      "t1_content_identity"
+    ],
+    "status": "MACHINE_OBSERVED"
+  },
+  "repository": {
+    "default_branch": "main",
+    "name_with_owner": "NonChaianon/mes-quant-engine-v1"
+  },
+  "t1_content_identity": {
+    "artifacts/governance/integration_governance_t1_repository_snapshot_v1.json": {
+      "blob_sha1": "a7cc54d92d302a4407ea20e38f18997ac088a083",
+      "content_sha256": "8A6B6E9125AAB9F329115BC45016AB12A4AA2F4BC229E6FF6888350639F78846"
+    },
+    "docs/governance/INTEGRATION_GOVERNANCE_ARCHITECTURE_DECISION.md": {
+      "blob_sha1": "76c5f830c31c94a0a00b1d2d1bfd0184b8680c53",
+      "content_sha256": "258DF8C8940653DCA79E8B15A65BF4173C8F05E136F5DC886628C2E803C8AB80"
+    }
+  },
+  "t1_genesis": {
+    "commit_sha": "11348621a1032f63f9e533343859337fe71b20b9",
+    "parent_count": 1,
+    "parent_sha": "ec6633de4f4b7b1a0f246c8ccabebb859bfe01c7",
+    "single_parent_verified": true,
+    "tree_sha": "562ac986bcfdcabb967e0ea10f4c07f297aa80be"
+  }
+}
