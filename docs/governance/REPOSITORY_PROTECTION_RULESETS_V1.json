@@ -1,0 +1,227 @@
+{
+  "activation_contract": {
+    "activation_is_separate_governed_action": true,
+    "post_activation_machine_verification_required": true,
+    "spec_commit_does_not_activate_rulesets": true
+  },
+  "bootstrap_exact_integration": {
+    "github_merge_commit": "NOT_AUTHORIZED_AS_IDENTITY_SUBSTITUTE",
+    "github_rebase_merge": "NOT_AUTHORIZED_AS_IDENTITY_SUBSTITUTE",
+    "github_squash_merge": "NOT_AUTHORIZED_AS_IDENTITY_SUBSTITUTE",
+    "integrity_ruleset_bypass": "NONE",
+    "owner_bypass_scope": "UPDATE_AUTHORITY_RULESET_ONLY",
+    "required_main_update": "EXACT_FAST_FORWARD_TO_REVIEWED_COMMIT",
+    "review_identity": "COMMIT_SHA"
+  },
+  "classic_branch_protection": "MUST_REMAIN_UNCONFIGURED_IN_V1",
+  "classification_authority": "E_P_ONLY_UNTIL_MACHINE_CLASSIFIER_EXISTS",
+  "control_plane": "GITHUB_REPOSITORY_RULESETS_ONLY",
+  "current_bootstrap_integration_actor": {
+    "authority_identity": "AUTHENTICATED_PUSH_ACTOR",
+    "commit_author_identity": "NOT_AUTHORITY",
+    "github_login": "NonChaianon",
+    "github_user_id": 108668824
+  },
+  "declared_change_class": "GOVERNANCE_AMENDMENT",
+  "deferred_controls": [
+    "STEP3_REQUIRED_CI_STATUS_CHECKS",
+    "AUTHENTICATED_INDEPENDENT_REVIEW",
+    "CHANGE_CLASSIFIER",
+    "GOVERNANCE_SENTINEL",
+    "CODEOWNERS_ENFORCEMENT",
+    "REQUIRED_COMMIT_SIGNATURES"
+  ],
+  "functional_canary_evidence_lifecycle": {
+    "deletion_after_successful_deletion_rejection_test": "EXPECTED_TO_BE_BLOCKED_BY_ACTIVE_INTEGRITY_RULESET",
+    "full_ref_pattern": "refs/heads/governance/protection-canary-*",
+    "naming_convention": "governance/protection-canary-YYYYMMDD-NN",
+    "not_disposable_after_activation": true,
+    "reason": "the retained branch documents the negative deletion test and remains covered by the Integrity ruleset",
+    "retention_default": "RETAIN_AS_FUNCTIONAL_PROTECTION_EVIDENCE",
+    "separately_governed_retirement_required": true
+  },
+  "functional_verification_safety": {
+    "canary_ref_pattern": "refs/heads/governance/protection-canary-*",
+    "direct_destructive_negative_probe_on_main": "PROHIBITED",
+    "main_and_canary_target_equivalence_must_be_machine_verified": true,
+    "reason": "if protection is misconfigured, a destructive negative probe could mutate or delete the canonical default branch",
+    "same_integrity_ruleset_canary_required": true
+  },
+  "main_and_canary_target_equivalence": {
+    "evaluation_method": [
+      "query GitHub active rules for main using repos/{owner}/{repo}/rules/branches/main",
+      "query GitHub active rules for the concrete canary branch using repos/{owner}/{repo}/rules/branches/{canary_ref}",
+      "extract the ruleset_id contributing the Integrity rules for each evaluated ref",
+      "require the same Integrity ruleset_id for main and canary",
+      "fetch repos/{owner}/{repo}/rulesets/{integrity_ruleset_id} and verify the canonical ruleset configuration"
+    ],
+    "expected_integrity_rule_types": [
+      "deletion",
+      "non_fast_forward",
+      "required_linear_history"
+    ],
+    "must_match": [
+      "SAME_ACTIVE_INTEGRITY_RULESET_ID",
+      "INTEGRITY_RULESET_ENFORCEMENT_ACTIVE",
+      "INTEGRITY_RULESET_BYPASS_ACTORS_EMPTY",
+      "INTEGRITY_RULESET_EXACT_RULE_TYPE_SET"
+    ],
+    "on_mismatch": "CANARY_EVIDENCE_NOT_TRANSFERABLE_TO_MAIN",
+    "purpose": "establish that negative functional evidence from the canary is transferable to main because both refs are governed by the same active Integrity ruleset identity",
+    "rule_type_equality_alone_is_insufficient": true,
+    "same_ruleset_name_alone_is_insufficient": true
+  },
+  "post_activation_witness_procedure": {
+    "final_record_identity_semantics": {
+      "expected_after_final_record_integration": "main advances from witness_main_identity to final_record_commit_identity by a separate exact fast-forward",
+      "final_record_commit_identity": "later exact commit containing the final verification record",
+      "reason": "the witness SHA is a time-bound prior observation, not a claim that it remains the permanent head after the final record is integrated",
+      "witness_identity_mismatch_after_final_record_integration": false,
+      "witness_main_identity": "remote main SHA observed after successful exact witness fast-forward and before creation of the final verification record"
+    },
+    "final_record_may_derive_verified_marker_only_from_prior_events": true,
+    "final_verification_record_path": "artifacts/governance/repository_protection_post_activation_verification_v1.json",
+    "purpose": "avoid circular self-verification by making the exact fast-forward event predate the final verification record",
+    "sequence": [
+      "ACTIVATE_REVIEWED_RULESETS",
+      "REMOTE_EXACT_CONFIGURATION_REOBSERVATION",
+      "SAFE_INTEGRITY_CANARY_NEGATIVE_TESTS",
+      "SECTION8_REVIEWED_FUNCTIONAL_WITNESS_COMMIT_CREATED",
+      "EXACT_FAST_FORWARD_WITNESS_COMMIT_TO_MAIN",
+      "POST_WITNESS_REMOTE_MAIN_REOBSERVATION",
+      "FINAL_POST_ACTIVATION_VERIFICATION_RECORD_CREATED"
+    ],
+    "witness_record_path": "artifacts/governance/repository_protection_functional_witness_v1.json"
+  },
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "research_authority": {
+    "final_test_opened": false,
+    "new_realized_label_research": false,
+    "new_target_aware_candidates": false,
+    "sprint_2": false,
+    "t2_machine_integration_gates_active": false,
+    "validation_opened": false
+  },
+  "residual_bootstrap_risks": [
+    "EXACT_REVIEWED_SHA_NOT_REPOSITORY_ENFORCED",
+    "OWNER_CAN_TECHNICALLY_PUSH_UNREVIEWED_LINEAR_COMMIT",
+    "SQUASH_OR_REBASE_MERGE_MAY_REMAIN_TECHNICALLY_POSSIBLE",
+    "RULESET_CONFIGURATION_MUTABLE_BY_REPOSITORY_ADMIN",
+    "INDEPENDENT_REVIEW_NOT_REPOSITORY_ENFORCED"
+  ],
+  "rulesets": [
+    {
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "~DEFAULT_BRANCH",
+            "refs/heads/governance/tree001-execution-authorization",
+            "refs/heads/governance/protection-canary-*"
+          ]
+        }
+      },
+      "enforcement": "active",
+      "name": "MES Main Integrity V1",
+      "protected_ref_purposes": {
+        "refs/heads/governance/protection-canary-*": "safe functional negative-test refs using the same Integrity ruleset",
+        "refs/heads/governance/tree001-execution-authorization": "preserve reachability of historical TREE001 authorization evidence",
+        "~DEFAULT_BRANCH": "canonical default branch integrity"
+      },
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "type": "required_linear_history"
+        }
+      ],
+      "target": "branch"
+    },
+    {
+      "bypass_actors": [
+        {
+          "actor_id": 108668824,
+          "actor_type": "User",
+          "bypass_mode": "always"
+        }
+      ],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "~DEFAULT_BRANCH"
+          ]
+        }
+      },
+      "enforcement": "active",
+      "name": "MES Main Integration Authority V1",
+      "rules": [
+        {
+          "parameters": {
+            "update_allows_fetch_and_merge": false
+          },
+          "type": "update"
+        }
+      ],
+      "target": "branch",
+      "update_rule_semantics": {
+        "intended_interpretation": "do not rely on an additional fetch-and-merge update path; this parameter does not establish exact-reviewed-SHA review enforcement",
+        "update_allows_fetch_and_merge": false
+      }
+    }
+  ],
+  "schema": "MES_REPOSITORY_PROTECTION_RULESETS_V1",
+  "step2_completion_contract": {
+    "branch_protection_verified_marker": "BRANCH_PROTECTION_VERIFIED",
+    "negative_test_mapping": {
+      "DELETION_OF_MAIN_REJECTED_FUNCTIONALLY_VERIFIED": "satisfied by same-Integrity-ruleset canary rejection plus machine verification that main and canary are governed by the same active Integrity ruleset ID and that the fetched ruleset has no bypass actors and the exact expected Integrity rule set",
+      "MERGE_COMMIT_PUSH_TO_MAIN_REJECTED_FUNCTIONALLY_VERIFIED": "satisfied by same-Integrity-ruleset canary rejection plus machine verification that main and canary are governed by the same active Integrity ruleset ID and that the fetched ruleset has no bypass actors and the exact expected Integrity rule set",
+      "NON_FAST_FORWARD_PUSH_TO_MAIN_REJECTED_FUNCTIONALLY_VERIFIED": "satisfied by same-Integrity-ruleset canary rejection plus machine verification that main and canary are governed by the same active Integrity ruleset ID and that the fetched ruleset has no bypass actors and the exact expected Integrity rule set"
+    },
+    "required_protection_checks": [
+      "FROZEN_SPEC_PRESENT_ON_DEFAULT_BRANCH",
+      "RULESETS_ONLY_CONTROL_PLANE",
+      "INTEGRITY_RULESET_REMOTE_EXACT_MATCH",
+      "UPDATE_AUTHORITY_RULESET_REMOTE_EXACT_MATCH",
+      "INTEGRITY_RULESET_NO_BYPASS",
+      "UPDATE_AUTHORITY_OWNER_BYPASS_EXACT_MATCH",
+      "INTEGRITY_RULESET_TARGETS_MAIN_TREE001_EVIDENCE_AND_CANARY",
+      "TREE001_EVIDENCE_BRANCH_DELETION_PROTECTION_REMOTE_VERIFIED",
+      "TREE001_EVIDENCE_BRANCH_NON_FAST_FORWARD_PROTECTION_REMOTE_VERIFIED",
+      "EXPECTED_RULES_ACTIVE_ON_MAIN",
+      "CLASSIC_BRANCH_PROTECTION_UNCONFIGURED",
+      "MAIN_AND_CANARY_SAME_INTEGRITY_RULESET_ID_AND_BYPASS_MACHINE_VERIFIED",
+      "CANARY_NON_FAST_FORWARD_REJECTION_FUNCTIONALLY_VERIFIED",
+      "CANARY_MERGE_COMMIT_REJECTION_FUNCTIONALLY_VERIFIED",
+      "CANARY_DELETION_REJECTION_FUNCTIONALLY_VERIFIED",
+      "NON_BYPASS_ACTOR_UPDATE_REJECTED_OR_DOCUMENTED_AS_UNTESTABLE_SINGLE_ACTOR_REPO",
+      "EXACT_REVIEWED_SHA_FAST_FORWARD_WITNESS_INTEGRATED",
+      "POST_WITNESS_REMOTE_MAIN_EXACT_IDENTITY_VERIFIED",
+      "MAIN_HISTORY_FAST_FORWARD_AND_LINEAR",
+      "AUDITOR_FINDINGS_RECORDED",
+      "FINAL_VERIFICATION_RECORD_EXACT_INTEGRATION_VERIFIED"
+    ],
+    "required_value_for_completion": true
+  },
+  "target_default_branch": "main",
+  "tree001_evidence_protection": {
+    "authorization_commit_sha": "309bb1af5e6c4cc7098cefc2ae6ea7b8d239fd3e",
+    "deletion_protection_required": true,
+    "evidence_requirement": "authorization commit must remain reachable as an ancestor",
+    "future_fast_forward_extension_possible": true,
+    "historical_branch_ref": "refs/heads/governance/tree001-execution-authorization",
+    "integrity_ruleset_targeted": true,
+    "non_fast_forward_protection_required": true,
+    "required_reachability_condition": {
+      "authorization_commit_sha": "309bb1af5e6c4cc7098cefc2ae6ea7b8d239fd3e",
+      "fast_forward_extension_allowed_if_ancestor_condition_preserved": true,
+      "historical_branch_head_must_remain_exactly_f211e545": false,
+      "required_relation": "AUTHORIZATION_COMMIT_REMAINS_ANCESTOR_OF_PROTECTED_EVIDENCE_REF"
+    }
+  }
+}

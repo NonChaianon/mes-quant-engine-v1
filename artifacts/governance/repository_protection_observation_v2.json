@@ -1,0 +1,97 @@
+{
+  "active_rules_for_main": {
+    "count": 0,
+    "raw": []
+  },
+  "authenticated_integration_actor": {
+    "commit_author_identity_is_not_push_authority": true,
+    "evidence_class": "MACHINE_OBSERVED_AT_OBSERVATION_TIME",
+    "github_login": "NonChaianon",
+    "github_user_id": 108668824
+  },
+  "classic_branch_protection": {
+    "branch_api_protected": false,
+    "branch_api_protection": {
+      "enabled": false,
+      "required_status_checks": {
+        "checks": [],
+        "contexts": [],
+        "enforcement_level": "off"
+      }
+    },
+    "protection_endpoint_exit_code": 1,
+    "protection_endpoint_stderr": "gh: Branch not protected (HTTP 404)",
+    "protection_endpoint_stdout": "{\"message\":\"Branch not protected\",\"documentation_url\":\"https://docs.github.com/rest/branches/branch-protection#get-branch-protection\",\"status\":\"404\"}"
+  },
+  "default_branch": "main",
+  "legacy_tree001_evidence_hold": {
+    "authorization_commit_is_ancestor_of_branch_head": true,
+    "authorization_commit_sha": "309bb1af5e6c4cc7098cefc2ae6ea7b8d239fd3e",
+    "branch": "governance/tree001-execution-authorization",
+    "branch_head_sha": "f211e5458739af9033cad03c2e6026f6c3e657a9",
+    "delete_branch_authorized": false,
+    "mechanical_protection_candidate": {
+      "currently_active": false,
+      "planned_integrity_ruleset_ref": "refs/heads/governance/tree001-execution-authorization"
+    }
+  },
+  "main_identity": {
+    "git_ls_remote_main_sha": "4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c",
+    "github_branch_api_main_sha": "4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c",
+    "local_head_sha": "4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c"
+  },
+  "observation_methods": [
+    "git ls-remote origin refs/heads/main",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/branches/main",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/rulesets",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/rules/branches/main",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/branches/main/protection",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/pulls/34",
+    "gh api user",
+    "git ls-remote origin refs/heads/governance/tree001-execution-authorization",
+    "git merge-base --is-ancestor 309bb1af... f211e545..."
+  ],
+  "observation_phase": "PRE_ACTIVATION_REPOSITORY_PROTECTION_BASELINE",
+  "observation_timestamp_utc": "2026-08-16T15:10:40Z",
+  "pr34_disposition": {
+    "base_sha": "ec6633de4f4b7b1a0f246c8ccabebb859bfe01c7",
+    "head_sha": "f211e5458739af9033cad03c2e6026f6c3e657a9",
+    "merged_at": null,
+    "number": 34,
+    "state": "closed"
+  },
+  "raw_evidence": {
+    "authenticated_github_user_json": "{\"login\":\"NonChaianon\",\"id\":108668824,\"node_id\":\"U_kgDOBnonmA\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/108668824?v=4\",\"gravatar_id\":\"\",\"url\":\"https://api.github.com/users/NonChaianon\",\"html_url\":\"https://github.com/NonChaianon\",\"followers_url\":\"https://api.github.com/users/NonChaianon/followers\",\"following_url\":\"https://api.github.com/users/NonChaianon/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/NonChaianon/gists{/gist_id}\",\"starred_url\":\"https://api.github.com/users/NonChaianon/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/NonChaianon/subscriptions\",\"organizations_url\":\"https://api.github.com/users/NonChaianon/orgs\",\"repos_url\":\"https://api.github.com/users/NonChaianon/repos\",\"events_url\":\"https://api.github.com/users/NonChaianon/events{/privacy}\",\"received_events_url\":\"https://api.github.com/users/NonChaianon/received_events\",\"type\":\"User\",\"user_view_type\":\"public\",\"site_admin\":false,\"name\":null,\"company\":null,\"blog\":\"\",\"location\":null,\"email\":null,\"hireable\":null,\"bio\":null,\"twitter_username\":null,\"notification_email\":null,\"public_repos\":1,\"public_gists\":0,\"followers\":0,\"following\":0,\"created_at\":\"2022-07-04T10:58:33Z\",\"updated_at\":\"2026-08-10T04:49:53Z\"}",
+    "classic_protection_endpoint_output": "{\"message\":\"Branch not protected\",\"documentation_url\":\"https://docs.github.com/rest/branches/branch-protection#get-branch-protection\",\"status\":\"404\"}gh: Branch not protected (HTTP 404)",
+    "classic_protection_endpoint_stderr": "gh: Branch not protected (HTTP 404)",
+    "classic_protection_endpoint_stdout": "{\"message\":\"Branch not protected\",\"documentation_url\":\"https://docs.github.com/rest/branches/branch-protection#get-branch-protection\",\"status\":\"404\"}",
+    "git_ls_remote_legacy_tree001_branch": "f211e5458739af9033cad03c2e6026f6c3e657a9\trefs/heads/governance/tree001-execution-authorization",
+    "git_ls_remote_main": "4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c\trefs/heads/main",
+    "github_active_main_rules_json": "[]",
+    "github_branch_main_compact_json": "{\"name\":\"main\",\"protected\":false,\"protection\":{\"enabled\":false,\"required_status_checks\":{\"checks\":[],\"contexts\":[],\"enforcement_level\":\"off\"}},\"sha\":\"4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c\"}",
+    "github_branch_main_json": "{\"name\":\"main\",\"commit\":{\"sha\":\"4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c\",\"node_id\":\"C_kwDOTz3DBtoAKDQxMzBiMGMxYWQxNTczZDMzZTBiZjlkOTBiOTUxYzJhYjA1ZjVmOWM\",\"commit\":{\"author\":{\"name\":\"OpenAI Codex\",\"email\":\"codex@local.invalid\",\"date\":\"2026-08-16T11:17:00Z\"},\"committer\":{\"name\":\"OpenAI Codex\",\"email\":\"codex@local.invalid\",\"date\":\"2026-08-16T11:17:00Z\"},\"message\":\"Record integration governance T1 genesis identity\",\"tree\":{\"sha\":\"01d5b1f9ce021bbd1dab30edd83250f504c57909\",\"url\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/git/trees/01d5b1f9ce021bbd1dab30edd83250f504c57909\"},\"url\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/git/commits/4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c\",\"comment_count\":0,\"verification\":{\"verified\":false,\"reason\":\"unsigned\",\"signature\":null,\"payload\":null,\"verified_at\":null}},\"url\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/commits/4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c\",\"html_url\":\"https://github.com/NonChaianon/mes-quant-engine-v1/commit/4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c\",\"comments_url\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/commits/4130b0c1ad1573d33e0bf9d90b951c2ab05f5f9c/comments\",\"author\":null,\"committer\":null,\"parents\":[{\"sha\":\"11348621a1032f63f9e533343859337fe71b20b9\",\"url\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/commits/11348621a1032f63f9e533343859337fe71b20b9\",\"html_url\":\"https://github.com/NonChaianon/mes-quant-engine-v1/commit/11348621a1032f63f9e533343859337fe71b20b9\"}]},\"_links\":{\"self\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/branches/main\",\"html\":\"https://github.com/NonChaianon/mes-quant-engine-v1/tree/main\"},\"protected\":false,\"protection\":{\"enabled\":false,\"required_status_checks\":{\"enforcement_level\":\"off\",\"contexts\":[],\"checks\":[]}},\"protection_url\":\"https://api.github.com/repos/NonChaianon/mes-quant-engine-v1/branches/main/protection\"}",
+    "github_pr34_compact_json": "{\"base_sha\":\"ec6633de4f4b7b1a0f246c8ccabebb859bfe01c7\",\"head_sha\":\"f211e5458739af9033cad03c2e6026f6c3e657a9\",\"merged_at\":null,\"number\":34,\"state\":\"closed\"}",
+    "github_rulesets_json": "[]"
+  },
+  "raw_evidence_policy": {
+    "canonical_fields": [
+      "git_ls_remote_main",
+      "github_branch_main_json",
+      "github_rulesets_json",
+      "github_active_main_rules_json",
+      "classic_protection_endpoint_stdout",
+      "classic_protection_endpoint_stderr",
+      "github_pr34_compact_json",
+      "authenticated_github_user_json",
+      "git_ls_remote_legacy_tree001_branch"
+    ],
+    "canonical_interpretation_rule": "when duplicate representations describe the same observation, the fields listed in canonical_fields govern this V2 record",
+    "compatibility_or_legacy_duplicate_fields_are_noncanonical": true
+  },
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "repository_rulesets": {
+    "count": 0,
+    "raw": []
+  },
+  "schema": "MES_REPOSITORY_PROTECTION_OBSERVATION_V2"
+}
