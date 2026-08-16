@@ -1,0 +1,163 @@
+{
+  "default_branch_remote": {
+    "branch": "main",
+    "head_oid": "ec6633de4f4b7b1a0f246c8ccabebb859bfe01c7",
+    "protection": {
+      "http_observation": "HTTP_404_BRANCH_NOT_PROTECTED",
+      "status": "NOT_PROTECTED"
+    }
+  },
+  "interpretation_constraints": {
+    "human_memory_must_not_promote_unobserved_items_to_fact": true,
+    "open_pr_state_is_machine_observed": true,
+    "remote_branch_presence_does_not_by_itself_establish_in_flight_work": true,
+    "unknown_or_unestablished_state_must_remain_explicit": true
+  },
+  "local_git": {
+    "current_branch": "governance/tree001-execution-authorization",
+    "head_oid": "dc782d18f9dfe6c9388eafc6329b538a4aead509",
+    "local_vs_remote_relation": "LOCAL_AHEAD_OF_REMOTE",
+    "remote_head_oid": "f211e5458739af9033cad03c2e6026f6c3e657a9",
+    "working_tree": "CLEAN"
+  },
+  "observation_timestamp_utc": "2026-08-16T09:27:21Z",
+  "observer": {
+    "github_authenticated_login": "NonChaianon",
+    "observation_class": "MACHINE_OBSERVED"
+  },
+  "open_pr_count": 1,
+  "open_pull_requests": [
+    {
+      "baseRefName": "main",
+      "headRefName": "governance/tree001-execution-authorization",
+      "headRefOid": "f211e5458739af9033cad03c2e6026f6c3e657a9",
+      "isDraft": true,
+      "number": 34,
+      "title": "Governance: authorize one-shot TREE001 real TRAIN execution",
+      "url": "https://github.com/NonChaianon/mes-quant-engine-v1/pull/34"
+    }
+  ],
+  "pr_identity_observations": [
+    {
+      "current_local_head_oid": "dc782d18f9dfe6c9388eafc6329b538a4aead509",
+      "github_pr_head_oid": "f211e5458739af9033cad03c2e6026f6c3e657a9",
+      "head_branch": "governance/tree001-execution-authorization",
+      "head_identity_equal": false,
+      "matches_current_local_branch": true,
+      "pr_number": 34
+    }
+  ],
+  "purpose": "PRE_GENESIS_MACHINE_DERIVED_REPOSITORY_STATE",
+  "remote_branch_count": 24,
+  "remote_branches": [
+    {
+      "branch": "agent/stage-b-v1-2-lock-breaker-4-5-remediation",
+      "head_oid": "e8b9d145ec13204cf3008ea6c20c81841a28350e"
+    },
+    {
+      "branch": "agent/stage-b-v1-2-mechanical-lock",
+      "head_oid": "68f2d1e6f87a392ee795268d7ab4a233fc00bf83"
+    },
+    {
+      "branch": "agent/stage-b-v1-2-mechanical-lock-post-issue15",
+      "head_oid": "fa396b8df0a8d58abf2dca960b377b024b18ead7"
+    },
+    {
+      "branch": "agent/stage-b-v1-2-policy-execution-separation",
+      "head_oid": "fd5107b99cba127b67e5a026402edb5cbde39400"
+    },
+    {
+      "branch": "audit/bl30-genesis-attestation",
+      "head_oid": "6b13cbc2acfb937be02b63bb223c7be20e46734f"
+    },
+    {
+      "branch": "docs-progress-resume-final-v1-2-audit",
+      "head_oid": "3f336ef4727cd98419ac29d156228364aa5efe19"
+    },
+    {
+      "branch": "docs/architecture-v2.2-baseline",
+      "head_oid": "263bef288ef869b3d47e73f5227d49641c839ddc"
+    },
+    {
+      "branch": "fix/ignore-exploration-artifacts",
+      "head_oid": "42163cae762d1e135ece8a8f55d675c6c89cfe3f"
+    },
+    {
+      "branch": "governance-edge-discovery-sprint-1-protocol",
+      "head_oid": "7f69721d4e7cb8ba150468f2be22a3f5959b38a8"
+    },
+    {
+      "branch": "governance-exploratory-lane-v1-charter",
+      "head_oid": "78a7153037461b494398bf99bd7fc4ca769b22d8"
+    },
+    {
+      "branch": "governance-label-exposure-pre-firewall-v1",
+      "head_oid": "d75d969d10427877fe3a6cac85cfedf6d223c0da"
+    },
+    {
+      "branch": "governance/sprint1-search-budget-addendum",
+      "head_oid": "c1c7cbbf87652df62191e61740a9b52de49aa39a"
+    },
+    {
+      "branch": "governance/tree001-execution-authorization",
+      "head_oid": "f211e5458739af9033cad03c2e6026f6c3e657a9"
+    },
+    {
+      "branch": "infra-ci-quant-uat-v1",
+      "head_oid": "58d1c171acbaa9ea974874983928a5f58c51d8bc"
+    },
+    {
+      "branch": "main",
+      "head_oid": "ec6633de4f4b7b1a0f246c8ccabebb859bfe01c7"
+    },
+    {
+      "branch": "research/sprint1-dry-run-harness",
+      "head_oid": "6bf826747a20e9e13130ed82f25a2d64c2b7cba5"
+    },
+    {
+      "branch": "research/sprint1-l1-lr001",
+      "head_oid": "8179df7e63d1a0a4f19152fbc5e0a7ab66c75efe"
+    },
+    {
+      "branch": "research/sprint1-l1-tree001",
+      "head_oid": "f4d29de9de4524f4887a0220dc58ead4e30d641b"
+    },
+    {
+      "branch": "stage-b-phase-a-decision-bridge-green",
+      "head_oid": "4b62963bd9e900c708e6df6d60ced4f677f453e0"
+    },
+    {
+      "branch": "stage-b-phase-a-decision-bridge-red",
+      "head_oid": "ea697e2a6d62a3d237d1d45445c5560a0c2302fe"
+    },
+    {
+      "branch": "stage-b-phase-a-safety-hardening",
+      "head_oid": "0f8e5f160a69b0f2b9562fac08809867713b6492"
+    },
+    {
+      "branch": "stage-b-project-root-gate-hardening",
+      "head_oid": "74b66fd09313540d8839ec0763225c618b477ec9"
+    },
+    {
+      "branch": "stage-b-r6-prelock",
+      "head_oid": "2ad2784b8cbaf468284010b95efe768af8e90e41"
+    },
+    {
+      "branch": "stage-b-v1-2-lock-breaker-record",
+      "head_oid": "093186a164862e07e34d8f870e1f9cb84db4229b"
+    }
+  ],
+  "repository": {
+    "default_branch": "main",
+    "name_with_owner": "NonChaianon/mes-quant-engine-v1",
+    "origin_url": "https://github.com/NonChaianon/mes-quant-engine-v1.git",
+    "url": "https://github.com/NonChaianon/mes-quant-engine-v1"
+  },
+  "snapshot_schema": "INTEGRATION_GOVERNANCE_T1_REPOSITORY_SNAPSHOT_V1",
+  "transition_state": {
+    "new_control_plane_merge": "FROZEN",
+    "new_quant_engine_merge": "FROZEN",
+    "permitted_work": "T1_INTEGRATION_GOVERNANCE_GENESIS_BOOTSTRAP_ONLY",
+    "phase": "T0_PRE_GENESIS"
+  }
+}
