@@ -1,0 +1,174 @@
+{
+  "active_ruleset_observation": {
+    "authority": {
+      "active_on_main": true,
+      "current_user_can_bypass": "always",
+      "enforcement": "active",
+      "name": "MES Main Integration Authority V1",
+      "rule_types": [
+        "update"
+      ],
+      "ruleset_id": 20913445,
+      "updated_at": "2026-08-17T00:44:34.845+07:00"
+    },
+    "integrity": {
+      "active_on_main": true,
+      "bypass_actors_empty": true,
+      "current_user_can_bypass": "never",
+      "enforcement": "active",
+      "name": "MES Main Integrity V1",
+      "rule_types": [
+        "deletion",
+        "non_fast_forward",
+        "required_linear_history"
+      ],
+      "ruleset_id": 20913443,
+      "updated_at": "2026-08-17T00:44:29.726+07:00"
+    },
+    "repository_ruleset_count": 2
+  },
+  "bypass_dependency_inference": {
+    "authority_owner_bypass_functionally_supported": true,
+    "class": "E",
+    "gate_authority": "NONE",
+    "instruction": "DO_NOT_RECLASSIFY_AS_RAW_F_OBSERVATION",
+    "interpretation": "DERIVED_INFERENCE_FROM_RULESET_BYPASS_STATE_PLUS_SUCCESSFUL_MAIN_UPDATE",
+    "supporting_observations": [
+      "AUTHORITY_CURRENT_USER_CAN_BYPASS_ALWAYS",
+      "AUTHORITY_UPDATE_RULE_APPLIED_TO_MAIN",
+      "MAIN_UPDATE_SUCCEEDED"
+    ]
+  },
+  "bypass_dependency_observation": {
+    "authenticated_actor_id": 108668824,
+    "authenticated_actor_login": "NonChaianon",
+    "authority_owner_bypass_available": true,
+    "authority_update_rule_applied_to_main": true,
+    "integrity_bypass_dependency": "NONE",
+    "integrity_result_is_bypass_free": true,
+    "non_bypass_actor_update_enforcement": "UNTESTABLE_SINGLE_ACTOR_REPOSITORY",
+    "successful_main_update_under_authority_rule": true
+  },
+  "classic_branch_protection_observation": {
+    "endpoint": "repos/NonChaianon/mes-quant-engine-v1/branches/main/protection",
+    "endpoint_exit_code": 1,
+    "expected_404_or_branch_not_protected_observed": true,
+    "state": "UNCONFIGURED"
+  },
+  "default_branch_observation": {
+    "default_branch": "main",
+    "git_ls_remote_main_sha": "3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "github_api_main_sha": "3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "main_branch_protected": true
+  },
+  "evidence_class_notes": {
+    "class": "E",
+    "gate_authority": "NONE",
+    "known_limitations": [
+      "NON_BYPASS_ACTOR_UPDATE_ENFORCEMENT_UNTESTABLE_SINGLE_ACTOR_REPOSITORY",
+      "P_IS_NOT_THE_FINAL_FUNCTIONAL_WITNESS",
+      "CANARY_NEGATIVE_TESTS_HAVE_NOT_YET_RUN",
+      "NEW_MERGE_COMMIT_REJECTION_TRANSFER_IS_NOT_ESTABLISHED_BY_P"
+    ]
+  },
+  "functional_observation": {
+    "canary_negative_tests_run": false,
+    "existing_history_tolerance_result": "MAIN_ACCEPTED_NEW_SINGLE_PARENT_LINEAR_FAST_FORWARD_WITH_EXISTING_HISTORICAL_MERGES",
+    "main_linear_update_under_active_rulesets_functionally_verified": true,
+    "new_merge_commit_rejection_transfer": "NOT_ESTABLISHED_BY_P",
+    "verified_scope": {
+      "direct_fast_forward": true,
+      "main_contained_historical_merge_commits": true,
+      "single_parent": true,
+      "tree_unchanged": true
+    }
+  },
+  "future_canary_evaluation_note": {
+    "class": "E",
+    "gate_authority": "NONE",
+    "instruction": "DO_NOT_PROMOTE_TO_F_BEFORE_CANARY_MERGE_TEST",
+    "new_merge_commit_rejection_transfer_proposition": "PENDING_CANARY_TEST_2",
+    "observational_support_from_p": "NONE"
+  },
+  "governance_state": {
+    "branch_protection_verified": false,
+    "canary_created": false,
+    "class": "P",
+    "next_mutation_requires_separate_governance_gate": true,
+    "p_is_final_functional_witness": false,
+    "policy_basis": "LOCKED_REPOSITORY_PROTECTION_V1_GOVERNANCE_SEQUENCE"
+  },
+  "integration_method_declaration": {
+    "class": "E",
+    "declared_force_push": false,
+    "declared_github_merge": false,
+    "declared_integration_method": "DIRECT_EXACT_FAST_FORWARD",
+    "declared_rebase_merge": false,
+    "declared_squash": false,
+    "evidentiary_limit": "POST_HOC_COMMIT_GRAPH_DOES_NOT_FULLY_IDENTIFY_THE_PUSH_TRANSPORT_METHOD_WHEN_RESULTING_GRAPH_IS_THE_SAME_FAST_FORWARD",
+    "gate_authority": "NONE",
+    "instruction": "DO_NOT_PROMOTE_TRANSPORT_DECLARATION_TO_F"
+  },
+  "integration_observation": {
+    "fast_forward_graph_relation_machine_derived": true,
+    "graph_relation": "DIRECT_SINGLE_PARENT_DESCENDANT",
+    "new_main": "3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "new_main_parent_count": 1,
+    "new_main_parent_sha": "f7ea6f6e1b57e78b23e21886aaae0275e9cf15af",
+    "old_main": "f7ea6f6e1b57e78b23e21886aaae0275e9cf15af",
+    "old_main_is_direct_parent_of_new_main": true
+  },
+  "observation_methods": [
+    "git ls-remote origin refs/heads/main",
+    "git cat-file commit 3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "git rev-parse 3460a90c09bdd5f83ac7e4aa2f88722321a79a91^{tree}",
+    "git rev-parse f7ea6f6e1b57e78b23e21886aaae0275e9cf15af^{tree}",
+    "git show -s --format=%P 3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "git diff --name-only f7ea6f6e1b57e78b23e21886aaae0275e9cf15af 3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/branches/main",
+    "gh api repos/NonChaianon/mes-quant-engine-v1",
+    "gh api user",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/rules/branches/main",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/rulesets/20913443",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/rulesets/20913445",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/rulesets?includes_parents=false",
+    "gh api repos/NonChaianon/mes-quant-engine-v1/branches/main/protection"
+  ],
+  "observation_timestamp_utc": "2026-08-16T19:47:39Z",
+  "p_content_identity": {
+    "changed_path_count": 0,
+    "file_content_delta": "NONE_BY_TREE_IDENTITY",
+    "git_diff_name_only_empty": true
+  },
+  "p_probe_identity": {
+    "commit_sha": "3460a90c09bdd5f83ac7e4aa2f88722321a79a91",
+    "commit_signature_reason": "unsigned",
+    "commit_signature_state": "UNSIGNED",
+    "old_main_tree_sha": "1bab806a4f8cb254b9b6f7cecb3fa895a2e0050f",
+    "parent_count": 1,
+    "parent_sha": "f7ea6f6e1b57e78b23e21886aaae0275e9cf15af",
+    "probe_id": "P",
+    "purpose": "PRE_CANARY_MAIN_LINEAR_UPDATE_COMPATIBILITY_PROBE",
+    "single_parent_verified": true,
+    "tree_equals_old_main_tree": true,
+    "tree_sha": "1bab806a4f8cb254b9b6f7cecb3fa895a2e0050f"
+  },
+  "record_schema": "REPOSITORY_PROTECTION_P_COMPATIBILITY_RECORD_V1",
+  "record_status": {
+    "applies_to": [
+      "p_probe_identity",
+      "p_content_identity",
+      "default_branch_observation",
+      "active_ruleset_observation",
+      "bypass_dependency_observation",
+      "classic_branch_protection_observation",
+      "functional_observation",
+      "integration_observation"
+    ],
+    "status": "MACHINE_OBSERVED"
+  },
+  "repository": {
+    "default_branch": "main",
+    "name_with_owner": "NonChaianon/mes-quant-engine-v1"
+  }
+}
