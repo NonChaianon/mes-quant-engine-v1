@@ -1,0 +1,327 @@
+{
+  "ac35_integration_history_disposition": {
+    "class": "MIXED_EXPLICITLY_LABELED",
+    "integration_method_declaration": {
+      "class": "E",
+      "limitation": "DEDICATED_PUSH_EXIT_STDOUT_STDERR_WERE_NOT_PRECAPTURED",
+      "value": "DIRECT_EXACT_FAST_FORWARD_DECLARED_BY_OWNER_PROCESS_TRANSCRIPT"
+    },
+    "integration_result": {
+      "class": "F",
+      "value": "EXACT_REMOTE_OUTCOME_ESTABLISHED"
+    },
+    "pre_push_baseline_continuity": {
+      "class": "E_DERIVED",
+      "not_direct_pre_push_observation_in_this_package": true,
+      "value": "AC35_WAS_DIRECT_SUCCESSOR_OF_06725_WITH_NO_INTERVENING_MAIN_COMMIT"
+    },
+    "prior_object_write_binding_contradiction": {
+      "class": "E_P",
+      "disposition": "CLOSED_BY_EXACT_REMOTE_OUTCOME_AND_FAIL_CLOSED_PUSH_BEHAVIOR",
+      "not_silently_removed": true
+    }
+  },
+  "candidate_repository_path": "artifacts/governance/repository_protection_step2_closure_v1.json",
+  "canonical_stage_b_reverification_obligation": {
+    "class": "P",
+    "expected_authority_ruleset": {
+      "enforcement": "active",
+      "id": 20913445,
+      "name": "MES Main Integration Authority V1",
+      "owner_actor_id": 108668824,
+      "owner_bypass_mode": "always",
+      "rest_update_parameter_limitation_preserved": true,
+      "rule_types": [
+        "update"
+      ],
+      "updated_at": "2026-08-17T00:44:34.845+07:00"
+    },
+    "expected_integrity_ruleset": {
+      "bypass_actors": [],
+      "enforcement": "active",
+      "id": 20913443,
+      "must_cover_default_branch": true,
+      "name": "MES Main Integrity V1",
+      "rule_types": [
+        "deletion",
+        "non_fast_forward",
+        "required_linear_history"
+      ],
+      "updated_at": "2026-08-17T00:44:29.726+07:00"
+    },
+    "failure_behavior": "FAIL_CLOSED_NO_CANONICAL_STAGE_B_EXECUTION",
+    "freshness": "PER_EXECUTION",
+    "required_before_every_canonical_stage_b_execution": true,
+    "required_reobservations": [
+      "INTEGRITY_RULESET_ID_NAME_ENFORCEMENT_UPDATED_AT_BYPASS_RULE_TYPES_AND_MAIN_COVERAGE",
+      "AUTHORITY_RULESET_ID_NAME_ENFORCEMENT_UPDATED_AT_OWNER_BYPASS_AND_RULE_TYPE",
+      "EXPECTED_ACTIVE_RULES_ON_MAIN",
+      "CLOSURE_ARTIFACT_REMAINS_REACHABLE_FROM_CURRENT_MAIN_HISTORY"
+    ]
+  },
+  "class_coverage": {
+    "all_top_level_keys_covered": true,
+    "class": "P_EVIDENCE_POLICY",
+    "coverage": {
+      "ac35_integration_history_disposition": "MIXED_EXPLICITLY_LABELED",
+      "candidate_repository_path": "P_EXPECTED_REPOSITORY_BINDING",
+      "canonical_stage_b_reverification_obligation": "P",
+      "class_coverage": "P_EVIDENCE_POLICY",
+      "classic_branch_protection_observation": "F",
+      "closure_checks": "MIXED_EXPLICITLY_LABELED",
+      "effectiveness_guard": "P",
+      "evidence_class_boundary": "P_EVIDENCE_POLICY",
+      "evidence_class_notes": "E_LIMITATIONS",
+      "evidence_provenance_contract": "P",
+      "expected_parent_commit": "F_EXPECTED_BASELINE_OBSERVED_AT_PREPARATION",
+      "expected_signature_state": "P_EXPECTED_UNSIGNED_COMMIT_POLICY",
+      "final_verification_subject": "F",
+      "generated_at_utc": "P_DECLARED_WALL_CLOCK_WITH_CONTEMPORANEOUS_PROVENANCE",
+      "historical_state_at_creation_guard": "P",
+      "record_phase": "P_GOVERNANCE_STATE_AT_CREATION",
+      "record_status": "P_WITH_F_SUBFIELDS",
+      "recursion_termination": "P",
+      "schema": "P_SCHEMA_IDENTIFIER",
+      "self_reference_guard": "P",
+      "source_bindings": "F",
+      "verified_protection_scope": "E_P_DERIVED_FROM_F"
+    },
+    "top_level_key_count": 22
+  },
+  "classic_branch_protection_observation": {
+    "class": "F",
+    "http_status": 404,
+    "scope_guardrail": "Do not generalize this into absence of Repository Rulesets.",
+    "value": "NO_CLASSIC_BRANCH_PROTECTION_OBSERVED"
+  },
+  "closure_checks": {
+    "auditor_closure_design_disposition": {
+      "class": "E_P",
+      "required_design_changes": [
+        "RC-1",
+        "RC-2",
+        "RC-3"
+      ],
+      "review_round_id": "AUDIT_STEP2_CLOSURE_RECORD_DESIGN",
+      "source": "OWNER_SUPPLIED_INDEPENDENT_AUDITOR_VERDICT",
+      "source_hash_status": "NO_DURABLE_SOURCE_HASH_AVAILABLE",
+      "value": "GO_FOR_STEP2_CLOSURE_RECORD_IMPLEMENTATION_BINDING_PREPARATION"
+    },
+    "auditor_final_execution_evidence_disposition": {
+      "class": "E_P",
+      "review_round_id": "AUDIT_FINAL_VERIFICATION_RECORD_INTEGRATION_AC35FCD0",
+      "source": "OWNER_SUPPLIED_INDEPENDENT_AUDITOR_VERDICT",
+      "source_hash_status": "NO_DURABLE_SOURCE_HASH_AVAILABLE",
+      "value": "FINAL_EXECUTION_EVIDENCE_ACCEPTED"
+    },
+    "auditor_prior_binding_return_disposition": {
+      "class": "E_P",
+      "required_changes": [
+        "MJ-A_CLASS_COVERAGE",
+        "MJ-B_STANDARD_LIMITATIONS",
+        "MJ-C_RECURSION_REDERIVABILITY_QUALIFICATION"
+      ],
+      "review_round_id": "AUDIT_STEP2_CLOSURE_RECORD_EXACT_BINDING_CB8B4E2E",
+      "source": "OWNER_SUPPLIED_INDEPENDENT_AUDITOR_VERDICT",
+      "source_hash_status": "NO_DURABLE_SOURCE_HASH_AVAILABLE",
+      "value": "RETURN_GO_WITH_REQUIRED_CHANGES_3_MAJORS_REBIND_REQUIRED"
+    },
+    "class": "MIXED_EXPLICITLY_LABELED",
+    "logical_check_18_AUDITOR_FINDINGS_RECORDED": {
+      "basis": "RPV1-F01_THROUGH_RPV1-F16_DERIVED_FROM_EXACT_AC35_RECORD_BLOB_ON_DEFAULT_BRANCH",
+      "class": "F",
+      "value": true
+    },
+    "logical_check_19_FINAL_VERIFICATION_RECORD_EXACT_INTEGRATION_VERIFIED": {
+      "basis": "EXACT_REMOTE_COMMIT_TREE_BLOB_PATH_PARENT_AND_BYTE_IDENTITY_REDERIVED",
+      "class": "F",
+      "value": true
+    }
+  },
+  "effectiveness_guard": {
+    "class": "P",
+    "conditional_terminal_state_if_all_external_conditions_succeed": {
+      "BRANCH_PROTECTION_VERIFIED": true,
+      "STEP2_COMPLETE": true
+    },
+    "effective_status": "PENDING_EXTERNAL_POST_INTEGRATION_AUDITOR_ACCEPTANCE",
+    "external_auditor_acceptance_class": "E_P",
+    "external_auditor_acceptance_repository_authenticated": false,
+    "external_auditor_acceptance_repository_enforced": false,
+    "external_conditions": [
+      "EXACT_AUDITOR_REVIEWED_CLOSURE_COMMIT_INTEGRATED_TO_REFS_HEADS_MAIN",
+      "POST_INTEGRATION_MACHINE_VERIFICATION_REDERIVES_EXACT_COMMIT_TREE_BLOB_PATH_AND_ANCESTRY",
+      "POST_INTEGRATION_MACHINE_VERIFICATION_CONFIRMS_EXPECTED_PROTECTION_CONFIGURATION_UNCHANGED",
+      "INDEPENDENT_AUDITOR_ACCEPTS_CLOSURE_EXECUTION_EVIDENCE"
+    ],
+    "fail_closed": true,
+    "repository_bytes_alone_establish_operational_effectiveness": false,
+    "repository_bytes_operational_branch_protection_verified": false,
+    "repository_bytes_operational_step2_complete": false
+  },
+  "evidence_class_boundary": {
+    "E": "owner/process declaration not independently established by captured machine evidence",
+    "E_DERIVED": "reasoned derivation from machine facts; not F",
+    "E_P": "independent Auditor/model evaluation or policy disposition; not F",
+    "F": "machine/repository observation or exact captured bytes",
+    "P": "governance policy/state marker",
+    "class": "P_EVIDENCE_POLICY",
+    "no_e_or_e_p_promoted_to_f": true
+  },
+  "evidence_class_notes": {
+    "class": "E",
+    "external_auditor_condition_guard": "Independent Auditor acceptance remains E/P; it is required by governance but is neither authenticated nor mechanically enforced by repository state.",
+    "known_limitations": [
+      "LLM_REVIEW_BINDING_NOT_MACHINE_VERIFIABLE",
+      "INDEPENDENT_REVIEW_NOT_REPOSITORY_ENFORCED",
+      "AUDITOR_SELF_GOVERNANCE_INDEPENDENCE_NOT_ESTABLISHED",
+      "NON_BYPASS_ACTOR_UPDATE_ENFORCEMENT_UNTESTABLE_SINGLE_ACTOR_REPOSITORY",
+      "EXACT_REVIEWED_SHA_NOT_REPOSITORY_ENFORCED",
+      "RULESET_CONFIGURATION_MUTABLE_BY_REPOSITORY_ADMIN",
+      "CLOSURE_RECORD_INTEGRATION_NOT_SELF_VERIFIED",
+      "AUTHORITY_REST_GET_OMITS_UPDATE_RULE_PARAMETERS",
+      "AUTHORITY_STORED_VERSUS_DEFAULTED_UPDATE_PARAMETER_NOT_DISCRIMINABLE_BY_AVAILABLE_EVIDENCE",
+      "EXTERNAL_AUDITOR_ACCEPTANCE_NOT_AUTHENTICATED_BY_REPOSITORY",
+      "EXTERNAL_AUDITOR_ACCEPTANCE_NOT_COMMITTED_TO_REPOSITORY"
+    ]
+  },
+  "evidence_provenance_contract": {
+    "binding_package_must_include_EVIDENCE_PROVENANCE_json": true,
+    "class": "P",
+    "every_external_evidence_command_records_argv_scope_utc_start_end_exit_stdout_stderr_hash_tool_version": true,
+    "github_api_calls_record_authenticated_actor": true,
+    "no_missing_historical_provenance_is_reconstructed_as_F": true,
+    "raw_git_object_bytes_are_primary_object_evidence": true
+  },
+  "expected_parent_commit": "ac35fcd019184c1c80a97213dde06d23166588b9",
+  "expected_signature_state": "UNSIGNED",
+  "final_verification_subject": {
+    "class": "F",
+    "commit": "ac35fcd019184c1c80a97213dde06d23166588b9",
+    "parent": "06725a103911ea397a70bb00de4f948481964879",
+    "record_blob": "10f35676bc495a8c6156d16156d3e8d34771c662",
+    "record_path": "artifacts/governance/repository_protection_post_activation_verification_v1.json",
+    "record_sha256": "2DA7810D422F159FB04EC5A112055A2F35F42F8027982AB57143CF3D5B88BDBD",
+    "remote_exact_integration_result": {
+      "class": "F",
+      "value": true
+    },
+    "tree": "5a1e4518e931f73e182ff11427230f3432a9e081"
+  },
+  "generated_at_utc": "2026-08-18T07:24:53.127Z",
+  "historical_state_at_creation_guard": {
+    "ac35_branch_protection_verified_false_is_historical_state_at_creation": true,
+    "ac35_record_phase_candidate_is_historical_state_at_creation": true,
+    "ac35_step2_complete_false_is_historical_state_at_creation": true,
+    "class": "P",
+    "immutable_ac35_bytes_are_not_reinterpreted_or_backfilled": true
+  },
+  "record_phase": "PRE_INTEGRATION_STEP2_CLOSURE_CANDIDATE",
+  "record_status": {
+    "branch_protection_verified_operational": false,
+    "candidate_bytes_operationally_effective": false,
+    "class": "P",
+    "effective_status": "PENDING_EXTERNAL_POST_INTEGRATION_AUDITOR_ACCEPTANCE",
+    "invalidated_prior_binding": {
+      "candidate_commit": "cb8b4e2e7a1b1395244a24a6e2169d2dc4ea3a7e",
+      "candidate_record_sha256": "0E0D7C19ABB85B2AE6C454C80B0D45ED4AD66FFDD9E7E44816FC738316DF518A",
+      "class": "E_P",
+      "disposition": "RETURN_GO_WITH_REQUIRED_CHANGES_REBIND_REQUIRED"
+    },
+    "local_worktree_observation": {
+      "class": "F",
+      "governed_path_modification_observed": false,
+      "status_entries": [
+        "?? .DS_Store",
+        "?? src/.DS_Store"
+      ],
+      "value": "UNTRACKED_MACOS_DS_STORE_ONLY"
+    },
+    "step2_complete_operational": false
+  },
+  "recursion_termination": {
+    "additional_committed_closure_record_required": false,
+    "class": "P",
+    "invalid_if_future_terminal_acceptance_requires_an_unqualified_claim_of_permanent_rederivability_for_time_bound_control_plane_state": true,
+    "justification": {
+      "closure_ancestry_rederivable_from_repository": true,
+      "closure_blob_identity_rederivable_from_repository": true,
+      "closure_commit_identity_rederivable_from_repository": true,
+      "closure_path_identity_rederivable_from_repository": true,
+      "closure_tree_identity_rederivable_from_repository": true,
+      "contemporaneous_external_execution_package_and_auditor_acceptance_are_time_bound_E_P_support_for_terminal_closure": true,
+      "future_operational_stage_b_does_not_rely_on_historical_terminal_true_without_fresh_reverification": true,
+      "if_ruleset_updated_at_changes_later_historical_unchanged_at_integration_is_not_rederivable_from_repository_alone": true,
+      "protection_configuration_comparable_to_durably_recorded_ruleset_identity": true,
+      "protection_unchanged_at_integration_rederivable_while_ruleset_updated_at_matches_frozen_identity": true
+    },
+    "terminal_boundary": "EXTERNAL_POST_INTEGRATION_MACHINE_VERIFICATION_PLUS_INDEPENDENT_AUDITOR_ACCEPTANCE",
+    "terminal_rederivability_qualification": "Repository content identity remains permanently re-derivable. Historical unchanged-protection-at-integration is re-derivable from repository control-plane state only while ruleset identity and updated_at remain frozen; after a legitimate later ruleset change, that historical time-bound fact requires the contemporaneous external execution package / E-P attestation and must not be promoted to F from current repository state alone."
+  },
+  "schema": "REPOSITORY_PROTECTION_STEP2_CLOSURE_V1",
+  "self_reference_guard": {
+    "candidate_repository_path": "artifacts/governance/repository_protection_step2_closure_v1.json",
+    "class": "P",
+    "closure_record_does_not_embed_its_own_candidate_commit_sha": true,
+    "expected_parent_commit": "ac35fcd019184c1c80a97213dde06d23166588b9",
+    "future_binding_must_use_exact_reviewed_record_sha256_and_git_blob": true,
+    "no_closure_self_integration_check_is_added_to_this_record": true
+  },
+  "source_bindings": {
+    "architecture": {
+      "git_blob": "6fe1316476edcf5aa3d483368bd12df7f4a04f0d",
+      "path": "docs/governance/REPOSITORY_PROTECTION_ARCHITECTURE_V1.md",
+      "sha256": "4F080EF5663CAAF75D46105CF5DA5956A8BA70DB2718B6A796C64287729EC274"
+    },
+    "authority_ruleset": {
+      "id": 20913445,
+      "updated_at": "2026-08-17T00:44:34.845+07:00"
+    },
+    "canary": {
+      "sha": "0853a67fc753160cbb3f718bad7ceec4a1c491e1"
+    },
+    "class": "F",
+    "final_verification_record": {
+      "commit": "ac35fcd019184c1c80a97213dde06d23166588b9",
+      "git_blob": "10f35676bc495a8c6156d16156d3e8d34771c662",
+      "path": "artifacts/governance/repository_protection_post_activation_verification_v1.json",
+      "sha256": "2DA7810D422F159FB04EC5A112055A2F35F42F8027982AB57143CF3D5B88BDBD"
+    },
+    "integrity_ruleset": {
+      "id": 20913443,
+      "updated_at": "2026-08-17T00:44:29.726+07:00"
+    },
+    "ruleset_spec": {
+      "git_blob": "01d4ae1efba805dde8ad22cb1b99df3a919e1ff1",
+      "path": "docs/governance/REPOSITORY_PROTECTION_RULESETS_V1.json",
+      "sha256": "814235FE483B7FECE5050AAFB9EDBBA8C1F1FDD89ED1A060AFB8C33FD8DBB165"
+    },
+    "tree001": {
+      "authorization_commit": "309bb1af5e6c4cc7098cefc2ae6ea7b8d239fd3e",
+      "sha": "f211e5458739af9033cad03c2e6026f6c3e657a9"
+    }
+  },
+  "verified_protection_scope": {
+    "class": "E_P_DERIVED_FROM_F",
+    "mapping": {
+      "canary_deletion_rejection_functionally_verified": true,
+      "canary_merge_commit_rejection_under_required_linear_history_verified": true,
+      "canary_non_fast_forward_rejection_functionally_verified": true,
+      "integrity_bypass_actors_empty": true,
+      "main_and_canary_same_integrity_ruleset_identity": true,
+      "main_remote_append_only_requirement_closed": true
+    },
+    "residual_limitations": [
+      "NO_MANDATORY_PR_OR_REVIEW_ENFORCEMENT",
+      "SQUASH_AND_REBASE_CAN_REMAIN_LINEAR",
+      "RULESET_CONTROL_PLANE_IS_ADMIN_MUTABLE",
+      "RULESET_SELF_PROTECTION_NOT_ESTABLISHED",
+      "NON_BYPASS_ACTOR_UPDATE_TEST_UNTESTABLE_SINGLE_ACTOR_REPOSITORY",
+      "AUTHORITY_UPDATE_RULE_DOES_NOT_RESTRAIN_OWNER_DUE_ALWAYS_BYPASS",
+      "CLASSIC_404_MUST_NOT_BE_GENERALIZED_TO_ABSENCE_OF_REPOSITORY_RULESETS"
+    ],
+    "scope_identifier": "V1_2_MACHINE_VERIFIED_REMOTE_APPEND_ONLY_REQUIREMENT",
+    "scope_statement": "Remote main append-only property is established for the verified Integrity Ruleset configuration; this is not a claim that the repository is protected against every workflow or administrative risk.",
+    "verified_result": true
+  }
+}
