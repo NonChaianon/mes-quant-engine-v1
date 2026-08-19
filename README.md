@@ -1,10 +1,13 @@
 # MES Quant Engine V1
 
-สถานะ: **ARCHITECTURE v2.2 BASELINE ACCEPTED / A6 STAGE B IN PROGRESS / LIVE DISABLED**
+สถานะ: **v2.2 HISTORICAL TEST 1 BASELINE / VNEXT TEST 2+ DESIGN CANDIDATE / LIVE DISABLED**
 
 ## Project status
 
-- **Architecture:** `MES_QUANT_TARGET_ARCHITECTURE_v2.2` — `BASELINE_ACCEPTED / DESIGN_CLOSED`
+- **Historical architecture:** `MES_QUANT_TARGET_ARCHITECTURE_v2.2` —
+  `TEST1 BASELINE_ACCEPTED / DESIGN_CLOSED`
+- **Current design candidate:** `MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT` —
+  `TEST2+ / RESEARCH_ONLY / EXECUTION AUTHORITY NONE`
 - **Current Plane:** Plane A — Research / Offline
 - **Current Stage:** `A6 — Target-Blind Redundancy`
 - **Current Milestone:** `STAGE_B_REDUNDANCY_V1.2`
@@ -14,7 +17,9 @@
 
 เอกสารภาพรวมที่ใช้ติดตามโครงการ:
 
-- Architecture — `docs/architecture/MES_QUANT_TARGET_ARCHITECTURE_v2.2.md`
+- Architecture index — `docs/architecture/README.md`
+- Test 2+ design candidate — `docs/architecture/MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT.md`
+- Historical Test 1 baseline — `docs/architecture/MES_QUANT_TARGET_ARCHITECTURE_v2.2.md`
 - Progress — `docs/architecture/ARCHITECTURE_PROGRESS.md`
 - Architecture history — `docs/architecture/ARCHITECTURE_CHANGELOG.md`
 - Current detailed Stage-B authority — `docs/STAGE_B_REDUNDANCY_CONTRACT.md`
@@ -30,7 +35,7 @@ Cells 0–13 แล้ว จุดประสงค์ของการย้
 ## นักพัฒนาควรเริ่มที่ไหน
 
 1. อ่าน `START_HERE_TH.md`
-2. อ่าน Architecture ที่ `docs/architecture/MES_QUANT_TARGET_ARCHITECTURE_v2.2.md`
+2. อ่าน Architecture index ที่ `docs/architecture/README.md`
 3. อ่าน progress ปัจจุบันที่ `docs/architecture/ARCHITECTURE_PROGRESS.md`
 4. อ่านสถานะ migration ที่ `docs/MIGRATION_STATUS.md`
 5. ตรวจสัญญา feature ที่ `docs/CELL14_FEATURE_CONTRACT.md`

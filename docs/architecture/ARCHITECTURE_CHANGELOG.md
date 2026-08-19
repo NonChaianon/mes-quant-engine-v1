@@ -200,3 +200,37 @@ See:
 - `MES_QUANT_TARGET_ARCHITECTURE_v2.2.md` — where the system is going
 - `ARCHITECTURE_PROGRESS.md` — where the project is now
 - stage contracts such as `../STAGE_B_REDUNDANCY_CONTRACT.md` — how the active stage is governed
+
+---
+
+## VNext — Test 2+ research architecture design candidate
+
+VNext was created after the bounded Sprint 1 LR001/TREE001 research record. It does not
+rewrite that history and does not change v2.2's status as the accepted, design-closed Test 1
+baseline.
+
+The current design candidate adds:
+
+- four explicit research pillars: Market Dynamics/Physics, Statistics/ML,
+  Economics/Regime, and Microstructure/Flow;
+- an exact-decision-time constitutional data rule and explicit PIT/vintage semantics;
+- Economics/Regime as numerical point-in-time context only;
+- Microstructure/Flow as exchange-observed numerical state for short-horizon alpha quality
+  and execution, not a mandatory equal-weight vote;
+- hypothesis-first microstructure research and raw feature-fishing controls;
+- a controlled six-family ML challenger stack with ensemble/calibration support;
+- champion–challenger and multiple-testing/search-budget controls;
+- LangGraph as research orchestration only, including an Alpha-Killer/Skeptic role;
+- a repeatable edge-factory model spanning information, modeling, structural, execution,
+  and risk edges;
+- explicit Test 1 historical-baseline versus Test 2 design-candidate separation.
+
+Current candidate:
+
+```text
+MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT
+STATUS = CURRENT_DESIGN_CANDIDATE / TEST2+ / RESEARCH_ONLY
+EXECUTION AUTHORITY = NONE
+```
+
+See `README.md` in this directory for the current pointer and authority map.
