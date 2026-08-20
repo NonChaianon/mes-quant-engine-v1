@@ -5,88 +5,27 @@ from typing import Any, Iterable
 
 from .manifest_guard import (
     ManifestGuardError,
+    ManifestGuardResult,
     validate_predecessor_manifest,
 )
 
 
 class GovernanceSentinelError(RuntimeError):
-    """Raised when governance interception cannot complete safely."""
+    """Raised when governance safety evaluation cannot complete safely."""
 
 
 @dataclass(frozen=True)
-class GovernanceSentinelResult:
-    """Deterministic pre-classification governance interception."""
+class GovernanceFacts:
+    """Immutable governance evidence for the classification decision layer."""
 
-    intercepted: bool
-    ordinary_classifier_allowed: bool
-    detected_classes: tuple[str, ...]
-    reasons: tuple[str, ...]
+    bootstrap_surface_hit: bool
+    manifest_weakening_detected: bool
+    weakening_details: tuple[str, ...]
 
 
-_CLASS_ORDER = (
-    "GOVERNANCE_AMENDMENT",
-    "CROSS_BOUNDARY",
+_BOOTSTRAP_GOVERNANCE_IMPLEMENTATION_PREFIX = (
+    b"src/mes_quant/governance/"
 )
-
-_BOOTSTRAP_GOVERNANCE_IMPLEMENTATION_PREFIXES = (
-    b"src/mes_quant/governance/",
-)
-
-
-def _manifest_ascii_values(
-    manifest: dict[str, Any],
-    field: str,
-) -> tuple[bytes, ...]:
-    value = manifest.get(field)
-
-    if not isinstance(value, list):
-        raise GovernanceSentinelError(
-            "invalid predecessor manifest "
-            f"field: {field}"
-        )
-
-    result: list[bytes] = []
-
-    for entry in value:
-        if (
-            not isinstance(entry, str)
-            or not entry
-        ):
-            raise GovernanceSentinelError(
-                "invalid predecessor manifest "
-                f"entry: {field}"
-            )
-
-        try:
-            encoded = entry.encode(
-                "ascii"
-            )
-        except UnicodeEncodeError as exc:
-            raise GovernanceSentinelError(
-                "non-ASCII predecessor manifest "
-                f"entry: {field}"
-            ) from exc
-
-        result.append(encoded)
-
-    return tuple(result)
-
-
-def _matches_exact(
-    path: bytes,
-    values: tuple[bytes, ...],
-) -> bool:
-    return path in values
-
-
-def _matches_prefix(
-    path: bytes,
-    values: tuple[bytes, ...],
-) -> bool:
-    return any(
-        path.startswith(prefix)
-        for prefix in values
-    )
 
 
 def _validated_paths(
@@ -122,14 +61,16 @@ def _validated_paths(
     )
 
 
-def evaluate_governance_paths(
+def evaluate_governance_facts(
     changed_paths: Iterable[bytes],
     predecessor_manifest: dict[str, Any],
-) -> GovernanceSentinelResult:
-    """Intercept governance subjects before ordinary classification.
+    manifest_guard_result: ManifestGuardResult | None,
+) -> GovernanceFacts:
+    """Validate authority and produce facts without owning class routing.
 
-    Predecessor authority is validated before any path decision.
-    Candidate-controlled manifest bytes are not inputs to this function.
+    Predecessor authority is validated before facts are derived. Candidate
+    manifest bytes are represented only by a trusted manifest-guard result.
+    Ordinary classification is mandatory and is not controlled here.
     """
 
     try:
@@ -146,116 +87,37 @@ def evaluate_governance_paths(
         changed_paths
     )
 
-    governance_exact = (
-        _manifest_ascii_values(
-            predecessor_manifest,
-            "governance_control_exact_paths",
+    if (
+        manifest_guard_result is not None
+        and not isinstance(
+            manifest_guard_result,
+            ManifestGuardResult,
         )
+    ):
+        raise GovernanceSentinelError(
+            "manifest guard result must use ManifestGuardResult"
+        )
+
+    bootstrap_surface_hit = any(
+        path.startswith(
+            _BOOTSTRAP_GOVERNANCE_IMPLEMENTATION_PREFIX
+        )
+        for path in paths
     )
 
-    governance_prefixes = (
-        _manifest_ascii_values(
-            predecessor_manifest,
-            "governance_control_prefixes",
-        )
+    weakening_detected = (
+        manifest_guard_result is not None
+        and manifest_guard_result.weakening_detected
     )
 
-    byte_policy_exact = (
-        _manifest_ascii_values(
-            predecessor_manifest,
-            "byte_policy_exact_paths",
-        )
-    )
-
-    ci_prefixes = (
-        _manifest_ascii_values(
-            predecessor_manifest,
-            "ci_control_prefixes",
-        )
-    )
-
-    classes: set[str] = set()
-    reasons: set[str] = set()
-
-    for path in paths:
-        governance_control = (
-            _matches_exact(
-                path,
-                governance_exact,
-            )
-            or _matches_prefix(
-                path,
-                governance_prefixes,
-            )
-            or _matches_exact(
-                path,
-                byte_policy_exact,
-            )
-        )
-
-        ci_control = _matches_prefix(
-            path,
-            ci_prefixes,
-        )
-
-        bootstrap_implementation = (
-            _matches_prefix(
-                path,
-                _BOOTSTRAP_GOVERNANCE_IMPLEMENTATION_PREFIXES,
-            )
-        )
-
-        if governance_control:
-            classes.add(
-                "GOVERNANCE_AMENDMENT"
-            )
-
-            reasons.add(
-                "governance-control:"
-                + path.hex()
-            )
-
-        if ci_control:
-            classes.update(
-                {
-                    "GOVERNANCE_AMENDMENT",
-                    "CROSS_BOUNDARY",
-                }
-            )
-
-            reasons.add(
-                "ci-control:"
-                + path.hex()
-            )
-
-        if bootstrap_implementation:
-            classes.add(
-                "GOVERNANCE_AMENDMENT"
-            )
-
-            reasons.add(
-                "bootstrap-governance-implementation:"
-                + path.hex()
-            )
-
-    ordered_classes = tuple(
-        name
-        for name in _CLASS_ORDER
-        if name in classes
-    )
-
-    intercepted = (
-        "GOVERNANCE_AMENDMENT"
-        in classes
-    )
-
-    return GovernanceSentinelResult(
-        intercepted=intercepted,
-        ordinary_classifier_allowed=(
-            not intercepted
+    return GovernanceFacts(
+        bootstrap_surface_hit=bootstrap_surface_hit,
+        manifest_weakening_detected=(
+            weakening_detected
         ),
-        detected_classes=ordered_classes,
-        reasons=tuple(
-            sorted(reasons)
+        weakening_details=(
+            manifest_guard_result.reasons
+            if manifest_guard_result is not None
+            else ()
         ),
     )

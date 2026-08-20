@@ -1,24 +1,32 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from mes_quant.governance.classification.frozen_inputs import (
+    load_frozen_inputs,
+)
+from mes_quant.governance.classification.git_delta import (
+    canonical_git_tree_delta,
+)
+from mes_quant.governance.classification.relation import (
+    validate_candidate_relation,
+)
 from mes_quant.governance.sentinel.orchestrator import (
     GovernanceSentinelOrchestrationError,
-    run_governance_sentinel,
+    evaluate_governance_candidate,
 )
 from tests.governance._frozen_fixture import (
     FROZEN_INPUT_PATHS,
     read_frozen_bytes,
 )
-
 
 MANIFEST_PATH = Path(
     "configs/governance/PROTECTED_SURFACE_MANIFEST_V1.json"
@@ -111,6 +119,47 @@ class CandidateRepo:
         self.temp.cleanup()
 
 
+def evaluate_candidate(
+    fixture: CandidateRepo,
+    head: str,
+):
+    relation = validate_candidate_relation(
+        fixture.repo,
+        base_commit_sha1=fixture.base,
+        head_commit_sha1=head,
+    )
+    frozen = load_frozen_inputs(
+        fixture.repo,
+        authority_commit_sha1=(
+            relation.base_commit_sha1
+        ),
+    )
+    delta = canonical_git_tree_delta(
+        fixture.repo,
+        base_commit_sha1=(
+            relation.base_commit_sha1
+        ),
+        head_commit_sha1=(
+            relation.head_commit_sha1
+        ),
+        max_tree_delta_entries=(
+            frozen.analyzer_limits[
+                "max_tree_delta_entries"
+            ]
+        ),
+    )
+    return evaluate_governance_candidate(
+        fixture.repo,
+        canonical_tree_delta=delta,
+        predecessor_manifest=(
+            frozen.protected_surface_manifest
+        ),
+        analyzer_limits=(
+            frozen.analyzer_limits
+        ),
+    )
+
+
 class GovernanceSentinelOrchestratorTests(unittest.TestCase):
     def make_repo(self) -> CandidateRepo:
         fixture = CandidateRepo()
@@ -134,25 +183,19 @@ class GovernanceSentinelOrchestratorTests(unittest.TestCase):
 
         head = fixture.commit("ordinary candidate")
 
-        result = run_governance_sentinel(
-            str(fixture.repo),
-            authority_commit_sha1=fixture.base,
-            base_commit_sha1=fixture.base,
-            head_commit_sha1=head,
+        result = evaluate_candidate(
+            fixture,
+            head,
         )
 
         self.assertFalse(
-            result.sentinel_result.intercepted
+            result.bootstrap_surface_hit
         )
-        self.assertTrue(
-            result.sentinel_result
-            .ordinary_classifier_allowed
-        )
-        self.assertIsNone(
-            result.manifest_guard_result
+        self.assertFalse(
+            result.manifest_weakening_detected
         )
 
-    def test_governance_spec_change_is_intercepted(
+    def test_governance_spec_change_is_left_to_path_classification(
         self,
     ) -> None:
         fixture = self.make_repo()
@@ -172,23 +215,16 @@ class GovernanceSentinelOrchestratorTests(unittest.TestCase):
             "candidate governance change"
         )
 
-        result = run_governance_sentinel(
-            str(fixture.repo),
-            authority_commit_sha1=fixture.base,
-            base_commit_sha1=fixture.base,
-            head_commit_sha1=head,
+        result = evaluate_candidate(
+            fixture,
+            head,
         )
 
-        self.assertTrue(
-            result.sentinel_result.intercepted
+        self.assertFalse(
+            result.bootstrap_surface_hit
         )
         self.assertFalse(
-            result.sentinel_result
-            .ordinary_classifier_allowed
-        )
-        self.assertIn(
-            "GOVERNANCE_AMENDMENT",
-            result.sentinel_result.detected_classes,
+            result.manifest_weakening_detected
         )
 
     def test_manifest_shrink_is_detected_from_candidate_blob(
@@ -225,31 +261,19 @@ class GovernanceSentinelOrchestratorTests(unittest.TestCase):
             "candidate manifest shrink"
         )
 
-        result = run_governance_sentinel(
-            str(fixture.repo),
-            authority_commit_sha1=fixture.base,
-            base_commit_sha1=fixture.base,
-            head_commit_sha1=head,
+        result = evaluate_candidate(
+            fixture,
+            head,
         )
 
         self.assertTrue(
-            result.sentinel_result.intercepted
-        )
-        self.assertIsNotNone(
-            result.manifest_guard_result
-        )
-
-        guard = result.manifest_guard_result
-        assert guard is not None
-
-        self.assertTrue(
-            guard.weakening_detected
+            result.manifest_weakening_detected
         )
         self.assertIn(
             "removed:governance_control_exact_paths:"
             "docs/governance/"
             "CHANGE_CLASSIFICATION_AND_MERGE_GATE_SPEC_V1.md",
-            guard.reasons,
+            result.weakening_details,
         )
 
     def test_malformed_candidate_manifest_fails_closed(
@@ -267,11 +291,9 @@ class GovernanceSentinelOrchestratorTests(unittest.TestCase):
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
     def test_deleted_candidate_manifest_fails_closed(
@@ -288,14 +310,12 @@ class GovernanceSentinelOrchestratorTests(unittest.TestCase):
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
-    def test_authority_commit_must_equal_candidate_base(
+    def test_invalid_predecessor_authority_fails_closed(
         self,
     ) -> None:
         fixture = self.make_repo()
@@ -314,14 +334,48 @@ class GovernanceSentinelOrchestratorTests(unittest.TestCase):
             "ordinary candidate"
         )
 
+        relation = validate_candidate_relation(
+            fixture.repo,
+            base_commit_sha1=fixture.base,
+            head_commit_sha1=head,
+        )
+        frozen = load_frozen_inputs(
+            fixture.repo,
+            authority_commit_sha1=fixture.base,
+        )
+        delta = canonical_git_tree_delta(
+            fixture.repo,
+            base_commit_sha1=(
+                relation.base_commit_sha1
+            ),
+            head_commit_sha1=(
+                relation.head_commit_sha1
+            ),
+            max_tree_delta_entries=(
+                frozen.analyzer_limits[
+                    "max_tree_delta_entries"
+                ]
+            ),
+        )
+        invalid_manifest = dict(
+            frozen.protected_surface_manifest
+        )
+        invalid_manifest["schema"] = (
+            "UNTRUSTED_SCHEMA"
+        )
+
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=head,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_governance_candidate(
+                fixture.repo,
+                canonical_tree_delta=delta,
+                predecessor_manifest=(
+                    invalid_manifest
+                ),
+                analyzer_limits=(
+                    frozen.analyzer_limits
+                ),
             )
 
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -22,6 +22,13 @@ from mes_quant.governance.classification.reference_analysis import (
 from mes_quant.governance.classification.reference_graph import (
     BidirectionalGraphAnalysis,
     ClosureSummary,
+)
+from mes_quant.governance.sentinel.sentinel import GovernanceFacts
+
+NO_GOVERNANCE_FACTS = GovernanceFacts(
+    bootstrap_surface_hit=False,
+    manifest_weakening_detected=False,
+    weakening_details=(),
 )
 
 
@@ -81,6 +88,7 @@ class ClassificationDecisionTests(unittest.TestCase):
             _analysis(
                 forward_protected=True,
             ),
+            NO_GOVERNANCE_FACTS,
         )
 
         self.assertEqual(
@@ -109,6 +117,7 @@ class ClassificationDecisionTests(unittest.TestCase):
             _analysis(
                 reverse_protected=True,
             ),
+            NO_GOVERNANCE_FACTS,
         )
 
         self.assertIn(
@@ -135,6 +144,7 @@ class ClassificationDecisionTests(unittest.TestCase):
             _analysis(
                 unresolved_nodes=(unresolved,),
             ),
+            NO_GOVERNANCE_FACTS,
         )
 
         self.assertEqual(
@@ -159,6 +169,7 @@ class ClassificationDecisionTests(unittest.TestCase):
             _analysis(
                 unsupported_types=("yaml",),
             ),
+            NO_GOVERNANCE_FACTS,
         )
 
         self.assertEqual(
@@ -180,6 +191,88 @@ class ClassificationDecisionTests(unittest.TestCase):
                 reasons=("governance:00", "quant:00"),
             ),
             _analysis(),
+            NO_GOVERNANCE_FACTS,
+        )
+
+        self.assertEqual(
+            decision.detected_classes,
+            (
+                "GOVERNANCE_AMENDMENT",
+                "QUANT_ENGINE",
+            ),
+        )
+        self.assertEqual(
+            decision.required_gate_union,
+            (
+                "GOVERNANCE_BOOTSTRAP_GATE",
+                "MACHINE_CHECKS",
+                "INDEPENDENT_AUDITOR_REVIEW",
+                "OWNER_AUTHORIZATION",
+            ),
+        )
+    def test_ux_only_cannot_coexist_with_protected_class(self) -> None:
+        with self.assertRaisesRegex(
+            ClassificationDecisionError,
+            "UX_ONLY cannot coexist",
+        ):
+            derive_classification_decision(
+                PathClassification(
+                    detected_classes=(
+                        "UX_ONLY",
+                        "QUANT_ENGINE",
+                    ),
+                    reasons=("test",),
+                ),
+                _analysis(),
+                NO_GOVERNANCE_FACTS,
+            )
+
+    def test_incomplete_reference_scan_fails_closed(self) -> None:
+        with self.assertRaisesRegex(
+            ClassificationDecisionError,
+            "incomplete reference scan",
+        ):
+            derive_classification_decision(
+                PathClassification(
+                    detected_classes=("CROSS_BOUNDARY",),
+                    reasons=("test",),
+                ),
+                _analysis(
+                    scan_complete=False,
+                ),
+                NO_GOVERNANCE_FACTS,
+            )
+
+    def test_failed_reference_scan_fails_closed(self) -> None:
+        with self.assertRaisesRegex(
+            ClassificationDecisionError,
+            "failed reference scan",
+        ):
+            derive_classification_decision(
+                PathClassification(
+                    detected_classes=("CROSS_BOUNDARY",),
+                    reasons=("test",),
+                ),
+                _analysis(
+                    failed_reference_files=1,
+                ),
+                NO_GOVERNANCE_FACTS,
+            )
+
+    def test_bootstrap_fact_adds_governance_without_erasing_quant(
+        self,
+    ) -> None:
+        decision = derive_classification_decision(
+            PathClassification(
+                detected_classes=("QUANT_ENGINE",),
+                reasons=("quant:00",),
+            ),
+            _analysis(),
+            GovernanceFacts(
+                bootstrap_surface_hit=True,
+                manifest_weakening_detected=False,
+                weakening_details=(),
+            ),
         )
 
         self.assertEqual(
@@ -199,51 +292,26 @@ class ClassificationDecisionTests(unittest.TestCase):
             ),
         )
 
-    def test_ux_only_cannot_coexist_with_protected_class(self) -> None:
-        with self.assertRaisesRegex(
-            ClassificationDecisionError,
-            "UX_ONLY cannot coexist",
-        ):
-            derive_classification_decision(
-                PathClassification(
-                    detected_classes=(
-                        "UX_ONLY",
-                        "QUANT_ENGINE",
-                    ),
-                    reasons=("test",),
-                ),
-                _analysis(),
-            )
+    def test_manifest_weakening_fact_is_not_a_class_source(
+        self,
+    ) -> None:
+        decision = derive_classification_decision(
+            PathClassification(
+                detected_classes=("QUANT_ENGINE",),
+                reasons=("quant:00",),
+            ),
+            _analysis(),
+            GovernanceFacts(
+                bootstrap_surface_hit=False,
+                manifest_weakening_detected=True,
+                weakening_details=("removed:test",),
+            ),
+        )
 
-    def test_incomplete_reference_scan_fails_closed(self) -> None:
-        with self.assertRaisesRegex(
-            ClassificationDecisionError,
-            "incomplete reference scan",
-        ):
-            derive_classification_decision(
-                PathClassification(
-                    detected_classes=("CROSS_BOUNDARY",),
-                    reasons=("test",),
-                ),
-                _analysis(
-                    scan_complete=False,
-                ),
-            )
-
-    def test_failed_reference_scan_fails_closed(self) -> None:
-        with self.assertRaisesRegex(
-            ClassificationDecisionError,
-            "failed reference scan",
-        ):
-            derive_classification_decision(
-                PathClassification(
-                    detected_classes=("CROSS_BOUNDARY",),
-                    reasons=("test",),
-                ),
-                _analysis(
-                    failed_reference_files=1,
-                ),
-            )
+        self.assertEqual(
+            decision.detected_classes,
+            ("QUANT_ENGINE",),
+        )
 
 
 if __name__ == "__main__":

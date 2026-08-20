@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import copy
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -12,7 +12,7 @@ from mes_quant.governance.classification.frozen_inputs import load_frozen_inputs
 from mes_quant.governance.sentinel.manifest_guard import detect_manifest_weakening
 from mes_quant.governance.sentinel.sentinel import (
     GovernanceSentinelError,
-    evaluate_governance_paths,
+    evaluate_governance_facts,
 )
 from tests.governance._frozen_fixture import FrozenAuthorityFixture
 
@@ -35,9 +35,10 @@ class SentinelAdversarialTests(unittest.TestCase):
         manifest["schema"] = "UNTRUSTED_SCHEMA"
 
         with self.assertRaises(GovernanceSentinelError):
-            evaluate_governance_paths(
+            evaluate_governance_facts(
                 [b"src/mes_quant/features/builder.py"],
                 manifest,
+                None,
             )
 
     def test_changed_match_semantics_fails_closed(self) -> None:
@@ -45,9 +46,10 @@ class SentinelAdversarialTests(unittest.TestCase):
         manifest["match_semantics"]["unicode_normalization"] = "NFC"
 
         with self.assertRaises(GovernanceSentinelError):
-            evaluate_governance_paths(
+            evaluate_governance_facts(
                 [b"src/mes_quant/features/builder.py"],
                 manifest,
+                None,
             )
 
     def test_unknown_predecessor_field_fails_closed(self) -> None:
@@ -55,9 +57,10 @@ class SentinelAdversarialTests(unittest.TestCase):
         manifest["candidate_defined_authority"] = True
 
         with self.assertRaises(GovernanceSentinelError):
-            evaluate_governance_paths(
+            evaluate_governance_facts(
                 [b"src/mes_quant/features/builder.py"],
                 manifest,
+                None,
             )
 
     def test_duplicate_predecessor_entry_fails_closed(self) -> None:
@@ -66,9 +69,10 @@ class SentinelAdversarialTests(unittest.TestCase):
         manifest["governance_control_exact_paths"].append(value)
 
         with self.assertRaises(GovernanceSentinelError):
-            evaluate_governance_paths(
+            evaluate_governance_facts(
                 [b"src/mes_quant/features/builder.py"],
                 manifest,
+                None,
             )
 
     def test_adding_presentation_root_is_weakening(self) -> None:

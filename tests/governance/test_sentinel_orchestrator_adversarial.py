@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from mes_quant.governance.classification.relation import (
+    CandidateRelationError,
+)
 from mes_quant.governance.sentinel.orchestrator import (
     GovernanceSentinelOrchestrationError,
-    run_governance_sentinel,
 )
 from tests.governance.test_sentinel_orchestrator import (
-    CandidateRepo,
     MANIFEST_PATH,
+    CandidateRepo,
+    evaluate_candidate,
     git,
 )
 
@@ -43,11 +46,9 @@ class GovernanceSentinelOrchestratorAdversarialTests(
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
     def test_noncanonical_candidate_manifest_fails_closed(
@@ -80,11 +81,9 @@ class GovernanceSentinelOrchestratorAdversarialTests(
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
     def test_duplicate_candidate_json_key_fails_closed(
@@ -131,11 +130,9 @@ class GovernanceSentinelOrchestratorAdversarialTests(
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
     def test_candidate_manifest_blob_limit_fails_closed(
@@ -163,11 +160,9 @@ class GovernanceSentinelOrchestratorAdversarialTests(
         with self.assertRaises(
             GovernanceSentinelOrchestrationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
     def test_multi_commit_candidate_relation_fails_closed(
@@ -201,13 +196,11 @@ class GovernanceSentinelOrchestratorAdversarialTests(
         )
 
         with self.assertRaises(
-            GovernanceSentinelOrchestrationError
+            CandidateRelationError
         ):
-            run_governance_sentinel(
-                str(fixture.repo),
-                authority_commit_sha1=fixture.base,
-                base_commit_sha1=fixture.base,
-                head_commit_sha1=head,
+            evaluate_candidate(
+                fixture,
+                head,
             )
 
     def test_candidate_is_not_checked_out_or_executed(
@@ -274,11 +267,9 @@ class GovernanceSentinelOrchestratorAdversarialTests(
             marker.exists()
         )
 
-        result = run_governance_sentinel(
-            str(fixture.repo),
-            authority_commit_sha1=fixture.base,
-            base_commit_sha1=fixture.base,
-            head_commit_sha1=head,
+        result = evaluate_candidate(
+            fixture,
+            head,
         )
 
         after_head = git(
@@ -290,12 +281,7 @@ class GovernanceSentinelOrchestratorAdversarialTests(
         after_bytes = path.read_bytes()
 
         self.assertFalse(
-            result.sentinel_result.intercepted
-        )
-
-        self.assertTrue(
-            result.sentinel_result
-            .ordinary_classifier_allowed
+            result.bootstrap_surface_hit
         )
 
         self.assertEqual(

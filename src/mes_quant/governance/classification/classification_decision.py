@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+from ..sentinel.sentinel import GovernanceFacts
 from .path_classification import CLASS_ORDER, PathClassification
 from .reference_analysis import ReferenceSnapshotAnalysis
 
@@ -200,6 +201,7 @@ def validate_classification_decision(
 def derive_classification_decision(
     path_classification: PathClassification,
     reference_analysis: ReferenceSnapshotAnalysis,
+    governance_facts: GovernanceFacts,
 ) -> ClassificationDecision:
     """Combine deterministic path and capability/reference evidence.
 
@@ -217,8 +219,20 @@ def derive_classification_decision(
             "failed reference scan cannot produce a canonical decision"
         )
 
+    if not isinstance(
+        governance_facts,
+        GovernanceFacts,
+    ):
+        raise ClassificationDecisionError(
+            "governance_facts must use GovernanceFacts"
+        )
+
     classes = set(path_classification.detected_classes)
     reasons = set(path_classification.reasons)
+
+    if governance_facts.bootstrap_surface_hit:
+        classes.add("GOVERNANCE_AMENDMENT")
+        reasons.add("bootstrap-governance-surface")
 
     forward = reference_analysis.graph_analysis.forward
     reverse = reference_analysis.graph_analysis.reverse

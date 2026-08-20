@@ -7,23 +7,21 @@ from .manifest_guard import (
 )
 from .orchestrator import (
     GovernanceSentinelOrchestrationError,
-    GovernanceSentinelRun,
-    run_governance_sentinel,
+    evaluate_governance_candidate,
 )
 from .sentinel import (
+    GovernanceFacts,
     GovernanceSentinelError,
-    GovernanceSentinelResult,
-    evaluate_governance_paths,
+    evaluate_governance_facts,
 )
 
 __all__ = [
+    "GovernanceFacts",
     "GovernanceSentinelError",
     "GovernanceSentinelOrchestrationError",
-    "GovernanceSentinelResult",
-    "GovernanceSentinelRun",
     "ManifestGuardError",
     "ManifestGuardResult",
     "detect_manifest_weakening",
-    "evaluate_governance_paths",
-    "run_governance_sentinel",
+    "evaluate_governance_candidate",
+    "evaluate_governance_facts",
 ]

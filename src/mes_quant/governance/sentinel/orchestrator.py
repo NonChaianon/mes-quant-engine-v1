@@ -1,25 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from typing import Any
 
-from mes_quant.governance.classification.frozen_inputs import (
-    FrozenInputError,
-    load_frozen_inputs,
-)
 from mes_quant.governance.classification.git_delta import (
     DeltaEntry,
-    GitDeltaError,
-    canonical_git_tree_delta,
-)
-from mes_quant.governance.classification.relation import (
-    CandidateRelation,
-    CandidateRelationError,
-    validate_candidate_relation,
 )
 
 from .manifest_guard import (
@@ -28,24 +16,14 @@ from .manifest_guard import (
     detect_manifest_weakening,
 )
 from .sentinel import (
+    GovernanceFacts,
     GovernanceSentinelError,
-    GovernanceSentinelResult,
-    evaluate_governance_paths,
+    evaluate_governance_facts,
 )
 
 
 class GovernanceSentinelOrchestrationError(RuntimeError):
     """Raised when trusted Git-object Sentinel evaluation cannot complete."""
-
-
-@dataclass(frozen=True)
-class GovernanceSentinelRun:
-    """Deterministic Phase-A pre-classification Sentinel result."""
-
-    relation: CandidateRelation
-    canonical_tree_delta: tuple[DeltaEntry, ...]
-    sentinel_result: GovernanceSentinelResult
-    manifest_guard_result: ManifestGuardResult | None
 
 
 _MANIFEST_PATH = (
@@ -426,18 +404,19 @@ def _candidate_manifest(
     )
 
 
-def run_governance_sentinel(
+def evaluate_governance_candidate(
     repo: str | Path,
     *,
-    authority_commit_sha1: str,
-    base_commit_sha1: str,
-    head_commit_sha1: str,
-) -> GovernanceSentinelRun:
-    """Run pre-classification governance interception from Git objects.
+    canonical_tree_delta: tuple[DeltaEntry, ...],
+    predecessor_manifest: dict[str, Any],
+    analyzer_limits: dict[str, Any],
+) -> GovernanceFacts:
+    """Produce governance facts from prevalidated authoritative inputs.
 
     Hard boundaries:
 
-    - predecessor/base authority only;
+    - relation, delta, and predecessor authority are supplied by the
+      authoritative classifier flow;
     - candidate bytes read from immutable Git blobs;
     - no candidate checkout;
     - no candidate execution/import;
@@ -446,53 +425,13 @@ def run_governance_sentinel(
     - no merge authorization.
     """
 
-    if authority_commit_sha1 != base_commit_sha1:
-        raise GovernanceSentinelOrchestrationError(
-            "V1 predecessor authority must equal candidate base"
-        )
-
     try:
-        relation = validate_candidate_relation(
-            repo,
-            base_commit_sha1=base_commit_sha1,
-            head_commit_sha1=head_commit_sha1,
-        )
-
-        if (
-            relation.base_commit_sha1
-            != authority_commit_sha1
-        ):
-            raise GovernanceSentinelOrchestrationError(
-                "resolved candidate base disagrees "
-                "with predecessor authority"
-            )
-
-        frozen = load_frozen_inputs(
-            repo,
-            authority_commit_sha1=authority_commit_sha1,
-        )
-
-        max_tree_delta_entries = _positive_limit(
-            frozen.analyzer_limits,
-            "max_tree_delta_entries",
-        )
-
-        delta = canonical_git_tree_delta(
-            repo,
-            base_commit_sha1=relation.base_commit_sha1,
-            head_commit_sha1=relation.head_commit_sha1,
-            max_tree_delta_entries=max_tree_delta_entries,
-        )
-
-        paths = _changed_paths(delta)
-
-        sentinel_result = evaluate_governance_paths(
-            paths,
-            frozen.protected_surface_manifest,
+        paths = _changed_paths(
+            canonical_tree_delta
         )
 
         manifest_entry = _manifest_delta_entry(
-            delta
+            canonical_tree_delta
         )
 
         manifest_guard_result: (
@@ -503,22 +442,25 @@ def run_governance_sentinel(
             candidate_manifest = _candidate_manifest(
                 repo,
                 manifest_entry,
-                limits=frozen.analyzer_limits,
+                limits=analyzer_limits,
             )
 
             manifest_guard_result = (
                 detect_manifest_weakening(
-                    frozen.protected_surface_manifest,
+                    predecessor_manifest,
                     candidate_manifest,
                 )
             )
 
+        facts = evaluate_governance_facts(
+            paths,
+            predecessor_manifest,
+            manifest_guard_result,
+        )
+
     except GovernanceSentinelOrchestrationError:
         raise
     except (
-        CandidateRelationError,
-        FrozenInputError,
-        GitDeltaError,
         GovernanceSentinelError,
         ManifestGuardError,
     ) as exc:
@@ -526,9 +468,4 @@ def run_governance_sentinel(
             "governance Sentinel orchestration failed closed"
         ) from exc
 
-    return GovernanceSentinelRun(
-        relation=relation,
-        canonical_tree_delta=delta,
-        sentinel_result=sentinel_result,
-        manifest_guard_result=manifest_guard_result,
-    )
+    return facts

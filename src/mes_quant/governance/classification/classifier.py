@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from typing import Any, Iterable
 
+from ..sentinel.orchestrator import (
+    evaluate_governance_candidate,
+)
+from ..sentinel.sentinel import GovernanceFacts
 from .classification_decision import (
     ClassificationDecision,
     derive_classification_decision,
@@ -64,6 +68,7 @@ class ClassifierRun:
     relation: CandidateRelation
     frozen_inputs: FrozenInputs
     canonical_tree_delta: tuple[DeltaEntry, ...]
+    governance_facts: GovernanceFacts
     path_classification: PathClassification
     reference_analysis: ReferenceCandidateAnalysis
     decision: ClassificationDecision
@@ -175,10 +180,6 @@ def classify_candidate(
     - activate enforcement or Integration Actor authority.
     """
 
-    _validate_trusted_identities(
-        trusted_identities
-    )
-
     relation = validate_candidate_relation(
         repo,
         base_commit_sha1=base_commit_sha1,
@@ -222,6 +223,23 @@ def classify_candidate(
 
     changed_paths = _changed_paths(delta)
 
+    governance_facts = (
+        evaluate_governance_candidate(
+            repo,
+            canonical_tree_delta=delta,
+            predecessor_manifest=(
+                frozen.protected_surface_manifest
+            ),
+            analyzer_limits=(
+                frozen.analyzer_limits
+            ),
+        )
+    )
+
+    _validate_trusted_identities(
+        trusted_identities
+    )
+
     path_result = classify_paths(
         changed_paths,
         frozen.protected_surface_manifest,
@@ -239,6 +257,7 @@ def classify_candidate(
     decision = derive_classification_decision(
         path_result,
         reference_result.combined,
+        governance_facts,
     )
 
     record = build_classification_record(
@@ -285,6 +304,7 @@ def classify_candidate(
         relation=relation,
         frozen_inputs=frozen,
         canonical_tree_delta=delta,
+        governance_facts=governance_facts,
         path_classification=path_result,
         reference_analysis=reference_result,
         decision=decision,

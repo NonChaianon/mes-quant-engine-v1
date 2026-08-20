@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from mes_quant.governance.classification import classifier as classifier_module
 from mes_quant.governance.classification.classifier import (
     ClassifierOrchestrationError,
     TrustedAnalyzerIdentities,
@@ -21,6 +23,9 @@ from mes_quant.governance.classification.reference_analysis import (
 )
 from mes_quant.governance.classification.relation import (
     CandidateRelationError,
+)
+from mes_quant.governance.sentinel.orchestrator import (
+    GovernanceSentinelOrchestrationError,
 )
 from tests.governance._frozen_fixture import (
     FROZEN_INPUT_PATHS,
@@ -95,6 +100,7 @@ class ClassifierOrchestrationTests(unittest.TestCase):
                 MANIFEST_PATH,
             ).decode("utf-8")
         )
+        self.manifest = manifest
 
         protected_modules = tuple(
             sorted(
@@ -425,6 +431,321 @@ class ClassifierOrchestrationTests(unittest.TestCase):
                 head,
                 authority=head,
             )
+
+    def test_b4_mixed_governance_quant_boundary_classes_coexist(
+        self,
+    ) -> None:
+        head = self._make_head(
+            {
+                SPEC_PATH.as_posix(): (
+                    "# Candidate governance amendment\n"
+                ),
+                "src/mes_quant/features/builder.py": (
+                    "VALUE = 2\n"
+                ),
+                "boundary/review.txt": "review\n",
+            }
+        )
+
+        result = self._run(head)
+
+        self.assertFalse(
+            result.governance_facts
+            .bootstrap_surface_hit
+        )
+        self.assertEqual(
+            result.decision.detected_classes,
+            (
+                "GOVERNANCE_AMENDMENT",
+                "QUANT_ENGINE",
+                "CROSS_BOUNDARY",
+            ),
+        )
+        self.assertEqual(
+            result.decision.required_gate_union,
+            (
+                "GOVERNANCE_BOOTSTRAP_GATE",
+                "MACHINE_CHECKS",
+                "CHATGPT_ARCHITECTURE_REVIEW",
+                "INDEPENDENT_AUDITOR_REVIEW",
+                "OWNER_AUTHORIZATION",
+            ),
+        )
+
+    def test_b4_bootstrap_fact_unions_with_ordinary_classification(
+        self,
+    ) -> None:
+        head = self._make_head(
+            {
+                "src/mes_quant/governance/"
+                "sentinel/sentinel.py": (
+                    "VALUE = 1\n"
+                ),
+            }
+        )
+
+        result = self._run(head)
+
+        self.assertTrue(
+            result.governance_facts
+            .bootstrap_surface_hit
+        )
+        self.assertEqual(
+            result.decision.detected_classes,
+            (
+                "GOVERNANCE_AMENDMENT",
+                "QUANT_ENGINE",
+                "CROSS_BOUNDARY",
+            ),
+        )
+
+    def test_b4_manifest_weakening_is_evidence_not_class_source(
+        self,
+    ) -> None:
+        candidate_manifest = json.loads(
+            json.dumps(self.manifest)
+        )
+        candidate_manifest[
+            "governance_control_exact_paths"
+        ].remove(SPEC_PATH.as_posix())
+
+        head = self._make_head(
+            {
+                MANIFEST_PATH.as_posix(): (
+                    json.dumps(
+                        candidate_manifest,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=True,
+                    )
+                    + "\n"
+                ),
+            }
+        )
+
+        result = self._run(head)
+
+        self.assertTrue(
+            result.governance_facts
+            .manifest_weakening_detected
+        )
+        self.assertIn(
+            "removed:governance_control_exact_paths:"
+            + SPEC_PATH.as_posix(),
+            result.governance_facts
+            .weakening_details,
+        )
+        self.assertEqual(
+            result.decision.detected_classes,
+            (
+                "GOVERNANCE_AMENDMENT",
+                "QUANT_ENGINE",
+                "CROSS_BOUNDARY",
+            ),
+        )
+        self.assertEqual(
+            len(result.decision.detected_classes),
+            len(set(result.decision.detected_classes)),
+        )
+        self.assertNotIn(
+            "manifest_weakening_detected",
+            result.record,
+        )
+        self.assertNotIn(
+            "weakening_reasons",
+            result.record,
+        )
+        self.assertNotIn(
+            "weakening_details",
+            result.record,
+        )
+
+    def test_b4_invalid_authority_fails_before_ordinary_classifier(
+        self,
+    ) -> None:
+        head = self._make_head(
+            {
+                "src/mes_quant/features/builder.py": (
+                    "VALUE = 2\n"
+                ),
+            }
+        )
+
+        with (
+            patch(
+                "mes_quant.governance.classification."
+                "classifier.classify_paths"
+            ) as path_classifier,
+            patch(
+                "mes_quant.governance.classification."
+                "classifier.analyze_reference_candidate"
+            ) as reference_classifier,
+            self.assertRaises(
+                ClassifierOrchestrationError
+            ),
+        ):
+            self._run(
+                head,
+                authority=head,
+            )
+
+        path_classifier.assert_not_called()
+        reference_classifier.assert_not_called()
+
+    def test_b4_frozen_inputs_are_loaded_once(
+        self,
+    ) -> None:
+        head = self._make_head(
+            {
+                "src/mes_quant/features/builder.py": (
+                    "VALUE = 2\n"
+                ),
+            }
+        )
+
+        with patch.object(
+            classifier_module,
+            "load_frozen_inputs",
+            wraps=(
+                classifier_module.load_frozen_inputs
+            ),
+        ) as loader:
+            self._run(head)
+
+        loader.assert_called_once_with(
+            self.repo,
+            authority_commit_sha1=self.base,
+        )
+
+    def test_b4_classifier_uses_frozen_pipeline_order(
+        self,
+    ) -> None:
+        head = self._make_head(
+            {
+                "src/mes_quant/features/builder.py": (
+                    "VALUE = 2\n"
+                ),
+            }
+        )
+        calls: list[str] = []
+
+        def traced(name, implementation):
+            def invoke(*args, **kwargs):
+                calls.append(name)
+                return implementation(*args, **kwargs)
+
+            return invoke
+
+        with (
+            patch.object(
+                classifier_module,
+                "validate_candidate_relation",
+                side_effect=traced(
+                    "validate_candidate_relation",
+                    classifier_module.validate_candidate_relation,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "load_frozen_inputs",
+                side_effect=traced(
+                    "load_frozen_inputs",
+                    classifier_module.load_frozen_inputs,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "canonical_git_tree_delta",
+                side_effect=traced(
+                    "canonical_git_tree_delta",
+                    classifier_module.canonical_git_tree_delta,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "evaluate_governance_candidate",
+                side_effect=traced(
+                    "evaluate_governance_candidate",
+                    classifier_module.evaluate_governance_candidate,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "classify_paths",
+                side_effect=traced(
+                    "classify_paths",
+                    classifier_module.classify_paths,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "analyze_reference_candidate",
+                side_effect=traced(
+                    "analyze_reference_candidate",
+                    classifier_module.analyze_reference_candidate,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "derive_classification_decision",
+                side_effect=traced(
+                    "derive_classification_decision",
+                    classifier_module.derive_classification_decision,
+                ),
+            ),
+            patch.object(
+                classifier_module,
+                "build_classification_record",
+                side_effect=traced(
+                    "build_classification_record",
+                    classifier_module.build_classification_record,
+                ),
+            ),
+        ):
+            self._run(head)
+
+        self.assertEqual(
+            calls,
+            [
+                "validate_candidate_relation",
+                "load_frozen_inputs",
+                "canonical_git_tree_delta",
+                "evaluate_governance_candidate",
+                "classify_paths",
+                "analyze_reference_candidate",
+                "derive_classification_decision",
+                "build_classification_record",
+            ],
+        )
+
+    def test_b4_invalid_manifest_fails_before_ordinary_classifier(
+        self,
+    ) -> None:
+        head = self._make_head(
+            {
+                MANIFEST_PATH.as_posix(): (
+                    "{broken-json\n"
+                ),
+            }
+        )
+
+        with (
+            patch.object(
+                classifier_module,
+                "classify_paths",
+            ) as path_classifier,
+            patch.object(
+                classifier_module,
+                "analyze_reference_candidate",
+            ) as reference_classifier,
+            self.assertRaises(
+                GovernanceSentinelOrchestrationError
+            ),
+        ):
+            self._run(head)
+
+        path_classifier.assert_not_called()
+        reference_classifier.assert_not_called()
 
     def test_invalid_trusted_identity_fails_before_analysis(self) -> None:
         head = self._make_head(
