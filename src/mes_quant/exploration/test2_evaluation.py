@@ -17,24 +17,22 @@ from mes_quant.exploration.l1_lr001 import (
     MINIMUM_STEP,
     fit_frozen_logistic,
 )
+from mes_quant.exploration.test2_diagnostics import EconomicSignal, build_economic_diagnostics
 from mes_quant.exploration.test2_path_contract import (
-    ACCESS_LEVEL,
     CAPACITY_POLICY_ID,
-    CELL8_SPLIT_ASSIGNMENT_SHA256,
-    DECODED_MES_1M_SHA256,
     EXPLORATION_SCOPE_ID,
-    FEATURE_ARTIFACT_SHA256,
     FULL_MODEL_ID,
     MDE_VS_NUISANCE,
     MDE_VS_PRIOR,
+    NUISANCE_FEATURES,
     NUISANCE_MODEL_ID,
     OUTER_VALIDATION_BOUNDARY_UTC,
-    RAW_DBN_SHA256,
     RELEASE_POLICY_ID,
     STOP_TICKS,
     TAKE_PROFIT_TICKS,
     TICK_SIZE_POINTS,
 )
+from mes_quant.exploration.test2_run_context import EvaluationRunContext
 from mes_quant.exploration.test2_stats import (
     BOOTSTRAP_REPETITIONS,
     FOLD_ORDER,
@@ -49,6 +47,7 @@ from mes_quant.exploration.test2_stats import (
     required_paired_bootstraps,
     stepwise_average_precision,
 )
+from mes_quant.exploration.test2_target import PathTargetRow
 from mes_quant.features.contract import FEATURE_COLUMNS
 
 PRIOR_MODEL_ID = "FOLD_TRAIN_PRIOR"
@@ -85,6 +84,7 @@ class FoldEvaluationData:
     holdout_decision_times: tuple[datetime, ...]
     holdout_session_ids: tuple[str, ...]
     consumer_indices: Mapping[str, ConsumerRetainedIndex]
+    holdout_target_rows: tuple[PathTargetRow, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -145,13 +145,16 @@ class FoldModelRun:
 
 
 @dataclass(frozen=True)
-class SyntheticEvaluation:
+class Test2Evaluation:
     preflight: EvaluationPreflight
     fold_runs: tuple[FoldModelRun, ...]
     bootstraps: tuple[PairedBootstrapResult, ...]
     decision: ContinuationDecision | None
     experiment_records: tuple[Mapping[str, object], ...]
     synthetic_fitter_calls: int
+
+
+SyntheticEvaluation = Test2Evaluation
 
 
 def _validate_ids(values: tuple[str, ...], *, field: str) -> None:
@@ -260,6 +263,26 @@ def _validate_consumer_indices(fold: FoldEvaluationData) -> None:
             )
 
 
+def _validate_holdout_targets(fold: FoldEvaluationData, holdout_labels: np.ndarray) -> None:
+    if not fold.holdout_target_rows:
+        return
+    if len(fold.holdout_target_rows) != len(fold.holdout_row_ids):
+        raise Test2EvaluationContractError("holdout target-row count mismatch")
+    for row_id, label, gross_move, target in zip(
+        fold.holdout_row_ids,
+        holdout_labels,
+        fold.holdout_gross_move_points_60m,
+        fold.holdout_target_rows,
+        strict=True,
+    ):
+        if not isinstance(target, PathTargetRow) or target.decision_identity != row_id:
+            raise Test2EvaluationContractError("holdout target-row identity mismatch")
+        if not target.retained or target.path_long != int(label):
+            raise Test2EvaluationContractError("holdout target row is not the retained label")
+        if target.gross_move_points_60m != float(gross_move):
+            raise Test2EvaluationContractError("holdout target gross move mismatch")
+
+
 def preflight_evaluation(folds: Sequence[FoldEvaluationData]) -> EvaluationPreflight:
     materialized = tuple(folds)
     if tuple(fold.fold_id for fold in materialized) != FOLD_ORDER:
@@ -318,6 +341,7 @@ def preflight_evaluation(folds: Sequence[FoldEvaluationData]) -> EvaluationPrefl
         gross = np.asarray(fold.holdout_gross_move_points_60m, dtype=np.float64)
         if gross.ndim != 1 or gross.size != holdout_rows or not np.isfinite(gross).all():
             raise Test2EvaluationContractError("holdout gross-move rows must align and be finite")
+        _validate_holdout_targets(fold, holdout_labels)
         _validate_consumer_indices(fold)
 
         dependence_rows = [
@@ -484,15 +508,18 @@ def _linear_logits(features: np.ndarray, beta: np.ndarray) -> np.ndarray:
     return logits
 
 
-def run_synthetic_evaluation(
+def _run_evaluation(
     folds: Sequence[FoldEvaluationData],
     *,
     timestamp_utc: datetime,
     code_identity: str,
+    run_context: EvaluationRunContext,
     governance_gates_passed: bool = False,
-) -> SyntheticEvaluation:
-    """Exercise the frozen Test 2 evaluator using only caller-supplied in-memory rows."""
+) -> Test2Evaluation:
+    """Run the frozen evaluator with an explicit, validated provenance context."""
 
+    if not isinstance(run_context, EvaluationRunContext):
+        raise Test2EvaluationContractError("run_context must be an EvaluationRunContext")
     if timestamp_utc.tzinfo is None or timestamp_utc.utcoffset() is None:
         raise Test2EvaluationContractError("timestamp_utc must be timezone-aware")
     timestamp = timestamp_utc.astimezone(UTC)
@@ -501,7 +528,57 @@ def run_synthetic_evaluation(
     materialized = tuple(folds)
     preflight = preflight_evaluation(materialized)
     if preflight.status == INCONCLUSIVE_UNDERPOWERED:
-        return SyntheticEvaluation(preflight, (), (), None, (), 0)
+        context_record = run_context.as_record(
+            real_models_fitted=0,
+            fit_status="SKIPPED_INCONCLUSIVE_UNDERPOWERED",
+        )
+        timestamp_token = timestamp.strftime("%Y%m%dT%H%M%SZ")
+        record = {
+            "EXPERIMENT_ID": f"MES_TEST2_SUPPORT_GATE_{timestamp_token}",
+            "timestamp_utc": timestamp.isoformat().replace("+00:00", "Z"),
+            "EXPLORATION_SCOPE_ID": EXPLORATION_SCOPE_ID,
+            "record_type": "TARGET_DERIVED_SUPPORT_GATE",
+            "code_identity": code_identity.strip(),
+            "access_level": context_record["access_level"],
+            "harness_status": context_record["harness_status"],
+            "authorization_identity": context_record["authorization_identity"],
+            "authorization_record_sha256": context_record[
+                "authorization_record_sha256"
+            ],
+            "source_identity": context_record["source_identity"],
+            "role_assignment_identity": context_record["role_assignment_identity"],
+            "request_set_sha256": context_record["request_set_sha256"],
+            "retained_set_sha256": preflight.pooled_retained_sha256,
+            "fold_ess_support": {
+                fold.fold_id: _ess_record(fold.ess_support) for fold in preflight.folds
+            },
+            "pooled_ess_support": _ess_record(preflight.pooled_ess_support),
+            "support_failures": preflight.support_gate.failures,
+            "coverage_total_rows": context_record["total_rows"],
+            "ambiguity_rows": context_record["ambiguity_rows"],
+            "missing_rows": context_record["missing_rows"],
+            "excluded_rows": context_record["excluded_rows"],
+            "coverage_counter_scope": context_record["coverage_counter_scope"],
+            "coverage_by_fold_decile": context_record["coverage_by_fold_decile"],
+            "real_train_target_path_rows_read": context_record[
+                "real_train_target_path_rows_read"
+            ],
+            "missing_path_bar_keys": context_record["missing_path_bar_keys"],
+            "native_instrument_mismatch_keys": context_record[
+                "native_instrument_mismatch_keys"
+            ],
+            "validation_rows_read": context_record["validation_rows_read"],
+            "final_test_rows_read": context_record["final_test_rows_read"],
+            "feature_max_source_time_asserted": context_record[
+                "feature_max_source_time_asserted"
+            ],
+            "real_models_fitted": 0,
+            "fit_status": context_record["fit_status"],
+            "search_budget_models": 2,
+            "governance_gates_passed": governance_gates_passed,
+            "disposition": INCONCLUSIVE_UNDERPOWERED,
+        }
+        return Test2Evaluation(preflight, (), (), None, (record,), 0)
     if preflight.status != READY_FOR_SYNTHETIC_FIT:
         raise Test2EvaluationContractError("preflight is not ready for synthetic fitting")
 
@@ -519,12 +596,12 @@ def run_synthetic_evaluation(
             )
         train_labels_by_fold[fold.fold_id] = labels
 
-    nuisance_indices = tuple(FEATURE_COLUMNS.index(name) for name in (
-        "realized_vol_60m",
-        "realized_vol_120m",
-        "realized_vol_240m",
-        "bar_log_range_15m",
-    ))
+    try:
+        nuisance_indices = tuple(FEATURE_COLUMNS.index(name) for name in NUISANCE_FEATURES)
+    except ValueError as exc:
+        raise Test2EvaluationContractError(
+            "frozen nuisance features are not exact members of the 29-feature catalog"
+        ) from exc
     fold_runs: list[FoldModelRun] = []
     fold_metrics: dict[str, ImprovementMetrics] = {}
     fold_primary_results: dict[str, dict[str, float]] = {}
@@ -537,6 +614,13 @@ def run_synthetic_evaluation(
     metric_records: dict[str, dict[str, dict[str, float]]] = {
         NUISANCE_MODEL_ID: {}, FULL_MODEL_ID: {}
     }
+    economic_signals: list[EconomicSignal] = []
+    if not run_context.is_synthetic and not all(
+        fold.holdout_target_rows for fold in materialized
+    ):
+        raise Test2EvaluationContractError(
+            "real L1 evaluation requires retained holdout target rows for economics"
+        )
     for fold in materialized:
         train_labels = train_labels_by_fold[fold.fold_id]
         holdout_labels = np.asarray(fold.holdout_labels, dtype=np.int8)
@@ -562,6 +646,25 @@ def run_synthetic_evaluation(
         full_losses = _loss_from_logits(holdout_labels, full_logits)
         nuisance_probabilities = _probabilities(nuisance_logits)
         full_probabilities = _probabilities(full_logits)
+        if fold.holdout_target_rows:
+            economic_signals.extend(
+                EconomicSignal(
+                    fold_id=fold.fold_id,
+                    decision_identity=row_id,
+                    session_id=session_id,
+                    decision_time=decision_time,
+                    probability_long=float(probability),
+                    target_row=target_row,
+                )
+                for row_id, session_id, decision_time, probability, target_row in zip(
+                    fold.holdout_row_ids,
+                    fold.holdout_session_ids,
+                    fold.holdout_decision_times,
+                    full_probabilities,
+                    fold.holdout_target_rows,
+                    strict=True,
+                )
+            )
         prior_mean = float(prior_losses.mean())
         nuisance_mean = float(nuisance_losses.mean())
         full_mean = float(full_losses.mean())
@@ -674,29 +777,48 @@ def run_synthetic_evaluation(
         }
         for bootstrap in bootstraps
     )
+    fixture_or_synthetic = run_context.is_synthetic or run_context.is_test_fixture
+    real_models_fitted = 0 if fixture_or_synthetic else len((NUISANCE_MODEL_ID, FULL_MODEL_ID))
+    real_fold_fits = 0 if fixture_or_synthetic else fitter_calls
+    context_record = run_context.as_record(real_models_fitted=real_models_fitted)
+    economic_diagnostics = (
+        {
+            "source_model_id": FULL_MODEL_ID,
+            **build_economic_diagnostics(economic_signals),
+        }
+        if economic_signals
+        else context_record["economic_diagnostics"]
+    )
     records = tuple(
         {
             "EXPERIMENT_ID": f"MES_TEST2_{model_id}_{timestamp_token}",
             "timestamp_utc": timestamp.isoformat().replace("+00:00", "Z"),
             "EXPLORATION_SCOPE_ID": EXPLORATION_SCOPE_ID,
             "model_id": model_id,
-            "access_level": ACCESS_LEVEL,
-            "harness_status": "L0_SYNTHETIC_IN_MEMORY_ONLY",
+            "access_level": context_record["access_level"],
+            "harness_status": context_record["harness_status"],
             "code_identity": code_identity.strip(),
             "identity_block": {
-                "source_identity": {
-                    "raw_dbn_sha256": RAW_DBN_SHA256,
-                    "decoded_mes_1m_sha256": DECODED_MES_1M_SHA256,
-                    "feature_artifact_sha256": FEATURE_ARTIFACT_SHA256,
-                },
-                "role_assignment_identity": CELL8_SPLIT_ASSIGNMENT_SHA256,
+                "source_identity": context_record["source_identity"],
+                "role_assignment_identity": context_record[
+                    "role_assignment_identity"
+                ],
                 "feature_set_identity": sha256_bytes(
                     canonical_json_bytes(list(FEATURE_COLUMNS))
                 ),
                 "target_identity": "PATH_LONG_FIRST_TOUCH_TP16_SL8_OFFSETS0_59_V1",
                 "cost_identity": "CONSERVATIVE_ROUND_TRIP_0.994_POINTS_4.97_USD",
-                "environment_identity": f"NUMPY_{np.__version__}_PYTHON_API_L0",
-                "authorization_identity": "L0_SYNTHETIC_ONLY_NO_L1_TOKEN",
+                "environment_identity": (
+                    f"NUMPY_{np.__version__}_PYTHON_API_"
+                    f"{context_record['access_level']}"
+                ),
+                "authorization_identity": context_record[
+                    "authorization_identity"
+                ],
+                "authorization_record_sha256": context_record[
+                    "authorization_record_sha256"
+                ],
+                "request_set_sha256": context_record["request_set_sha256"],
             },
             "model_family": "L2_REGULARIZED_BINARY_LOGISTIC_REGRESSION",
             "fixed_parameters": {
@@ -806,18 +928,46 @@ def run_synthetic_evaluation(
                 < 10.0
                 for fold_id in FOLD_ORDER
             },
-            "ambiguity_rows": 0,
-            "missing_rows": 0,
-            "excluded_rows": 0,
-            "coverage_counter_scope": "SYNTHETIC_RETAINED_INPUT_ONLY",
+            "coverage_total_rows": context_record["total_rows"],
+            "ambiguity_rows": context_record["ambiguity_rows"],
+            "missing_rows": context_record["missing_rows"],
+            "excluded_rows": context_record["excluded_rows"],
+            "coverage_counter_scope": context_record["coverage_counter_scope"],
+            "coverage_by_fold_decile": context_record[
+                "coverage_by_fold_decile"
+            ],
+            "economic_diagnostics": (
+                economic_diagnostics
+                if model_id == FULL_MODEL_ID
+                else {
+                    "status": "NOT_COMPUTED_BASELINE_RECORD",
+                    "source_model_id": None,
+                }
+            ),
             "search_budget_models": 2,
             "release_policy_id": RELEASE_POLICY_ID,
             "capacity_policy_id": CAPACITY_POLICY_ID,
-            "validation_rows_read": 0,
-            "final_test_rows_read": 0,
-            "real_models_fitted": 0,
-            "run_synthetic_fitter_calls": fitter_calls,
-            "model_synthetic_fitter_calls": len(FOLD_ORDER),
+            "real_train_target_path_rows_read": context_record[
+                "real_train_target_path_rows_read"
+            ],
+            "missing_path_bar_keys": context_record["missing_path_bar_keys"],
+            "native_instrument_mismatch_keys": context_record[
+                "native_instrument_mismatch_keys"
+            ],
+            "validation_rows_read": context_record["validation_rows_read"],
+            "final_test_rows_read": context_record["final_test_rows_read"],
+            "feature_max_source_time_asserted": context_record[
+                "feature_max_source_time_asserted"
+            ],
+            "real_models_fitted": context_record["real_models_fitted"],
+            "run_synthetic_fitter_calls": fitter_calls if fixture_or_synthetic else 0,
+            "model_synthetic_fitter_calls": (
+                len(FOLD_ORDER) if fixture_or_synthetic else 0
+            ),
+            "run_real_fold_fitter_calls": real_fold_fits,
+            "model_real_fold_fitter_calls": (
+                len(FOLD_ORDER) if real_fold_fits else 0
+            ),
             "governance_gates_passed": governance_gates_passed,
             "decision_failures": decision.failures,
             "disposition": (
@@ -828,6 +978,51 @@ def run_synthetic_evaluation(
         }
         for model_id in (NUISANCE_MODEL_ID, FULL_MODEL_ID)
     )
-    return SyntheticEvaluation(
+    return Test2Evaluation(
         preflight, tuple(fold_runs), bootstraps, decision, records, fitter_calls
+    )
+
+
+def run_synthetic_evaluation(
+    folds: Sequence[FoldEvaluationData],
+    *,
+    timestamp_utc: datetime,
+    code_identity: str,
+    governance_gates_passed: bool = False,
+) -> Test2Evaluation:
+    """Exercise Test 2 using only caller-supplied synthetic in-memory rows."""
+
+    return _run_evaluation(
+        folds,
+        timestamp_utc=timestamp_utc,
+        code_identity=code_identity,
+        run_context=EvaluationRunContext.synthetic(),
+        governance_gates_passed=governance_gates_passed,
+    )
+
+
+def run_authorized_train_evaluation(
+    folds: Sequence[FoldEvaluationData],
+    *,
+    timestamp_utc: datetime,
+    code_identity: str,
+    run_context: EvaluationRunContext,
+    governance_gates_passed: bool,
+) -> Test2Evaluation:
+    """Run L1 only with a non-fixture TRAIN-only authorization context."""
+
+    if run_context.is_synthetic or run_context.is_test_fixture:
+        raise Test2EvaluationContractError(
+            "authorized TRAIN evaluation requires a real non-fixture L1 context"
+        )
+    if governance_gates_passed is not True:
+        raise Test2EvaluationContractError(
+            "authorized TRAIN evaluation requires all governance gates to pass"
+        )
+    return _run_evaluation(
+        folds,
+        timestamp_utc=timestamp_utc,
+        code_identity=code_identity,
+        run_context=run_context,
+        governance_gates_passed=True,
     )

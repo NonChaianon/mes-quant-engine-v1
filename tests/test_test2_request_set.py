@@ -28,8 +28,13 @@ from mes_quant.exploration.test2_request_set import (
     RequestSetContractError,
     build_and_fetch_path_bars,
     build_request_set,
+    build_streaming_request_set,
     fetch_path_bars,
     hash_request_set,
+    hash_request_set_incremental,
+    iter_path_bar_batches,
+    iter_request_key_batches,
+    iter_request_keys,
 )
 
 
@@ -58,6 +63,25 @@ class RecordingProvider:
             request_keys
         )
         return self.returned
+
+
+class StreamingRecordingProvider:
+    def __init__(self) -> None:
+        self.calls: list[tuple[RequestKey, ...]] = []
+        self.hashes: list[str] = []
+        self.extra_key: RequestKey | None = None
+
+    def fetch_path_bar_batch(
+        self,
+        request_keys: tuple[RequestKey, ...],
+        *,
+        request_set_sha256: str,
+    ) -> dict[RequestKey, object]:
+        self.calls.append(request_keys)
+        self.hashes.append(request_set_sha256)
+        if self.extra_key is not None:
+            return {self.extra_key: object()}
+        return {}
 
 
 class Test2PathContractTests(unittest.TestCase):
@@ -166,6 +190,110 @@ class Test2RequestSetTests(unittest.TestCase):
         self.assertEqual(first.keys[59].minute_offset, 59)
         self.assertEqual(first.keys[60].decision_identity, "B")
         self.assertNotEqual(hash_request_set(reversed(first.keys)), first.request_set_sha256)
+        self.assertEqual(hash_request_set_incremental(first.keys), first.request_set_sha256)
+
+    def test_streaming_seal_preserves_exact_hash_without_expanded_key_tuple(self) -> None:
+        timestamp = datetime(2023, 6, 1, 15, 0, tzinfo=UTC)
+        decisions = [_decision("B", timestamp), _decision("A", timestamp)]
+        materialized = build_request_set(
+            decisions,
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        streaming = build_streaming_request_set(
+            decisions,
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        self.assertEqual(streaming.request_set_sha256, materialized.request_set_sha256)
+        self.assertEqual(streaming.key_count, 120)
+        self.assertEqual(tuple(iter_request_keys(streaming)), materialized.keys)
+        self.assertFalse(hasattr(streaming, "keys"))
+
+    def test_streaming_provider_is_called_only_after_whole_set_hash_is_valid(self) -> None:
+        sealed = build_streaming_request_set(
+            [_decision("D1", datetime(2023, 6, 1, 15, 0, tzinfo=UTC))],
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        provider = StreamingRecordingProvider()
+        batches = tuple(iter_path_bar_batches(sealed, provider, batch_size=17))
+        self.assertEqual(batches, ({}, {}, {}, {}))
+        self.assertEqual([len(batch) for batch in provider.calls], [17, 17, 17, 9])
+        self.assertEqual(set(provider.hashes), {sealed.request_set_sha256})
+
+        provider = StreamingRecordingProvider()
+        invalid = replace(sealed, request_set_sha256="0" * 64)
+        with self.assertRaisesRegex(RequestSetContractError, "hashed before"):
+            tuple(iter_path_bar_batches(invalid, provider, batch_size=17))
+        self.assertEqual(provider.calls, [])
+
+    def test_streaming_provider_rejects_unsealed_batch_key(self) -> None:
+        sealed = build_streaming_request_set(
+            [_decision("D1", datetime(2023, 6, 1, 15, 0, tzinfo=UTC))],
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        provider = StreamingRecordingProvider()
+        provider.extra_key = RequestKey(
+            "EXTRA",
+            0,
+            datetime(2023, 6, 1, 15, 0, tzinfo=UTC),
+        )
+        with self.assertRaisesRegex(RequestSetContractError, "unsealed key"):
+            tuple(iter_path_bar_batches(sealed, provider, batch_size=60))
+
+    def test_streaming_validator_recomputes_boundary_counters(self) -> None:
+        safe = build_streaming_request_set(
+            [_decision("A", datetime(2023, 1, 2, 14, 30, tzinfo=UTC))],
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        crossing_decision = ParentDecision(
+            "A",
+            OUTER_VALIDATION_BOUNDARY_UTC - timedelta(minutes=30),
+            "TRAIN",
+        )
+        crossing = replace(
+            safe,
+            decisions=(crossing_decision,),
+            parent_roles=(("A", "TRAIN"),),
+            request_set_sha256=hash_request_set_incremental(
+                RequestKey(
+                    "A",
+                    offset,
+                    crossing_decision.decision_time_utc + timedelta(minutes=offset),
+                )
+                for offset in PATH_OFFSETS
+            ),
+            validation_path_bar_lookup_count=0,
+            final_test_path_bar_lookup_count=0,
+        )
+        provider = StreamingRecordingProvider()
+        with self.assertRaisesRegex(RequestSetContractError, "Validation lookup counter"):
+            tuple(iter_path_bar_batches(crossing, provider, batch_size=60))
+        self.assertEqual(provider.calls, [])
+
+    def test_streaming_batch_size_fails_closed(self) -> None:
+        sealed = build_streaming_request_set(
+            [_decision("D1", datetime(2023, 6, 1, 15, 0, tzinfo=UTC))],
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        for invalid in (0, -1, True, 1.5):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                RequestSetContractError, "batch_size"
+            ):
+                tuple(iter_request_key_batches(sealed, batch_size=invalid))  # type: ignore[arg-type]
+
+    def test_streaming_seal_scales_past_one_million_keys_without_retaining_keys(self) -> None:
+        start = datetime(2019, 5, 6, 13, 45, tzinfo=UTC)
+        decisions = (
+            _decision(f"D{index:05d}", start + timedelta(minutes=15 * index))
+            for index in range(16_667)
+        )
+        sealed = build_streaming_request_set(
+            decisions,
+            split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        )
+        self.assertEqual(sealed.key_count, 1_000_020)
+        self.assertEqual(len(sealed.decisions), 16_667)
+        self.assertFalse(hasattr(sealed, "keys"))
+        self.assertEqual(len(sealed.request_set_sha256), 64)
 
     def test_train_request_counts_are_zero_and_offsets_are_complete(self) -> None:
         sealed = build_request_set(
