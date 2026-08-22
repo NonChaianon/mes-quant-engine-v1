@@ -8,6 +8,10 @@
 This file preserves the decision proposal that led to Architecture VNext. It is not the
 current architecture pointer and grants no implementation or execution authority.
 
+**Owner amendment 2026-08-22:** LangGraph is retired and is not part of the project scope.
+All active research coordination is human-directed and framework-neutral. See
+[`LANGGRAPH_RETIREMENT_DECISION_20260822.md`](../architecture/LANGGRAPH_RETIREMENT_DECISION_20260822.md).
+
 **Baseline relationship:** This proposal extends the research direction without modifying
 `MES_QUANT_TARGET_ARCHITECTURE_v2.2`, the locked Test 1/Sprint 1 record, any canonical
 artifact, or any frozen governance control. It grants no data access, experiment execution,
@@ -17,8 +21,8 @@ Validation opening, Final-Test opening, production release, or live-trading auth
 
 This document records the proposed research architecture for the next governed research
 cycle ("Test 2"). It separates objective data from human narrative, broadens the candidate
-model stack in a controlled way, and defines LangGraph as a research-control tool rather
-than a trading authority.
+model stack in a controlled way, and keeps research proposal/review work human-directed
+without a graph-runtime or orchestration-framework dependency.
 
 The following remain unchanged:
 
@@ -196,7 +200,7 @@ Test 1
   = no retrospective scope, rule, metric, or narrative change
 
 Test 2
-  = LangGraph-assisted candidate research proposal
+  = human-directed candidate research proposal
   = broader pillars and controlled challenger stack
   = new governance scope; no authority inherited merely from this document
 ```
@@ -205,14 +209,13 @@ Test 2 must compare against the locked baseline without rewriting it. Any new da
 target, horizon, feature, model, calibration method, or ensemble is a declared Test 2
 candidate and must follow the applicable access and multiple-testing controls.
 
-## 8. LangGraph authority boundary
+## 8. Human-directed research-review boundary
 
-LangGraph may orchestrate the research workflow: create structured proposals, route work to
-specialist reviewers, check required fields, request evidence, compare candidate records,
-and coordinate critique. It may help enforce that a hypothesis and search budget exist
-before an experiment is proposed.
+The Owner may assign bounded proposal, evidence-checking, comparison, and critique tasks to
+people or AI tools. These tasks remain human-directed and framework-neutral. No workflow
+engine or graph runtime is part of the proposed architecture.
 
-LangGraph is never:
+Research assistants and reviewers are never:
 
 - a trader;
 - a direct signal source or signal authority;
@@ -224,6 +227,9 @@ LangGraph is never:
 All numerical claims must resolve to reproducible data/code/config evidence. Agent prose,
 consensus, confidence, or debate outcome is not evidence and cannot override a failed
 machine predicate or human approval gate.
+
+The retired LangGraph drafts and prototype are historical local work only. They must not be
+merged, promoted, revived, or treated as precedent without a new explicit Owner decision.
 
 ## 9. Edge factory and adversarial review
 

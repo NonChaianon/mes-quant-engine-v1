@@ -8,6 +8,8 @@
   `TEST1 BASELINE_ACCEPTED / DESIGN_CLOSED`
 - **Current design candidate:** `MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT` —
   `TEST2+ / RESEARCH_ONLY / EXECUTION AUTHORITY NONE`
+- **Research coordination:** human-directed and framework-neutral —
+  `LANGGRAPH RETIRED / NO GRAPH-RUNTIME DEPENDENCY`
 - **Current Plane:** Plane A — Research / Offline
 - **Current Stage:** `A6 — Target-Blind Redundancy`
 - **Current Milestone:** `STAGE_B_REDUNDANCY_V1.2`
@@ -19,6 +21,7 @@
 
 - Architecture index — `docs/architecture/README.md`
 - Test 2+ design candidate — `docs/architecture/MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT.md`
+- LangGraph retirement decision — `docs/architecture/LANGGRAPH_RETIREMENT_DECISION_20260822.md`
 - Historical Test 1 baseline — `docs/architecture/MES_QUANT_TARGET_ARCHITECTURE_v2.2.md`
 - Progress — `docs/architecture/ARCHITECTURE_PROGRESS.md`
 - Architecture history — `docs/architecture/ARCHITECTURE_CHANGELOG.md`

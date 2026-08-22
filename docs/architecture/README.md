@@ -7,7 +7,10 @@ candidate and its non-authoritative rationale.
 
 - [`MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT.md`](MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT.md)
   — `CURRENT_DESIGN_CANDIDATE / TEST2+ / RESEARCH_ONLY`; no experiment or execution
-  authority.
+  authority; research coordination is human-directed and framework-neutral.
+- [`LANGGRAPH_RETIREMENT_DECISION_20260822.md`](LANGGRAPH_RETIREMENT_DECISION_20260822.md)
+  — Owner decision removing LangGraph from active project scope; historical local branches
+  are retained only as abandoned history.
 
 ## Historical accepted baseline
 

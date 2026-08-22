@@ -234,3 +234,28 @@ EXECUTION AUTHORITY = NONE
 ```
 
 See `README.md` in this directory for the current pointer and authority map.
+
+---
+
+## VNext amendment — LangGraph retired by Owner decision
+
+**Date:** 2026-08-22
+
+The Owner removed LangGraph from the MES project direction. VNext now defines research
+proposal, critique, and adversarial review as human-directed and framework-neutral. No
+graph runtime or orchestration framework is part of the active architecture.
+
+The local historical branches remain preserved for audit/history only:
+
+- `architecture/langgraph-boundary-v1` at `42cda10559b7b7ab9ffeb4fb4263a6d2e8bb5af3`;
+- `research/langgraph-prototype-v0` at `8d5befba64627c170ae97e1193be028b53ca7857`.
+
+Their status is `ABANDONED / DO NOT USE / DO NOT MERGE`. They grant no architecture,
+implementation, dependency, experiment, data-access, merge, execution, or trading
+authority. Historical governance statements that say a LangGraph runtime did not exist or
+was not authorized remain untouched because they are frozen evidence/non-claims, not active
+design dependencies.
+
+Decision record:
+
+`LANGGRAPH_RETIREMENT_DECISION_20260822.md`

@@ -12,6 +12,13 @@
 **Design rationale:**
 `../proposals/MES_RESEARCH_ARCHITECTURE_TEST2_PROPOSAL_V1.md`
 
+**Research coordination:** `HUMAN_DIRECTED / FRAMEWORK_NEUTRAL`
+
+**LangGraph status:** `RETIRED / NOT IN PROJECT SCOPE`
+
+**Owner decision:**
+`LANGGRAPH_RETIREMENT_DECISION_20260822.md`
+
 ---
 
 ## 1. Authority and succession
@@ -408,9 +415,10 @@ represented as unchanged.
 
 ---
 
-## 8. LangGraph research-orchestration layer
+## 8. Human-directed research and review
 
-LangGraph may coordinate a structured research team. Its allowed functions include:
+The research process is human-directed and has no graph-runtime or orchestration-framework
+dependency. The Owner may ask people or bounded AI tools to perform tasks such as:
 
 - hypothesis generation and formalization;
 - specialist debate and critique;
@@ -422,14 +430,14 @@ LangGraph may coordinate a structured research team. Its allowed functions inclu
 - model-family recommendation within a declared budget;
 - experiment-design review and routing.
 
-The governing identity is:
+The governing identity remains:
 
 ```text
 LLM = RESEARCHER
 LLM != TRADER
 ```
 
-LangGraph and LLM agents must not:
+Research assistants and reviewers must not:
 
 - issue BUY/SELL authority directly;
 - become an uncalibrated signal input;
@@ -439,12 +447,17 @@ LangGraph and LLM agents must not:
 - self-promote a model or modify production artifacts;
 - size positions, send broker orders, or execute through IBKR.
 
-Agent debate produces proposals and critiques. Machine-reproducible evidence determines
-experiment outcomes, and the existing human/governance gates determine authorization.
+Human-directed debate produces proposals and critiques. Machine-reproducible evidence
+determines experiment outcomes, and the existing human/governance gates determine
+authorization.
 
-### 8.1 Skeptic / Alpha-Killer agent
+No workflow engine, graph runtime, or orchestration framework is part of this architecture.
+Introducing one would require a new Owner decision and a separately reviewed architecture
+change; the retired LangGraph branches grant no precedent or authority.
 
-Every candidate workflow must include an adversarial reviewer whose goal is to reject weak
+### 8.1 Skeptic / Alpha-Killer review
+
+Every candidate must receive an adversarial review whose goal is to reject weak
 alpha rather than improve its story. It asks at minimum:
 
 - Is the result overfit?
@@ -504,7 +517,7 @@ ability to kill false edges quickly.
 The research-to-execution chain is:
 
 ```text
-Research / LangGraph
+Human-Directed Research and Review
         ↓
 Experiment Proposal
         ↓
@@ -531,7 +544,8 @@ Broker Adapter / IBKR
 
 Roles and boundaries:
 
-- **Research/LangGraph** proposes and critiques; it does not emit executable authority.
+- **Human-directed research and review** proposes and critiques; it does not emit executable
+  authority and has no graph-runtime dependency.
 - **Machine Validation** calculates reproducible outcomes under the frozen protocol.
 - **Probability/Calibration** estimates and qualifies probability; it does not size risk.
 - **Economics/Regime** may provide causal context, interaction, permission, or sizing inputs
@@ -555,7 +569,7 @@ No layer may silently bypass the layer below it or appropriate another layer's a
 ```text
 Status: HISTORICAL / IMMUTABLE BASELINE
 Architecture: MES_QUANT_TARGET_ARCHITECTURE_v2.2
-Research orchestration: no LangGraph
+Research coordination: human-directed / no graph runtime
 Baseline model evidence: LR001 + TREE001
 ```
 
@@ -567,7 +581,7 @@ features, search budget, metrics, costs, results, access history, or interpretat
 ```text
 Status: DESIGN CANDIDATE ONLY
 Architecture: MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT
-Research orchestration: LangGraph-assisted proposals and critique
+Research coordination: human-directed proposals and adversarial critique
 Outcome authority: machine tests under a separately frozen protocol
 Execution: NOT AUTHORIZED
 ```
@@ -625,5 +639,5 @@ VNext retains these boundaries:
 - model changes return to research; they do not auto-retrain and auto-deploy;
 - an independent watchdog remains required before meaningful live trading.
 
-This architecture is a design candidate, not an instruction to implement LangGraph, open
-Test 2, build deep models, access new data, or connect to IBKR.
+This architecture is a design candidate, not an instruction to implement an orchestration
+framework, open Test 2, build deep models, access new data, or connect to IBKR.
