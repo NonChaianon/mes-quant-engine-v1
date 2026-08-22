@@ -8,20 +8,31 @@ from datetime import UTC, datetime
 import numpy as np
 
 from mes_quant.core.hashing import canonical_json_bytes, sha256_bytes
+from mes_quant.exploration.l1_lr001 import fit_frozen_logistic
 from mes_quant.exploration.test2_path_contract import (
+    ACCESS_LEVEL,
+    CAPACITY_POLICY_ID,
+    EXPLORATION_SCOPE_ID,
     FULL_MODEL_ID,
     MDE_VS_NUISANCE,
     MDE_VS_PRIOR,
     NUISANCE_MODEL_ID,
     OUTER_VALIDATION_BOUNDARY_UTC,
+    RELEASE_POLICY_ID,
 )
 from mes_quant.exploration.test2_stats import (
+    BOOTSTRAP_REPETITIONS,
     FOLD_ORDER,
+    MASTER_SEED,
     DependenceRow,
     EssSupportSummary,
+    PairedBootstrapResult,
+    SessionLossAggregate,
     SupportGateResult,
     compute_ess_support,
     evaluate_support_floors,
+    required_paired_bootstraps,
+    stepwise_average_precision,
 )
 from mes_quant.features.contract import FEATURE_COLUMNS
 
@@ -104,6 +115,28 @@ class ContinuationDecision:
     disposition: str
     passed: bool
     failures: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class FoldModelRun:
+    fold_id: str
+    prior_log_loss: float
+    nuisance_log_loss: float
+    full_log_loss: float
+    nuisance_average_precision: float
+    full_average_precision: float
+    nuisance_optimizer: Mapping[str, object]
+    full_optimizer: Mapping[str, object]
+
+
+@dataclass(frozen=True)
+class SyntheticEvaluation:
+    preflight: EvaluationPreflight
+    fold_runs: tuple[FoldModelRun, ...]
+    bootstraps: tuple[PairedBootstrapResult, ...]
+    decision: ContinuationDecision | None
+    experiment_records: tuple[Mapping[str, object], ...]
+    synthetic_fitter_calls: int
 
 
 def _validate_ids(values: tuple[str, ...], *, field: str) -> None:
@@ -374,4 +407,199 @@ def decide_continuation(
         disposition=(INTERESTING_ENOUGH_TO_CONTINUE if not failures else NOT_INTERESTING_ENOUGH),
         passed=not failures,
         failures=tuple(failures),
+    )
+
+
+def _loss_from_logits(labels: np.ndarray, logits: np.ndarray) -> np.ndarray:
+    losses = np.logaddexp(0.0, logits) - labels * logits
+    if not np.isfinite(losses).all():
+        raise Test2EvaluationContractError("non-finite binary log loss")
+    return losses
+
+
+def _probabilities(logits: np.ndarray) -> np.ndarray:
+    values = np.exp(-np.logaddexp(0.0, -logits))
+    if not np.isfinite(values).all():
+        raise Test2EvaluationContractError("non-finite model probabilities")
+    return values
+
+
+def _linear_logits(features: np.ndarray, beta: np.ndarray) -> np.ndarray:
+    design = np.column_stack([np.ones(features.shape[0]), features])
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        logits = design @ beta
+    if not np.isfinite(logits).all():
+        raise Test2EvaluationContractError("non-finite model logits")
+    return logits
+
+
+def run_synthetic_evaluation(
+    folds: Sequence[FoldEvaluationData],
+    *,
+    timestamp_utc: datetime,
+    code_identity: str,
+    governance_gates_passed: bool = True,
+) -> SyntheticEvaluation:
+    """Exercise the frozen Test 2 evaluator using only caller-supplied in-memory rows."""
+
+    if timestamp_utc.tzinfo is None or timestamp_utc.utcoffset() is None:
+        raise Test2EvaluationContractError("timestamp_utc must be timezone-aware")
+    timestamp = timestamp_utc.astimezone(UTC)
+    if not isinstance(code_identity, str) or not code_identity.strip():
+        raise Test2EvaluationContractError("code_identity must be non-empty")
+    materialized = tuple(folds)
+    preflight = preflight_evaluation(materialized)
+    if preflight.status == INCONCLUSIVE_UNDERPOWERED:
+        return SyntheticEvaluation(preflight, (), (), None, (), 0)
+    if preflight.status != READY_FOR_SYNTHETIC_FIT:
+        raise Test2EvaluationContractError("preflight is not ready for synthetic fitting")
+
+    train_labels_by_fold: dict[str, np.ndarray] = {}
+    for fold in materialized:
+        labels = _binary_labels(
+            fold.train_labels,
+            expected_rows=len(fold.train_row_ids),
+            field=f"{fold.fold_id} TRAIN labels",
+        )
+        prevalence = float(labels.mean())
+        if prevalence <= 0.0 or prevalence >= 1.0:
+            raise Test2EvaluationContractError(
+                f"{fold.fold_id} TRAIN prior is degenerate"
+            )
+        train_labels_by_fold[fold.fold_id] = labels
+
+    nuisance_indices = tuple(FEATURE_COLUMNS.index(name) for name in (
+        "realized_vol_60m",
+        "realized_vol_120m",
+        "realized_vol_240m",
+        "bar_log_range_15m",
+    ))
+    fold_runs: list[FoldModelRun] = []
+    fold_metrics: dict[str, ImprovementMetrics] = {}
+    session_tables: dict[str, tuple[SessionLossAggregate, ...]] = {}
+    pooled_loss_sums = {"prior": 0.0, "nuisance": 0.0, "full": 0.0, "rows": 0}
+    fitter_calls = 0
+    optimizer_records: dict[str, dict[str, Mapping[str, object]]] = {
+        NUISANCE_MODEL_ID: {}, FULL_MODEL_ID: {}
+    }
+    for fold in materialized:
+        train_labels = train_labels_by_fold[fold.fold_id]
+        holdout_labels = np.asarray(fold.holdout_labels, dtype=np.int8)
+        train = np.asarray(fold.train_features, dtype=np.float64)
+        holdout = np.asarray(fold.holdout_features, dtype=np.float64)
+        nuisance = standardize_fold(
+            train[:, nuisance_indices],
+            holdout[:, nuisance_indices],
+            feature_names=tuple(FEATURE_COLUMNS[index] for index in nuisance_indices),
+        )
+        full = standardize_fold(train, holdout, feature_names=FEATURE_COLUMNS)
+        nuisance_beta, nuisance_optimizer = fit_frozen_logistic(nuisance.train, train_labels)
+        fitter_calls += 1
+        full_beta, full_optimizer = fit_frozen_logistic(full.train, train_labels)
+        fitter_calls += 1
+        nuisance_logits = _linear_logits(nuisance.holdout, nuisance_beta)
+        full_logits = _linear_logits(full.holdout, full_beta)
+        prior_probability = float(train_labels.mean())
+        prior_logit = math.log(prior_probability / (1.0 - prior_probability))
+        prior_logits = np.full(holdout_labels.size, prior_logit)
+        prior_losses = _loss_from_logits(holdout_labels, prior_logits)
+        nuisance_losses = _loss_from_logits(holdout_labels, nuisance_logits)
+        full_losses = _loss_from_logits(holdout_labels, full_logits)
+        nuisance_probabilities = _probabilities(nuisance_logits)
+        full_probabilities = _probabilities(full_logits)
+        prior_mean = float(prior_losses.mean())
+        nuisance_mean = float(nuisance_losses.mean())
+        full_mean = float(full_losses.mean())
+        fold_metrics[fold.fold_id] = ImprovementMetrics(
+            prior_mean - full_mean, nuisance_mean - full_mean
+        )
+        optimizer_records[NUISANCE_MODEL_ID][fold.fold_id] = {
+            **nuisance_optimizer,
+            "zero_variance_features": nuisance.zero_variance_features,
+        }
+        optimizer_records[FULL_MODEL_ID][fold.fold_id] = {
+            **full_optimizer,
+            "zero_variance_features": full.zero_variance_features,
+        }
+        fold_runs.append(
+            FoldModelRun(
+                fold.fold_id,
+                prior_mean,
+                nuisance_mean,
+                full_mean,
+                stepwise_average_precision(holdout_labels, nuisance_probabilities),
+                stepwise_average_precision(holdout_labels, full_probabilities),
+                optimizer_records[NUISANCE_MODEL_ID][fold.fold_id],
+                optimizer_records[FULL_MODEL_ID][fold.fold_id],
+            )
+        )
+        aggregates: list[SessionLossAggregate] = []
+        for session_id in dict.fromkeys(fold.holdout_session_ids):
+            mask = np.asarray([value == session_id for value in fold.holdout_session_ids])
+            aggregates.append(
+                SessionLossAggregate(
+                    fold.fold_id,
+                    session_id,
+                    int(mask.sum()),
+                    float(prior_losses[mask].sum()),
+                    float(nuisance_losses[mask].sum()),
+                    float(full_losses[mask].sum()),
+                )
+            )
+        session_tables[fold.fold_id] = tuple(aggregates)
+        pooled_loss_sums["prior"] += float(prior_losses.sum())
+        pooled_loss_sums["nuisance"] += float(nuisance_losses.sum())
+        pooled_loss_sums["full"] += float(full_losses.sum())
+        pooled_loss_sums["rows"] += holdout_labels.size
+
+    bootstraps = required_paired_bootstraps(session_tables)
+    primary = bootstraps[0]
+    rows = pooled_loss_sums["rows"]
+    pooled_metrics = ImprovementMetrics(
+        (pooled_loss_sums["prior"] - pooled_loss_sums["full"]) / rows,
+        (pooled_loss_sums["nuisance"] - pooled_loss_sums["full"]) / rows,
+    )
+    decision = decide_continuation(
+        fold_metrics,
+        pooled_metrics,
+        lower_bound_vs_prior=primary.lower_bound_vs_prior,
+        lower_bound_vs_nuisance=primary.lower_bound_vs_nuisance,
+        support_gate=preflight.support_gate,
+        governance_gates_passed=governance_gates_passed,
+    )
+    timestamp_token = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    records = tuple(
+        {
+            "EXPERIMENT_ID": f"MES_TEST2_{model_id}_{timestamp_token}",
+            "EXPLORATION_SCOPE_ID": EXPLORATION_SCOPE_ID,
+            "model_id": model_id,
+            "access_level": ACCESS_LEVEL,
+            "code_identity": code_identity.strip(),
+            "retained_set_sha256": preflight.pooled_retained_sha256,
+            "folds": FOLD_ORDER,
+            "features": (
+                tuple(FEATURE_COLUMNS[index] for index in nuisance_indices)
+                if model_id == NUISANCE_MODEL_ID
+                else tuple(FEATURE_COLUMNS)
+            ),
+            "optimizer": optimizer_records[model_id],
+            "bootstrap_repetitions": BOOTSTRAP_REPETITIONS,
+            "bootstrap_master_seed": MASTER_SEED,
+            "bootstrap_quantile_method": "linear",
+            "release_policy_id": RELEASE_POLICY_ID,
+            "capacity_policy_id": CAPACITY_POLICY_ID,
+            "validation_rows_read": 0,
+            "final_test_rows_read": 0,
+            "real_models_fitted": 0,
+            "synthetic_fitter_calls": fitter_calls,
+            "disposition": (
+                "BASELINE_NOT_ELIGIBLE"
+                if model_id == NUISANCE_MODEL_ID
+                else decision.disposition
+            ),
+        }
+        for model_id in (NUISANCE_MODEL_ID, FULL_MODEL_ID)
+    )
+    return SyntheticEvaluation(
+        preflight, tuple(fold_runs), bootstraps, decision, records, fitter_calls
     )

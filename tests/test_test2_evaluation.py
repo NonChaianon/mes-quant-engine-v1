@@ -18,6 +18,7 @@ from mes_quant.exploration.test2_evaluation import (
     ImprovementMetrics,
     decide_continuation,
     preflight_evaluation,
+    run_synthetic_evaluation,
     standardize_fold,
 )
 from mes_quant.exploration.test2_evaluation import (
@@ -209,3 +210,68 @@ def test_gate_equality_single_fold_and_zero_bound_all_fail() -> None:
     assert not result.passed
     assert result.disposition == NOT_INTERESTING_ENOUGH
     assert len(result.failures) == 2
+
+
+def test_underpowered_evaluation_stops_before_any_fitter(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        "mes_quant.exploration.test2_evaluation.fit_frozen_logistic",
+        lambda *args: calls.append(args),
+    )
+    result = run_synthetic_evaluation(
+        (_fold("WF_2022", design_pattern=True), _fold("WF_2023", design_pattern=True)),
+        timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
+        code_identity="synthetic-code",
+    )
+    assert result.preflight.status == INCONCLUSIVE_UNDERPOWERED
+    assert result.synthetic_fitter_calls == 0
+    assert calls == []
+
+
+def test_degenerate_prior_raises_before_any_fitter(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        "mes_quant.exploration.test2_evaluation.fit_frozen_logistic",
+        lambda *args: calls.append(args),
+    )
+    first = _fold("WF_2022", holdout_rows=2_000, rows_per_session=40)
+    second = _fold("WF_2023", holdout_rows=2_000, rows_per_session=40)
+    first = replace(first, train_labels=np.zeros(len(first.train_row_ids), dtype=int))
+    with pytest.raises(EvaluationError, match="prior is degenerate"):
+        run_synthetic_evaluation(
+            (first, second),
+            timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
+            code_identity="synthetic-code",
+        )
+    assert calls == []
+
+
+def test_happy_path_uses_four_fold_fits_and_two_unique_records(monkeypatch) -> None:
+    calls: list[int] = []
+
+    def fake_fit(train, labels):
+        calls.append(train.shape[1])
+        return np.zeros(train.shape[1] + 1), {"iterations": 0}
+
+    monkeypatch.setattr(
+        "mes_quant.exploration.test2_evaluation.fit_frozen_logistic", fake_fit
+    )
+    result = run_synthetic_evaluation(
+        (
+            _fold("WF_2022", holdout_rows=2_000, rows_per_session=40),
+            _fold("WF_2023", holdout_rows=2_000, rows_per_session=40),
+        ),
+        timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
+        code_identity="synthetic-code",
+    )
+    assert calls == [4, 29, 4, 29]
+    assert result.synthetic_fitter_calls == 4
+    assert len(result.fold_runs) == 2
+    assert [bootstrap.block_length for bootstrap in result.bootstraps] == [5, 1, 20]
+    assert len(result.experiment_records) == 2
+    assert len({record["EXPERIMENT_ID"] for record in result.experiment_records}) == 2
+    assert result.experiment_records[0]["disposition"] == "BASELINE_NOT_ELIGIBLE"
+    assert result.experiment_records[1]["disposition"] == result.decision.disposition
+    assert all(record["validation_rows_read"] == 0 for record in result.experiment_records)
+    assert all(record["final_test_rows_read"] == 0 for record in result.experiment_records)
+    assert all(record["real_models_fitted"] == 0 for record in result.experiment_records)
