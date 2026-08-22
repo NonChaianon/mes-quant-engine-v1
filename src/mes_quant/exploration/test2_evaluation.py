@@ -8,17 +8,32 @@ from datetime import UTC, datetime
 import numpy as np
 
 from mes_quant.core.hashing import canonical_json_bytes, sha256_bytes
-from mes_quant.exploration.l1_lr001 import fit_frozen_logistic
+from mes_quant.exploration.l1_lr001 import (
+    ARMIJO_CONSTANT,
+    BACKTRACK_SHRINK,
+    GRADIENT_TOL,
+    L2_LAMBDA,
+    MAX_ITERATIONS,
+    MINIMUM_STEP,
+    fit_frozen_logistic,
+)
 from mes_quant.exploration.test2_path_contract import (
     ACCESS_LEVEL,
     CAPACITY_POLICY_ID,
+    CELL8_SPLIT_ASSIGNMENT_SHA256,
+    DECODED_MES_1M_SHA256,
     EXPLORATION_SCOPE_ID,
+    FEATURE_ARTIFACT_SHA256,
     FULL_MODEL_ID,
     MDE_VS_NUISANCE,
     MDE_VS_PRIOR,
     NUISANCE_MODEL_ID,
     OUTER_VALIDATION_BOUNDARY_UTC,
+    RAW_DBN_SHA256,
     RELEASE_POLICY_ID,
+    STOP_TICKS,
+    TAKE_PROFIT_TICKS,
+    TICK_SIZE_POINTS,
 )
 from mes_quant.exploration.test2_stats import (
     BOOTSTRAP_REPETITIONS,
@@ -424,6 +439,42 @@ def _probabilities(logits: np.ndarray) -> np.ndarray:
     return values
 
 
+def _roc_auc(labels: np.ndarray, probabilities: np.ndarray) -> float:
+    positives = int(labels.sum())
+    negatives = int(labels.size - positives)
+    if positives == 0 or negatives == 0:
+        return float("nan")
+    order = np.argsort(probabilities, kind="stable")
+    sorted_probabilities = probabilities[order]
+    ranks = np.empty(labels.size, dtype=float)
+    start = 0
+    while start < labels.size:
+        end = start + 1
+        while end < labels.size and sorted_probabilities[end] == sorted_probabilities[start]:
+            end += 1
+        ranks[order[start:end]] = 0.5 * ((start + 1) + end)
+        start = end
+    rank_sum = float(ranks[labels == 1].sum())
+    return (rank_sum - positives * (positives + 1) / 2.0) / (positives * negatives)
+
+
+def _ess_record(summary: EssSupportSummary) -> dict[str, object]:
+    return {
+        "row_count": summary.row_count,
+        "path_long_design_effect": summary.path_long.design_effect,
+        "path_long_ess": summary.path_long.effective_sample_size,
+        "gross_move_design_effect": summary.gross_move_points_60m.design_effect,
+        "gross_move_ess": summary.gross_move_points_60m.effective_sample_size,
+        "governing_design_effect": summary.governing_design_effect,
+        "governing_ess": summary.governing_effective_sample_size,
+        "raw_negative_count": summary.raw_negative_count,
+        "raw_positive_count": summary.raw_positive_count,
+        "effective_negative_support": summary.effective_negative_support,
+        "effective_positive_support": summary.effective_positive_support,
+        "status": summary.status,
+    }
+
+
 def _linear_logits(features: np.ndarray, beta: np.ndarray) -> np.ndarray:
     design = np.column_stack([np.ones(features.shape[0]), features])
     with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
@@ -438,7 +489,7 @@ def run_synthetic_evaluation(
     *,
     timestamp_utc: datetime,
     code_identity: str,
-    governance_gates_passed: bool = True,
+    governance_gates_passed: bool = False,
 ) -> SyntheticEvaluation:
     """Exercise the frozen Test 2 evaluator using only caller-supplied in-memory rows."""
 
@@ -476,10 +527,14 @@ def run_synthetic_evaluation(
     ))
     fold_runs: list[FoldModelRun] = []
     fold_metrics: dict[str, ImprovementMetrics] = {}
+    fold_primary_results: dict[str, dict[str, float]] = {}
     session_tables: dict[str, tuple[SessionLossAggregate, ...]] = {}
     pooled_loss_sums = {"prior": 0.0, "nuisance": 0.0, "full": 0.0, "rows": 0}
     fitter_calls = 0
     optimizer_records: dict[str, dict[str, Mapping[str, object]]] = {
+        NUISANCE_MODEL_ID: {}, FULL_MODEL_ID: {}
+    }
+    metric_records: dict[str, dict[str, dict[str, float]]] = {
         NUISANCE_MODEL_ID: {}, FULL_MODEL_ID: {}
     }
     for fold in materialized:
@@ -513,6 +568,14 @@ def run_synthetic_evaluation(
         fold_metrics[fold.fold_id] = ImprovementMetrics(
             prior_mean - full_mean, nuisance_mean - full_mean
         )
+        fold_primary_results[fold.fold_id] = {
+            "prior_log_loss": prior_mean,
+            "nuisance_log_loss": nuisance_mean,
+            "full_log_loss": full_mean,
+            "improvement_vs_prior": prior_mean - full_mean,
+            "improvement_vs_nuisance": nuisance_mean - full_mean,
+            "nuisance_improvement_vs_prior": prior_mean - nuisance_mean,
+        }
         optimizer_records[NUISANCE_MODEL_ID][fold.fold_id] = {
             **nuisance_optimizer,
             "zero_variance_features": nuisance.zero_variance_features,
@@ -520,6 +583,22 @@ def run_synthetic_evaluation(
         optimizer_records[FULL_MODEL_ID][fold.fold_id] = {
             **full_optimizer,
             "zero_variance_features": full.zero_variance_features,
+        }
+        metric_records[NUISANCE_MODEL_ID][fold.fold_id] = {
+            "log_loss": nuisance_mean,
+            "brier_score": float(np.mean((nuisance_probabilities - holdout_labels) ** 2)),
+            "roc_auc": _roc_auc(holdout_labels, nuisance_probabilities),
+            "average_precision": stepwise_average_precision(
+                holdout_labels, nuisance_probabilities
+            ),
+        }
+        metric_records[FULL_MODEL_ID][fold.fold_id] = {
+            "log_loss": full_mean,
+            "brier_score": float(np.mean((full_probabilities - holdout_labels) ** 2)),
+            "roc_auc": _roc_auc(holdout_labels, full_probabilities),
+            "average_precision": stepwise_average_precision(
+                holdout_labels, full_probabilities
+            ),
         }
         fold_runs.append(
             FoldModelRun(
@@ -534,7 +613,14 @@ def run_synthetic_evaluation(
             )
         )
         aggregates: list[SessionLossAggregate] = []
-        for session_id in dict.fromkeys(fold.holdout_session_ids):
+        first_time_by_session: dict[str, datetime] = {}
+        for session_id, decision_time in zip(
+            fold.holdout_session_ids, fold.holdout_decision_times, strict=True
+        ):
+            first_time_by_session[session_id] = min(
+                first_time_by_session.get(session_id, decision_time), decision_time
+            )
+        for session_id in sorted(first_time_by_session, key=first_time_by_session.get):
             mask = np.asarray([value == session_id for value in fold.holdout_session_ids])
             aggregates.append(
                 SessionLossAggregate(
@@ -568,30 +654,172 @@ def run_synthetic_evaluation(
         governance_gates_passed=governance_gates_passed,
     )
     timestamp_token = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    fold_preflight_by_id = {fold.fold_id: fold for fold in preflight.folds}
+    bootstrap_records = tuple(
+        {
+            "block_length_sessions": bootstrap.block_length,
+            "repetitions": bootstrap.repetitions,
+            "pooled_seed": bootstrap.pooled_seed,
+            "fold_seeds": bootstrap.fold_seeds,
+            "draw_identity_sha256": bootstrap.draw_identity_sha256,
+            "method_id": "PAIRED_NONCIRCULAR_CONSECUTIVE_SESSION_MOVING_BLOCK_V1",
+            "comparison_scope": "PATHFULL001_VS_PRIOR_AND_PATHNUISANCE001",
+            "draw_pairing": "PRIOR_NUISANCE_FULL_IDENTICAL_INDICES_WITHIN_REPLICATE",
+            "pooled_resampling": "FOLDS_INDEPENDENT_THEN_ROW_WEIGHTED_CONCATENATION",
+            "remainder_rule": "CONCATENATE_THEN_TRUNCATE_NO_PAD_NO_WRAP",
+            "lower_bound_vs_prior": bootstrap.lower_bound_vs_prior,
+            "lower_bound_vs_nuisance": bootstrap.lower_bound_vs_nuisance,
+            "percentile": bootstrap.percentile,
+            "quantile_method": "linear",
+        }
+        for bootstrap in bootstraps
+    )
     records = tuple(
         {
             "EXPERIMENT_ID": f"MES_TEST2_{model_id}_{timestamp_token}",
+            "timestamp_utc": timestamp.isoformat().replace("+00:00", "Z"),
             "EXPLORATION_SCOPE_ID": EXPLORATION_SCOPE_ID,
             "model_id": model_id,
             "access_level": ACCESS_LEVEL,
+            "harness_status": "L0_SYNTHETIC_IN_MEMORY_ONLY",
             "code_identity": code_identity.strip(),
+            "identity_block": {
+                "source_identity": {
+                    "raw_dbn_sha256": RAW_DBN_SHA256,
+                    "decoded_mes_1m_sha256": DECODED_MES_1M_SHA256,
+                    "feature_artifact_sha256": FEATURE_ARTIFACT_SHA256,
+                },
+                "role_assignment_identity": CELL8_SPLIT_ASSIGNMENT_SHA256,
+                "feature_set_identity": sha256_bytes(
+                    canonical_json_bytes(list(FEATURE_COLUMNS))
+                ),
+                "target_identity": "PATH_LONG_FIRST_TOUCH_TP16_SL8_OFFSETS0_59_V1",
+                "cost_identity": "CONSERVATIVE_ROUND_TRIP_0.994_POINTS_4.97_USD",
+                "environment_identity": f"NUMPY_{np.__version__}_PYTHON_API_L0",
+                "authorization_identity": "L0_SYNTHETIC_ONLY_NO_L1_TOKEN",
+            },
+            "model_family": "L2_REGULARIZED_BINARY_LOGISTIC_REGRESSION",
+            "fixed_parameters": {
+                "l2_lambda": L2_LAMBDA,
+                "max_iterations": MAX_ITERATIONS,
+                "gradient_inf_tolerance": GRADIENT_TOL,
+                "armijo_constant": ARMIJO_CONSTANT,
+                "backtracking_shrink": BACKTRACK_SHRINK,
+                "minimum_step": MINIMUM_STEP,
+                "intercept": "FITTED_UNPENALIZED",
+                "class_weighting": "NONE",
+            },
+            "preprocessing": "FOLD_LOCAL_TRAIN_MEAN_POPULATION_SD_ZERO_SCALE_TO_ONE",
             "retained_set_sha256": preflight.pooled_retained_sha256,
             "folds": FOLD_ORDER,
+            "fold_preflight": {
+                fold_id: {
+                    "train_retained_sha256": fold_preflight_by_id[
+                        fold_id
+                    ].train_retained_sha256,
+                    "holdout_retained_sha256": fold_preflight_by_id[
+                        fold_id
+                    ].holdout_retained_sha256,
+                    "boundary_gap_minutes": fold_preflight_by_id[
+                        fold_id
+                    ].boundary_gap_minutes,
+                    "embargo_minutes": 0,
+                    "ess_support": _ess_record(
+                        fold_preflight_by_id[fold_id].ess_support
+                    ),
+                }
+                for fold_id in FOLD_ORDER
+            },
+            "pooled_ess_support": _ess_record(preflight.pooled_ess_support),
             "features": (
                 tuple(FEATURE_COLUMNS[index] for index in nuisance_indices)
                 if model_id == NUISANCE_MODEL_ID
                 else tuple(FEATURE_COLUMNS)
             ),
             "optimizer": optimizer_records[model_id],
+            "primary_metric": "OOF_BINARY_LOG_LOSS",
+            "fold_metrics": metric_records[model_id],
+            "primary_results": (
+                {
+                    "folds": fold_primary_results,
+                    "pooled": {
+                        "prior_log_loss": pooled_loss_sums["prior"] / rows,
+                        "nuisance_log_loss": pooled_loss_sums["nuisance"] / rows,
+                        "full_log_loss": pooled_loss_sums["full"] / rows,
+                        "improvement_vs_prior": pooled_metrics.improvement_vs_prior,
+                        "improvement_vs_nuisance": pooled_metrics.improvement_vs_nuisance,
+                        "nuisance_improvement_vs_prior": (
+                            pooled_loss_sums["prior"] - pooled_loss_sums["nuisance"]
+                        )
+                        / rows,
+                    },
+                    "scope": "PATHFULL001_CONTINUATION_GATE",
+                }
+                if model_id == FULL_MODEL_ID
+                else {
+                    "folds": {
+                        fold_id: {
+                            "prior_log_loss": values["prior_log_loss"],
+                            "nuisance_log_loss": values["nuisance_log_loss"],
+                            "nuisance_improvement_vs_prior": values[
+                                "nuisance_improvement_vs_prior"
+                            ],
+                        }
+                        for fold_id, values in fold_primary_results.items()
+                    },
+                    "pooled": {
+                        "prior_log_loss": pooled_loss_sums["prior"] / rows,
+                        "nuisance_log_loss": pooled_loss_sums["nuisance"] / rows,
+                        "nuisance_improvement_vs_prior": (
+                            pooled_loss_sums["prior"] - pooled_loss_sums["nuisance"]
+                        )
+                        / rows,
+                    },
+                    "scope": "PATHNUISANCE001_BASELINE_DIAGNOSTIC_ONLY",
+                }
+            ),
+            "mde_vs_prior": MDE_VS_PRIOR,
+            "mde_vs_nuisance": MDE_VS_NUISANCE,
+            "diagnostic_probability_threshold": 0.5,
+            "diagnostic_threshold_semantics": "COVERAGE_ONLY_NOT_ECONOMIC_BREAK_EVEN",
+            "take_profit_ticks": TAKE_PROFIT_TICKS,
+            "stop_ticks": STOP_TICKS,
+            "tick_size_points": TICK_SIZE_POINTS,
             "bootstrap_repetitions": BOOTSTRAP_REPETITIONS,
             "bootstrap_master_seed": MASTER_SEED,
             "bootstrap_quantile_method": "linear",
+            "bootstrap": bootstrap_records,
+            "effective_events_per_non_intercept_coefficient": {
+                fold_id: min(
+                    fold_preflight_by_id[fold_id].ess_support.effective_negative_support,
+                    fold_preflight_by_id[fold_id].ess_support.effective_positive_support,
+                )
+                / (4 if model_id == NUISANCE_MODEL_ID else len(FEATURE_COLUMNS))
+                for fold_id in FOLD_ORDER
+            },
+            "effective_events_below_10_disclosure": {
+                fold_id: min(
+                    fold_preflight_by_id[fold_id].ess_support.effective_negative_support,
+                    fold_preflight_by_id[fold_id].ess_support.effective_positive_support,
+                )
+                / (4 if model_id == NUISANCE_MODEL_ID else len(FEATURE_COLUMNS))
+                < 10.0
+                for fold_id in FOLD_ORDER
+            },
+            "ambiguity_rows": 0,
+            "missing_rows": 0,
+            "excluded_rows": 0,
+            "coverage_counter_scope": "SYNTHETIC_RETAINED_INPUT_ONLY",
+            "search_budget_models": 2,
             "release_policy_id": RELEASE_POLICY_ID,
             "capacity_policy_id": CAPACITY_POLICY_ID,
             "validation_rows_read": 0,
             "final_test_rows_read": 0,
             "real_models_fitted": 0,
-            "synthetic_fitter_calls": fitter_calls,
+            "run_synthetic_fitter_calls": fitter_calls,
+            "model_synthetic_fitter_calls": len(FOLD_ORDER),
+            "governance_gates_passed": governance_gates_passed,
+            "decision_failures": decision.failures,
             "disposition": (
                 "BASELINE_NOT_ELIGIBLE"
                 if model_id == NUISANCE_MODEL_ID

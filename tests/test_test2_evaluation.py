@@ -222,6 +222,7 @@ def test_underpowered_evaluation_stops_before_any_fitter(monkeypatch) -> None:
         (_fold("WF_2022", design_pattern=True), _fold("WF_2023", design_pattern=True)),
         timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
         code_identity="synthetic-code",
+        governance_gates_passed=True,
     )
     assert result.preflight.status == INCONCLUSIVE_UNDERPOWERED
     assert result.synthetic_fitter_calls == 0
@@ -263,6 +264,7 @@ def test_happy_path_uses_four_fold_fits_and_two_unique_records(monkeypatch) -> N
         ),
         timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
         code_identity="synthetic-code",
+        governance_gates_passed=True,
     )
     assert calls == [4, 29, 4, 29]
     assert result.synthetic_fitter_calls == 4
@@ -275,3 +277,45 @@ def test_happy_path_uses_four_fold_fits_and_two_unique_records(monkeypatch) -> N
     assert all(record["validation_rows_read"] == 0 for record in result.experiment_records)
     assert all(record["final_test_rows_read"] == 0 for record in result.experiment_records)
     assert all(record["real_models_fitted"] == 0 for record in result.experiment_records)
+    for record in result.experiment_records:
+        assert record["timestamp_utc"] == "2026-08-23T00:00:00Z"
+        assert record["primary_metric"] == "OOF_BINARY_LOG_LOSS"
+        assert record["retained_set_sha256"] == result.preflight.pooled_retained_sha256
+        assert set(record["fold_preflight"]) == {"WF_2022", "WF_2023"}
+        assert record["pooled_ess_support"]["governing_ess"] >= 2_000
+        assert record["mde_vs_prior"] == 0.0075
+        assert record["mde_vs_nuisance"] == 0.0075
+        assert [item["block_length_sessions"] for item in record["bootstrap"]] == [5, 1, 20]
+        assert record["release_policy_id"] == "RELEASE_AT_FIRST_TOUCH"
+        assert record["capacity_policy_id"] == "RESERVE_CAPACITY_TO_60M"
+        assert record["identity_block"]["authorization_identity"] == (
+            "L0_SYNTHETIC_ONLY_NO_L1_TOKEN"
+        )
+        assert record["fixed_parameters"]["l2_lambda"] == 0.001
+        assert all(len(item["draw_identity_sha256"]) == 64 for item in record["bootstrap"])
+        assert all(
+            item["comparison_scope"] == "PATHFULL001_VS_PRIOR_AND_PATHNUISANCE001"
+            for item in record["bootstrap"]
+        )
+        assert record["governance_gates_passed"] is True
+        assert set(record["effective_events_per_non_intercept_coefficient"]) == {
+            "WF_2022",
+            "WF_2023",
+        }
+    nuisance_features = result.experiment_records[0]["features"]
+    assert nuisance_features == (
+        "realized_vol_60m",
+        "realized_vol_120m",
+        "realized_vol_240m",
+        "bar_log_range_15m",
+    )
+    full_primary = result.experiment_records[1]["primary_results"]
+    assert full_primary["scope"] == "PATHFULL001_CONTINUATION_GATE"
+    for fold_id in ("WF_2022", "WF_2023"):
+        fold_result = full_primary["folds"][fold_id]
+        assert fold_result["improvement_vs_prior"] == pytest.approx(
+            fold_result["prior_log_loss"] - fold_result["full_log_loss"]
+        )
+        assert fold_result["improvement_vs_nuisance"] == pytest.approx(
+            fold_result["nuisance_log_loss"] - fold_result["full_log_loss"]
+        )

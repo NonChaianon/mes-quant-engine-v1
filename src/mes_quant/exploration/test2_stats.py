@@ -9,6 +9,8 @@ from numbers import Integral, Real
 
 import numpy as np
 
+from mes_quant.core.hashing import sha256_bytes
+
 MASTER_SEED = 20260809
 BOOTSTRAP_REPETITIONS = 2_000
 PRIMARY_BLOCK_LENGTH = 5
@@ -86,6 +88,7 @@ class PairedBootstrapResult:
     repetitions: int
     pooled_seed: int
     fold_seeds: tuple[tuple[str, int], ...]
+    draw_identity_sha256: str
     improvement_vs_prior: tuple[float, ...]
     improvement_vs_nuisance: tuple[float, ...]
     lower_bound_vs_prior: float
@@ -352,6 +355,7 @@ def paired_session_block_bootstrap(
 
     pooled_seed = master_seed + 90_000 + block_length
     fold_seeds: list[tuple[str, int]] = []
+    draw_identity_parts: list[bytes] = []
     sampled_rows_parts: list[np.ndarray] = []
     sampled_prior_parts: list[np.ndarray] = []
     sampled_nuisance_parts: list[np.ndarray] = []
@@ -362,6 +366,13 @@ def paired_session_block_bootstrap(
         rng = np.random.default_rng(fold_seed)
         rows = tables[fold_id]
         draws = moving_block_indices(len(rows), block_length, repetitions, rng)
+        draw_identity_parts.extend(
+            [
+                fold_id.encode("utf-8"),
+                np.asarray(draws.shape, dtype=np.int64).tobytes(),
+                draws.tobytes(order="C"),
+            ]
+        )
         row_counts = np.asarray([row.row_count for row in rows], dtype=float)
         prior = np.asarray([row.prior_loss_sum for row in rows], dtype=float)
         nuisance = np.asarray([row.nuisance_loss_sum for row in rows], dtype=float)
@@ -384,6 +395,7 @@ def paired_session_block_bootstrap(
         repetitions=repetitions,
         pooled_seed=pooled_seed,
         fold_seeds=tuple(fold_seeds),
+        draw_identity_sha256=sha256_bytes(b"".join(draw_identity_parts)),
         improvement_vs_prior=tuple(float(value) for value in improvement_vs_prior),
         improvement_vs_nuisance=tuple(float(value) for value in improvement_vs_nuisance),
         lower_bound_vs_prior=lower_prior,

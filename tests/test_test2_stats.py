@@ -247,6 +247,7 @@ def test_bootstrap_freezes_seed_schedule_pairing_and_fifth_percentile() -> None:
         ("WF_2022", result.pooled_seed + 1_000),
         ("WF_2023", result.pooled_seed + 2_000),
     )
+    assert len(result.draw_identity_sha256) == 64
     assert result.improvement_vs_prior == pytest.approx([0.2] * BOOTSTRAP_REPETITIONS)
     assert result.improvement_vs_nuisance == pytest.approx([0.1] * BOOTSTRAP_REPETITIONS)
     assert result.lower_bound_vs_prior == pytest.approx(0.2)
