@@ -25,6 +25,11 @@ from mes_quant.exploration.l1_lr001 import (
     MAX_ITERATIONS,
     MINIMUM_STEP,
 )
+from mes_quant.exploration.test2_diagnostics import (
+    DIAGNOSTIC_THRESHOLD,
+    MES_MULTIPLIER_USD_PER_POINT,
+    ROUND_TRIP_COST_USD,
+)
 from mes_quant.exploration.test2_g3_contract import (
     DISPOSITION_DEFERRED_PENDING_G3F,
     G3F_GATE_LITERAL,
@@ -32,6 +37,7 @@ from mes_quant.exploration.test2_g3_contract import (
 )
 from mes_quant.exploration.test2_path_contract import (
     BOOTSTRAP_REPETITIONS,
+    CAPACITY_POLICY_ID,
     DIAGNOSTIC_BLOCK_LENGTHS,
     EFFECTIVE_CLASS_SUPPORT_FLOOR,
     ESS_FLOOR_PER_FOLD,
@@ -47,6 +53,7 @@ from mes_quant.exploration.test2_path_contract import (
     PATH_BAR_COUNT,
     POOLED_SEED_OFFSET,
     PRIMARY_BLOCK_LENGTH_SESSIONS,
+    RELEASE_POLICY_ID,
     STOP_TICKS,
     TAKE_PROFIT_TICKS,
     TICK_SIZE_POINTS,
@@ -74,14 +81,24 @@ G3F_CODE_ONLY_BASE_COMMIT = "7d66c43765c3a2c7f7acc772d8861490c70d6894"
 G3F_CODE_ONLY_BRANCH = "research/test2-g3f-code-only-v1"
 G3F_CODE_ONLY_GATE_LITERAL = "G3F_CODE_ONLY_PREPARATION"
 G3F_CODE_ONLY_STATUS = "OWNER_AUTHORIZED_CODE_ONLY_PREPARATION"
-G3F_EXECUTION_STATUS = "NOT_AUTHORIZED"
+G3F_EXECUTION_STATUS = "OWNER_AUTHORIZED_ONE_SHOT_TRAIN_ONLY"
 G3F_EXECUTION_BASE_COMMIT = "d3d0455a4299f0dc881974029d457a4197ef321d"
-G3F_EXECUTION_BRANCH = "research/test2-g3f-execution-package-v1"
+G3F_EXECUTION_BRANCH = "research/test2-g3f-real-execution-v1"
 PINNED_G3F_CODE_ONLY_AUTHORIZATION_DOC_SHA256 = (
     "8d70e05b12466faa2860b3d810cf74d2c7fe0320e420b4147900ae9f1dc6c129"
 )
-PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256: str | None = None
+PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256: str | None = (
+    "ef93a00bd6d7619db6193bcad7cc1ed8241159032fd6528bbf4979d72e4d6a1c"
+)
 G3F_SUPPORT_STATUS = "SUPPORT_GATE_PASS_RECOMPUTED_G3F_TRAIN_ONLY"
+G3F_ECONOMIC_SEMANTICS = (
+    "TOUCH_DEFINED_CURRENT_DEPLOYMENT_COUNTERFACTUAL_NOT_HISTORICAL_FILL"
+)
+G3F_THRESHOLD_SEMANTICS = "COVERAGE_ONLY_NOT_ECONOMIC_BREAK_EVEN"
+G3F_OMITTED_LEDGER_PREIMAGE = (
+    "CANONICAL_JSON_ORDERED_LIST_V1:decision_identity,fold_id,session_id,"
+    "entry_time_utc,release_time_utc,net_usd"
+)
 
 PINNED_G3P_RECORD_SHA256 = (
     "a6906cf0a1392c76065c3e98cee0f48ad431af0d043d4d65749b03644704e32e"
@@ -103,6 +120,7 @@ G3F_EXECUTION_ALLOWED_CHANGED_FILES = frozenset(
     {
         "docs/research/TEST2_G3F_EXECUTION_PACKAGE_V1.md",
         "docs/research/TEST2_G3F_OWNER_AUTHORIZATION_V1.md",
+        "docs/research/TEST2_G3F_REAL_EXECUTION_AUTHORIZATION_V1.md",
         "src/mes_quant/exploration/test2_evaluation.py",
         "src/mes_quant/exploration/test2_g3f_contract.py",
         "src/mes_quant/exploration/test2_g3f_execution.py",
@@ -122,7 +140,19 @@ G3F_PROTECTED_SURFACE_SHA256 = MappingProxyType(
             "26068239193ed41d45e3183f4957d30fec6136265ae88a0ea8bfac661a21d2b7"
         ),
         "src/mes_quant/exploration/test2_evaluation.py": (
-            "fa5231835a090b08cb778380081279051cc92c27657e205059c6ba06c85e2088"
+            "957b0598c99a810cbe32f412248028a398a15817f40cf762fff2a0d18fc9b129"
+        ),
+        "src/mes_quant/exploration/test2_g3f_execution.py": (
+            "2691968d04fc8f21ad29d4f09e4169a8776c122c0349279449186c4d86775bb4"
+        ),
+        "tools/run_test2_g3f_conditional_fit.py": (
+            "2ac3b9e5939ea98a80fd0cba9d4d5b6e9f39292830c7cc1d7d15edb61c37637d"
+        ),
+        "tests/test_test2_g3f_contract.py": (
+            "e75b8bd0c0d3c057f2bf85f05a9fce6057998adf613978bd5d7b87fea6a2092b"
+        ),
+        "tests/test_test2_g3f_execution.py": (
+            "9009caa645e075a9bd5af59ae0b7727be1b7b9782a7c47a8099a02219f12d006"
         ),
         "src/mes_quant/exploration/test2_stats.py": (
             "ea7d784cad2e5cb287e8831d04142894cba9bc749a71153bee3275b064ea2236"
@@ -649,6 +679,7 @@ _ALLOWED_TOP_LEVEL_RECORD_KEYS = frozenset(
         "branch",
         "code_identity",
         "disposition",
+        "economic_summary",
         "final_test_status",
         "fit_budget",
         "fold_metrics",
@@ -691,6 +722,7 @@ _ALLOWED_POOLED_METRIC_KEYS = frozenset(
 _ALLOWED_BOOTSTRAP_SUMMARY_KEYS = frozenset(
     {
         "diagnostic_block_lengths",
+        "diagnostic_lower_bounds",
         "draw_identity_sha256",
         "primary_block_length",
         "primary_lower_bound_vs_nuisance",
@@ -744,6 +776,12 @@ def _require_finite_number(value: object, *, field: str) -> None:
         raise G3FContractError(f"{field} must be finite")
 
 
+def _require_nonnegative_integer(value: object, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral) or int(value) < 0:
+        raise G3FContractError(f"{field} must be a non-negative integer")
+    return int(value)
+
+
 def _validate_metric_mapping(
     value: object,
     allowed: frozenset[str],
@@ -761,6 +799,176 @@ def _validate_metric_mapping(
                 raise G3FContractError(f"{field}.row_count must be a positive integer")
         else:
             _require_finite_number(item, field=f"{field}.{key}")
+
+
+def _validate_economic_policy(
+    value: object,
+    *,
+    field: str,
+    expected_policy_id: str,
+) -> tuple[int, int, float]:
+    if not isinstance(value, Mapping):
+        raise G3FContractError(f"{field} must be an aggregate mapping")
+    _require_exact_keys(
+        value,
+        frozenset(
+            {
+                "candidate_long_signals",
+                "capacity_rejected_signals",
+                "diagnostic_probability_threshold",
+                "executed_trades",
+                "net_usd",
+                "omitted_ledger_sha256",
+                "per_fold",
+                "policy_id",
+                "round_trip_cost_usd",
+                "trade_net_dispersion",
+            }
+        ),
+        field=field,
+    )
+    if value.get("policy_id") != expected_policy_id:
+        raise G3FContractError(f"{field}.policy_id mismatch")
+    candidates = _require_nonnegative_integer(
+        value.get("candidate_long_signals"), field=f"{field}.candidate_long_signals"
+    )
+    executed = _require_nonnegative_integer(
+        value.get("executed_trades"), field=f"{field}.executed_trades"
+    )
+    rejected = _require_nonnegative_integer(
+        value.get("capacity_rejected_signals"),
+        field=f"{field}.capacity_rejected_signals",
+    )
+    if candidates != executed + rejected:
+        raise G3FContractError(f"{field} candidate/executed/rejected counts diverged")
+    _require_finite_number(value.get("net_usd"), field=f"{field}.net_usd")
+    net_usd = float(value["net_usd"])
+    if value.get("round_trip_cost_usd") != ROUND_TRIP_COST_USD:
+        raise G3FContractError(f"{field}.round_trip_cost_usd mismatch")
+    if value.get("diagnostic_probability_threshold") != DIAGNOSTIC_THRESHOLD:
+        raise G3FContractError(f"{field}.diagnostic_probability_threshold mismatch")
+    _sha256(
+        value.get("omitted_ledger_sha256"),
+        field=f"{field}.omitted_ledger_sha256",
+    )
+
+    per_fold = value.get("per_fold")
+    if not isinstance(per_fold, Mapping):
+        raise G3FContractError(f"{field}.per_fold must be a mapping")
+    _require_exact_keys(per_fold, frozenset(FROZEN_FOLD_IDS), field=f"{field}.per_fold")
+    fold_executed = 0
+    fold_net_usd = 0.0
+    for fold_id in FROZEN_FOLD_IDS:
+        fold = per_fold[fold_id]
+        if not isinstance(fold, Mapping):
+            raise G3FContractError(f"{field}.per_fold.{fold_id} is invalid")
+        _require_exact_keys(
+            fold,
+            frozenset({"executed_trades", "net_usd"}),
+            field=f"{field}.per_fold.{fold_id}",
+        )
+        fold_executed += _require_nonnegative_integer(
+            fold.get("executed_trades"),
+            field=f"{field}.per_fold.{fold_id}.executed_trades",
+        )
+        _require_finite_number(
+            fold.get("net_usd"), field=f"{field}.per_fold.{fold_id}.net_usd"
+        )
+        fold_net_usd += float(fold["net_usd"])
+    if fold_executed != executed or not math.isclose(
+        fold_net_usd, net_usd, rel_tol=1e-12, abs_tol=1e-9
+    ):
+        raise G3FContractError(f"{field}.per_fold does not reconcile")
+
+    dispersion = value.get("trade_net_dispersion")
+    if not isinstance(dispersion, Mapping):
+        raise G3FContractError(f"{field}.trade_net_dispersion must be a mapping")
+    _require_exact_keys(
+        dispersion,
+        frozenset(
+            {
+                "maximum_net_usd",
+                "minimum_net_usd",
+                "negative_count",
+                "positive_count",
+                "zero_count",
+            }
+        ),
+        field=f"{field}.trade_net_dispersion",
+    )
+    sign_total = sum(
+        _require_nonnegative_integer(
+            dispersion.get(key), field=f"{field}.trade_net_dispersion.{key}"
+        )
+        for key in ("positive_count", "negative_count", "zero_count")
+    )
+    if sign_total != executed:
+        raise G3FContractError(f"{field}.trade_net_dispersion counts do not reconcile")
+    minimum = dispersion.get("minimum_net_usd")
+    maximum = dispersion.get("maximum_net_usd")
+    if executed == 0:
+        if minimum is not None or maximum is not None:
+            raise G3FContractError(f"{field} zero-trade extrema must be null")
+    else:
+        _require_finite_number(minimum, field=f"{field}.minimum_net_usd")
+        _require_finite_number(maximum, field=f"{field}.maximum_net_usd")
+        if float(minimum) > float(maximum):
+            raise G3FContractError(f"{field} dispersion extrema are reversed")
+    return candidates, executed, net_usd
+
+
+def _validate_economic_summary(value: object) -> None:
+    if not isinstance(value, Mapping):
+        raise G3FContractError("economic_summary must be an aggregate mapping")
+    _require_exact_keys(
+        value,
+        frozenset(
+            {
+                "capacity_sensitivity",
+                "economic_diagnostic_calls",
+                "economic_policy_evaluations",
+                "mes_multiplier_usd_per_point",
+                "omitted_ledger_preimage",
+                "primary",
+                "semantics",
+                "source_model_id",
+                "threshold_semantics",
+            }
+        ),
+        field="economic_summary",
+    )
+    if value.get("source_model_id") != FULL_MODEL_ID:
+        raise G3FContractError("economic_summary source model mismatch")
+    if value.get("semantics") != G3F_ECONOMIC_SEMANTICS:
+        raise G3FContractError("economic_summary semantics mismatch")
+    if value.get("threshold_semantics") != G3F_THRESHOLD_SEMANTICS:
+        raise G3FContractError("economic_summary threshold semantics mismatch")
+    if value.get("omitted_ledger_preimage") != G3F_OMITTED_LEDGER_PREIMAGE:
+        raise G3FContractError("economic_summary ledger preimage mismatch")
+    if value.get("mes_multiplier_usd_per_point") != MES_MULTIPLIER_USD_PER_POINT:
+        raise G3FContractError("economic_summary multiplier mismatch")
+    _require_integer(
+        value.get("economic_diagnostic_calls"),
+        1,
+        field="economic_summary.economic_diagnostic_calls",
+    )
+    _require_integer(
+        value.get("economic_policy_evaluations"),
+        2,
+        field="economic_summary.economic_policy_evaluations",
+    )
+    primary_candidates, _, _ = _validate_economic_policy(
+        value.get("primary"),
+        field="economic_summary.primary",
+        expected_policy_id=RELEASE_POLICY_ID,
+    )
+    sensitivity_candidates, _, _ = _validate_economic_policy(
+        value.get("capacity_sensitivity"),
+        field="economic_summary.capacity_sensitivity",
+        expected_policy_id=CAPACITY_POLICY_ID,
+    )
+    if primary_candidates != sensitivity_candidates:
+        raise G3FContractError("economic policy candidate counts diverged")
 
 
 def validate_aggregate_record(record: Mapping[str, object]) -> None:
@@ -781,6 +989,7 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
         "branch",
         "code_identity",
         "disposition",
+        "economic_summary",
         "final_test_status",
         "fit_budget",
         "fold_metrics",
@@ -952,10 +1161,16 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
         raise G3FContractError("G3-F aggregate record requires authorization_binding")
     _require_exact_keys(
         authorization,
-        frozenset({"identity_sha256"}),
+        frozenset({"identity_sha256", "status"}),
         field="authorization_binding",
     )
     _sha256(authorization.get("identity_sha256"), field="authorization.identity_sha256")
+    if authorization.get("identity_sha256") != (
+        PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256
+    ):
+        raise G3FContractError("G3-F real-execution authorization hash mismatch")
+    if authorization.get("status") != G3F_EXECUTION_STATUS:
+        raise G3FContractError("G3-F real-execution authorization status mismatch")
     if authorization.get("identity_sha256") != budget.get(
         "authorization_identity_sha256"
     ):
@@ -1028,6 +1243,8 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
         field="pooled_metrics",
     )
 
+    _validate_economic_summary(record.get("economic_summary"))
+
     bootstrap = record.get("bootstrap_summary")
     if not isinstance(bootstrap, Mapping) or not bootstrap:
         raise G3FContractError("G3-F record requires bootstrap_summary")
@@ -1038,6 +1255,7 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
     )
     required_bootstrap = {
         "diagnostic_block_lengths",
+        "diagnostic_lower_bounds",
         "draw_identity_sha256",
         "primary_block_length",
         "primary_lower_bound_vs_nuisance",
@@ -1055,6 +1273,35 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
         elif key == "diagnostic_block_lengths":
             if item != list(DIAGNOSTIC_BLOCK_LENGTHS):
                 raise G3FContractError("diagnostic bootstrap block lengths mismatch")
+        elif key == "diagnostic_lower_bounds":
+            if not isinstance(item, list) or len(item) != len(
+                DIAGNOSTIC_BLOCK_LENGTHS
+            ):
+                raise G3FContractError("diagnostic bootstrap lower bounds mismatch")
+            observed_blocks: list[int] = []
+            for ordinal, row in enumerate(item):
+                if not isinstance(row, list) or len(row) != 3:
+                    raise G3FContractError(
+                        "diagnostic bootstrap lower-bound row mismatch"
+                    )
+                block, vs_prior, vs_nuisance = row
+                expected_block = DIAGNOSTIC_BLOCK_LENGTHS[ordinal]
+                _require_integer(
+                    block,
+                    expected_block,
+                    field=f"bootstrap.diagnostic_lower_bounds[{ordinal}].block",
+                )
+                _require_finite_number(
+                    vs_prior,
+                    field=f"bootstrap.diagnostic_lower_bounds[{ordinal}].vs_prior",
+                )
+                _require_finite_number(
+                    vs_nuisance,
+                    field=f"bootstrap.diagnostic_lower_bounds[{ordinal}].vs_nuisance",
+                )
+                observed_blocks.append(int(block))
+            if observed_blocks != list(DIAGNOSTIC_BLOCK_LENGTHS):
+                raise G3FContractError("diagnostic bootstrap order mismatch")
         elif key == "repetitions":
             _require_integer(item, BOOTSTRAP_REPETITIONS, field="bootstrap.repetitions")
         elif key == "primary_block_length":

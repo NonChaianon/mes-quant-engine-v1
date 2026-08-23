@@ -192,6 +192,7 @@ class Test2Evaluation:
     experiment_records: tuple[Mapping[str, object], ...]
     synthetic_fitter_calls: int
     pooled_primary_metrics: Mapping[str, float] = field(default_factory=dict)
+    economic_diagnostic_calls: int = 0
 
 
 SyntheticEvaluation = Test2Evaluation
@@ -857,14 +858,15 @@ def _run_evaluation(
     real_models_fitted = 0 if fixture_or_synthetic else len((NUISANCE_MODEL_ID, FULL_MODEL_ID))
     real_fold_fits = 0 if fixture_or_synthetic else fitter_calls
     context_record = run_context.as_record(real_models_fitted=real_models_fitted)
-    economic_diagnostics = (
-        {
+    if economic_signals:
+        economic_diagnostics = {
             "source_model_id": FULL_MODEL_ID,
             **build_economic_diagnostics(economic_signals),
         }
-        if economic_signals
-        else context_record["economic_diagnostics"]
-    )
+        economic_diagnostic_calls = 1
+    else:
+        economic_diagnostics = context_record["economic_diagnostics"]
+        economic_diagnostic_calls = 0
     records = tuple(
         {
             "EXPERIMENT_ID": f"MES_TEST2_{model_id}_{timestamp_token}",
@@ -1068,6 +1070,7 @@ def _run_evaluation(
             "improvement_vs_prior": pooled_metrics.improvement_vs_prior,
             "improvement_vs_nuisance": pooled_metrics.improvement_vs_nuisance,
         },
+        economic_diagnostic_calls,
     )
 
 

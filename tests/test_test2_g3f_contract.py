@@ -30,6 +30,7 @@ from mes_quant.exploration.test2_g3f_contract import (
     G3F_SUPPORT_STATUS,
     MAX_REAL_FOLD_FIT_CALLS,
     MAX_REAL_MODELS,
+    PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256,
     PINNED_G3P_FILE_SHA256,
     PINNED_G3P_RECORD_SHA256,
     PINNED_G3P_RUN_ID,
@@ -119,8 +120,35 @@ def _passing_g3p_record() -> dict[str, object]:
     }
 
 
+def _economic_policy(policy_id: str) -> dict[str, object]:
+    return {
+        "policy_id": policy_id,
+        "candidate_long_signals": 2,
+        "executed_trades": 2,
+        "capacity_rejected_signals": 0,
+        "net_usd": 0.06,
+        "round_trip_cost_usd": 4.97,
+        "diagnostic_probability_threshold": 0.5,
+        "omitted_ledger_sha256": "9" * 64,
+        "per_fold": {
+            "WF_2022": {"executed_trades": 1, "net_usd": 15.03},
+            "WF_2023": {"executed_trades": 1, "net_usd": -14.97},
+        },
+        "trade_net_dispersion": {
+            "minimum_net_usd": -14.97,
+            "maximum_net_usd": 15.03,
+            "positive_count": 1,
+            "negative_count": 1,
+            "zero_count": 0,
+        },
+    }
+
+
 def _aggregate_record(seed: int = 100) -> dict[str, object]:
     budget = _complete_budget(seed).witness()
+    budget["authorization_identity_sha256"] = (
+        PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256
+    )
     completed = budget["completed_fits"]
     assert isinstance(completed, list)
     return {
@@ -132,7 +160,10 @@ def _aggregate_record(seed: int = 100) -> dict[str, object]:
         "run_id": "MES_T2_G3F_0123456789ABCDEF",
         "disposition": "NOT_INTERESTING_ENOUGH",
         "fit_budget": budget,
-        "authorization_binding": {"identity_sha256": _identity(seed)},
+        "authorization_binding": {
+            "identity_sha256": PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256,
+            "status": G3F_EXECUTION_STATUS,
+        },
         "g3p_binding": {
             "run_id": PINNED_G3P_RUN_ID,
             "record_sha256": PINNED_G3P_RECORD_SHA256,
@@ -174,6 +205,22 @@ def _aggregate_record(seed: int = 100) -> dict[str, object]:
             "improvement_vs_nuisance": 0.01,
             "retained_sha256": "f" * 64,
         },
+        "economic_summary": {
+            "source_model_id": FULL_MODEL_ID,
+            "semantics": (
+                "TOUCH_DEFINED_CURRENT_DEPLOYMENT_COUNTERFACTUAL_NOT_HISTORICAL_FILL"
+            ),
+            "threshold_semantics": "COVERAGE_ONLY_NOT_ECONOMIC_BREAK_EVEN",
+            "economic_diagnostic_calls": 1,
+            "economic_policy_evaluations": 2,
+            "mes_multiplier_usd_per_point": 5.0,
+            "omitted_ledger_preimage": (
+                "CANONICAL_JSON_ORDERED_LIST_V1:decision_identity,fold_id,"
+                "session_id,entry_time_utc,release_time_utc,net_usd"
+            ),
+            "primary": _economic_policy("RELEASE_AT_FIRST_TOUCH"),
+            "capacity_sensitivity": _economic_policy("RESERVE_CAPACITY_TO_60M"),
+        },
         "bootstrap_summary": {
             "primary_lower_bound_vs_prior": 0.001,
             "primary_lower_bound_vs_nuisance": 0.001,
@@ -181,6 +228,10 @@ def _aggregate_record(seed: int = 100) -> dict[str, object]:
             "repetitions": 2_000,
             "primary_block_length": 5,
             "diagnostic_block_lengths": [1, 20],
+            "diagnostic_lower_bounds": [
+                [1, 0.0005, 0.0004],
+                [20, 0.0003, 0.0002],
+            ],
         },
         "optimizer_summary": {
             "converged_fit_count": 4,
@@ -225,14 +276,17 @@ class G3FCodeOnlyIdentityTests(unittest.TestCase):
         self.assertEqual(G3F_CODE_ONLY_BRANCH, "research/test2-g3f-code-only-v1")
         self.assertEqual(G3F_CODE_ONLY_GATE_LITERAL, "G3F_CODE_ONLY_PREPARATION")
         self.assertEqual(G3F_CODE_ONLY_STATUS, "OWNER_AUTHORIZED_CODE_ONLY_PREPARATION")
-        self.assertEqual(G3F_EXECUTION_STATUS, "NOT_AUTHORIZED")
+        self.assertEqual(
+            G3F_EXECUTION_STATUS,
+            "OWNER_AUTHORIZED_ONE_SHOT_TRAIN_ONLY",
+        )
         self.assertEqual(
             G3F_EXECUTION_BASE_COMMIT,
             "d3d0455a4299f0dc881974029d457a4197ef321d",
         )
         self.assertEqual(
             G3F_EXECUTION_BRANCH,
-            "research/test2-g3f-execution-package-v1",
+            "research/test2-g3f-real-execution-v1",
         )
         self.assertEqual(
             G3F_ALLOWED_CHANGED_FILES,
@@ -570,6 +624,36 @@ class BindingAndRecordTests(unittest.TestCase):
                 with self.assertRaisesRegex(G3FContractError, "forbidden"):
                     validate_aggregate_record(record)
 
+    def test_zero_trade_economics_are_explicit_and_row_ledgers_are_rejected(self) -> None:
+        zero_trade = _aggregate_record(44)
+        for key in ("primary", "capacity_sensitivity"):
+            policy = zero_trade["economic_summary"][key]  # type: ignore[index]
+            policy.update(  # type: ignore[union-attr]
+                {
+                    "candidate_long_signals": 0,
+                    "capacity_rejected_signals": 0,
+                    "executed_trades": 0,
+                    "net_usd": 0.0,
+                    "per_fold": {
+                        "WF_2022": {"executed_trades": 0, "net_usd": 0.0},
+                        "WF_2023": {"executed_trades": 0, "net_usd": 0.0},
+                    },
+                    "trade_net_dispersion": {
+                        "minimum_net_usd": None,
+                        "maximum_net_usd": None,
+                        "positive_count": 0,
+                        "negative_count": 0,
+                        "zero_count": 0,
+                    },
+                }
+            )
+        validate_aggregate_record(zero_trade)
+
+        injected = _aggregate_record(145)
+        injected["economic_summary"]["primary"]["trades"] = []  # type: ignore[index]
+        with self.assertRaisesRegex(G3FContractError, "forbidden"):
+            validate_aggregate_record(injected)
+
     def test_exact_schema_rejects_benign_key_row_payload_and_non_integer_counters(
         self,
     ) -> None:
@@ -674,7 +758,7 @@ class BindingAndRecordTests(unittest.TestCase):
 
         divergent = _aggregate_record(85)
         divergent["authorization_binding"]["identity_sha256"] = "f" * 64  # type: ignore[index]
-        with self.assertRaisesRegex(G3FContractError, "diverged"):
+        with self.assertRaisesRegex(G3FContractError, "authorization hash"):
             validate_aggregate_record(divergent)
 
 

@@ -301,6 +301,7 @@ def test_underpowered_evaluation_stops_before_any_fitter(monkeypatch) -> None:
     )
     assert result.preflight.status == INCONCLUSIVE_UNDERPOWERED
     assert result.synthetic_fitter_calls == 0
+    assert result.economic_diagnostic_calls == 0
     assert len(result.experiment_records) == 1
     assert result.experiment_records[0]["fit_status"] == (
         "SKIPPED_INCONCLUSIVE_UNDERPOWERED"
@@ -417,6 +418,7 @@ def test_full_model_probabilities_drive_predeclared_economic_policies(monkeypatc
         code_identity="synthetic-economic-diagnostic",
     )
     economic = result.experiment_records[1]["economic_diagnostics"]
+    assert result.economic_diagnostic_calls == 1
     assert result.experiment_records[0]["economic_diagnostics"] == {
         "status": "NOT_COMPUTED_BASELINE_RECORD",
         "source_model_id": None,
@@ -476,6 +478,7 @@ def test_authorized_train_entrypoint_records_two_models_and_four_fold_fits(monke
         ("PATHFULL001", "WF_2023"),
     ]
     assert all(len(item["beta_sha256"]) == 64 for item in completed)
+    assert result.economic_diagnostic_calls == 1
     assert [item["coefficient_dimension"] for item in completed] == [5, 30, 5, 30]
     for record in result.experiment_records:
         assert record["real_models_fitted"] == 2

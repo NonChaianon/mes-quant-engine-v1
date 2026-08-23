@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -11,6 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from mes_quant.core.hashing import canonical_json_bytes, sha256_bytes, sha256_file
+from mes_quant.exploration.test2_diagnostics import (
+    DIAGNOSTIC_THRESHOLD,
+    MES_MULTIPLIER_USD_PER_POINT,
+    ROUND_TRIP_COST_USD,
+)
 from mes_quant.exploration.test2_evaluation import (
     READY_FOR_SYNTHETIC_FIT,
     Test2Evaluation,
@@ -19,9 +25,13 @@ from mes_quant.exploration.test2_evaluation import (
 from mes_quant.exploration.test2_g3_contract import G3F_GATE_LITERAL
 from mes_quant.exploration.test2_g3_pre_fit import collect_g3p_pre_fit_evidence
 from mes_quant.exploration.test2_g3f_contract import (
+    G3F_ECONOMIC_SEMANTICS,
     G3F_EXECUTION_BASE_COMMIT,
     G3F_EXECUTION_BRANCH,
+    G3F_EXECUTION_STATUS,
+    G3F_OMITTED_LEDGER_PREIMAGE,
     G3F_SUPPORT_STATUS,
+    G3F_THRESHOLD_SEMANTICS,
     MAX_REAL_FOLD_FIT_CALLS,
     MAX_REAL_MODELS,
     PINNED_G3F_CODE_ONLY_AUTHORIZATION_DOC_SHA256,
@@ -43,6 +53,11 @@ from mes_quant.exploration.test2_l1_harness import (
     CanonicalArtifactPaths,
     build_real_l1_run_context,
 )
+from mes_quant.exploration.test2_path_contract import (
+    CAPACITY_POLICY_ID,
+    FULL_MODEL_ID,
+    RELEASE_POLICY_ID,
+)
 from mes_quant.exploration.test2_run_context import EvaluationRunContext
 from mes_quant.exploration.test2_stats import (
     BOOTSTRAP_REPETITIONS,
@@ -62,6 +77,13 @@ G3F_REAL_EXECUTION_AUTHORIZATION_RELATIVE_PATH = (
     "docs/research/TEST2_G3F_REAL_EXECUTION_AUTHORIZATION_V1.md"
 )
 G3F_RESERVATION_FILENAME = "execution_reservation.json"
+G3F_AUTHORIZATION_SUBDIRECTORY = "authorization"
+G3F_AUTHORIZATION_SENTINEL_SUFFIX = ".consumed.json"
+G3F_SUCCESS_WITNESS_FILENAME = "execution_success_witness.txt"
+G3F_FAILURE_WITNESS_FILENAME = "execution_failure_witness.json"
+G3F_REAL_EXECUTION_STATUS_DECLARATION = (
+    "**Execution status:** `OWNER_AUTHORIZED_ONE_SHOT_TRAIN_ONLY`"
+)
 _EXECUTION_AUTHORIZATION_KEY = object()
 
 
@@ -72,7 +94,19 @@ class G3FExecutionBoundaryError(RuntimeError):
 @dataclass(frozen=True)
 class VerifiedExecutionAuthorization:
     identity_sha256: str
+    status: str
     _verification_key: object
+
+
+@dataclass(frozen=True)
+class RunIdentityInputs:
+    code_identity: str
+    branch: str
+    authorization_identity_sha256: str
+    authorization_status: str
+    g3p_record_sha256: str
+    pooled_retained_sha256: str
+    request_set_sha256: str
 
 
 def verify_code_only_authorization_document(project_root: str | Path) -> str:
@@ -88,20 +122,46 @@ def verify_code_only_authorization_document(project_root: str | Path) -> str:
 def verify_real_execution_authorization_document(
     project_root: str | Path,
 ) -> VerifiedExecutionAuthorization:
-    """Remain mechanically closed until a later patch pins the real decision."""
+    """Mint an observed token only from the exact byte-pinned Owner decision."""
 
     expected = PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256
-    if expected is None:
+    if expected is None or G3F_EXECUTION_STATUS != (
+        "OWNER_AUTHORIZED_ONE_SHOT_TRAIN_ONLY"
+    ):
         raise G3FExecutionBoundaryError("G3-F real execution remains NOT_AUTHORIZED")
     path = Path(project_root).resolve() / G3F_REAL_EXECUTION_AUTHORIZATION_RELATIVE_PATH
     if not path.is_file():
         raise G3FExecutionBoundaryError("pinned G3-F real execution authorization is missing")
+    body = path.read_text(encoding="utf-8")
     observed = sha256_file(path)
     if observed != expected:
         raise G3FExecutionBoundaryError(
             "G3-F real execution authorization SHA-256 mismatch"
         )
-    return VerifiedExecutionAuthorization(observed, _EXECUTION_AUTHORIZATION_KEY)
+    if body.count(G3F_REAL_EXECUTION_STATUS_DECLARATION) != 1:
+        raise G3FExecutionBoundaryError(
+            "G3-F real execution authorization status declaration mismatch"
+        )
+    return VerifiedExecutionAuthorization(
+        observed,
+        G3F_EXECUTION_STATUS,
+        _EXECUTION_AUTHORIZATION_KEY,
+    )
+
+
+def assert_verified_execution_authorization(
+    authorization: VerifiedExecutionAuthorization,
+) -> None:
+    if (
+        not isinstance(authorization, VerifiedExecutionAuthorization)
+        or authorization._verification_key is not _EXECUTION_AUTHORIZATION_KEY
+        or authorization.identity_sha256
+        != PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256
+        or authorization.status != G3F_EXECUTION_STATUS
+    ):
+        raise G3FExecutionBoundaryError(
+            "G3-F authorization was not minted by the pinned verifier"
+        )
 
 
 def _git_output(project_root: Path, *args: str) -> str:
@@ -220,26 +280,71 @@ def _pooled_metrics(evaluation: Test2Evaluation) -> dict[str, object]:
     }
 
 
-def _run_id_seed(
-    *,
-    code_identity: str,
-    authorization_sha256: str,
-    g3p_binding: VerifiedG3PBinding,
-    pooled_retained_sha256: str,
-    request_set_sha256: str,
-) -> str:
+def _run_id_seed(inputs: RunIdentityInputs) -> str:
     digest = sha256_bytes(
         canonical_json_bytes(
             {
-                "authorization_sha256": authorization_sha256,
-                "code_identity": code_identity,
-                "g3p_record_sha256": g3p_binding.record_sha256,
-                "pooled_retained_sha256": pooled_retained_sha256,
-                "request_set_sha256": request_set_sha256,
+                "authorization_sha256": inputs.authorization_identity_sha256,
+                "authorization_status": inputs.authorization_status,
+                "branch": inputs.branch,
+                "code_identity": inputs.code_identity,
+                "g3p_record_sha256": inputs.g3p_record_sha256,
+                "pooled_retained_sha256": inputs.pooled_retained_sha256,
+                "request_set_sha256": inputs.request_set_sha256,
             }
         )
     )
     return f"MES_T2_G3F_{digest[:16].upper()}"
+
+
+def canonical_g3f_output_root(project_root: str | Path) -> Path:
+    return (Path(project_root).resolve() / G3F_OUTPUT_SUBPATH).resolve()
+
+
+def consume_g3f_execution_authorization(
+    *,
+    canonical_output_root: str | Path,
+    authorization: VerifiedExecutionAuthorization,
+    run_identity: RunIdentityInputs,
+) -> Path:
+    """Durably consume one authorization before reservation, minting, or fit."""
+
+    assert_verified_execution_authorization(authorization)
+    if (
+        run_identity.authorization_identity_sha256 != authorization.identity_sha256
+        or run_identity.authorization_status != authorization.status
+    ):
+        raise G3FExecutionBoundaryError(
+            "G3-F run identity diverged from execution authorization"
+        )
+    root = Path(canonical_output_root).resolve()
+    authorization_directory = root / G3F_AUTHORIZATION_SUBDIRECTORY
+    authorization_directory.mkdir(parents=True, exist_ok=True)
+    sentinel = authorization_directory / (
+        f"{authorization.identity_sha256}{G3F_AUTHORIZATION_SENTINEL_SUFFIX}"
+    )
+    payload = {
+        "status": "OWNER_AUTHORIZATION_CONSUMED_BEFORE_FIT",
+        "authorization_identity_sha256": authorization.identity_sha256,
+        "authorization_status": authorization.status,
+        "branch": run_identity.branch,
+        "code_identity": run_identity.code_identity,
+        "g3p_record_sha256": run_identity.g3p_record_sha256,
+        "pooled_retained_sha256": run_identity.pooled_retained_sha256,
+        "request_set_sha256": run_identity.request_set_sha256,
+    }
+    descriptor = os.open(sentinel, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, sort_keys=True, separators=(",", ":"))
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    directory_descriptor = os.open(authorization_directory, os.O_RDONLY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+    return sentinel
 
 
 def reserve_g3f_run(
@@ -248,6 +353,7 @@ def reserve_g3f_run(
     run_id: str,
     code_identity: str,
     authorization_sha256: str,
+    authorization_status: str,
     g3p_record_sha256: str,
 ) -> Path:
     """Consume the cross-process run identity before minting or fitting."""
@@ -261,6 +367,7 @@ def reserve_g3f_run(
         "run_id": run_id,
         "code_identity": code_identity,
         "authorization_identity_sha256": authorization_sha256,
+        "authorization_status": authorization_status,
         "g3p_record_sha256": g3p_record_sha256,
     }
     output = run_directory / G3F_RESERVATION_FILENAME
@@ -278,21 +385,190 @@ def reserve_g3f_run(
     return run_directory
 
 
+def _economic_policy_projection(
+    value: object,
+    *,
+    expected_policy_id: str,
+) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        raise G3FExecutionBoundaryError("economic policy diagnostics are missing")
+    expected_keys = {
+        "candidate_long_signals",
+        "capacity_rejected_signals",
+        "diagnostic_probability_threshold",
+        "executed_trades",
+        "net_usd",
+        "policy_id",
+        "round_trip_cost_usd",
+        "trades",
+    }
+    if set(value) != expected_keys or value.get("policy_id") != expected_policy_id:
+        raise G3FExecutionBoundaryError("economic policy diagnostic schema mismatch")
+    if (
+        value.get("round_trip_cost_usd") != ROUND_TRIP_COST_USD
+        or value.get("diagnostic_probability_threshold") != DIAGNOSTIC_THRESHOLD
+    ):
+        raise G3FExecutionBoundaryError("economic policy constants diverged")
+    ledger = value.get("trades")
+    if not isinstance(ledger, (list, tuple)):
+        raise G3FExecutionBoundaryError("economic policy ledger is missing")
+    ledger_rows: list[list[object]] = []
+    per_fold = {
+        fold_id: {"executed_trades": 0, "net_usd": 0.0}
+        for fold_id in FOLD_ORDER
+    }
+    trade_nets: list[float] = []
+    expected_trade_keys = {
+        "decision_identity",
+        "entry_time_utc",
+        "fold_id",
+        "net_usd",
+        "release_time_utc",
+        "session_id",
+    }
+    for trade in ledger:
+        if not isinstance(trade, Mapping) or set(trade) != expected_trade_keys:
+            raise G3FExecutionBoundaryError("economic policy ledger schema mismatch")
+        fold_id = trade.get("fold_id")
+        if fold_id not in FOLD_ORDER:
+            raise G3FExecutionBoundaryError("economic policy ledger fold mismatch")
+        net_usd = float(trade["net_usd"])
+        if not math.isfinite(net_usd):
+            raise G3FExecutionBoundaryError("economic policy ledger net is non-finite")
+        per_fold[str(fold_id)]["executed_trades"] += 1
+        per_fold[str(fold_id)]["net_usd"] += net_usd
+        trade_nets.append(net_usd)
+        ledger_rows.append(
+            [
+                trade["decision_identity"],
+                fold_id,
+                trade["session_id"],
+                trade["entry_time_utc"],
+                trade["release_time_utc"],
+                net_usd,
+            ]
+        )
+    raw_counts = (
+        value["executed_trades"],
+        value["candidate_long_signals"],
+        value["capacity_rejected_signals"],
+    )
+    if any(
+        isinstance(item, bool) or not isinstance(item, int) or item < 0
+        for item in raw_counts
+    ):
+        raise G3FExecutionBoundaryError(
+            "economic policy counts must be non-negative integers"
+        )
+    executed, candidates, rejected = raw_counts
+    if (
+        min(executed, candidates, rejected) < 0
+        or executed != len(ledger_rows)
+        or candidates != executed + rejected
+    ):
+        raise G3FExecutionBoundaryError("economic policy counts do not reconcile")
+    pooled_net_usd = float(value["net_usd"])
+    if not math.isfinite(pooled_net_usd) or not math.isclose(
+        pooled_net_usd,
+        sum(trade_nets),
+        rel_tol=1e-12,
+        abs_tol=1e-9,
+    ):
+        raise G3FExecutionBoundaryError("economic policy net USD does not reconcile")
+    return {
+        "policy_id": expected_policy_id,
+        "candidate_long_signals": candidates,
+        "executed_trades": executed,
+        "capacity_rejected_signals": rejected,
+        "net_usd": pooled_net_usd,
+        "round_trip_cost_usd": ROUND_TRIP_COST_USD,
+        "diagnostic_probability_threshold": DIAGNOSTIC_THRESHOLD,
+        "per_fold": per_fold,
+        "trade_net_dispersion": {
+            "minimum_net_usd": min(trade_nets) if trade_nets else None,
+            "maximum_net_usd": max(trade_nets) if trade_nets else None,
+            "positive_count": sum(value > 0.0 for value in trade_nets),
+            "negative_count": sum(value < 0.0 for value in trade_nets),
+            "zero_count": sum(value == 0.0 for value in trade_nets),
+        },
+        "omitted_ledger_sha256": sha256_bytes(canonical_json_bytes(ledger_rows)),
+    }
+
+
+def _economic_summary(evaluation: Test2Evaluation) -> dict[str, object]:
+    if evaluation.economic_diagnostic_calls != 1:
+        raise G3FExecutionBoundaryError(
+            "G3-F requires exactly one observed economic diagnostic call"
+        )
+    full_records = [
+        record
+        for record in evaluation.experiment_records
+        if record.get("model_id") == FULL_MODEL_ID
+    ]
+    if len(full_records) != 1:
+        raise G3FExecutionBoundaryError("G3-F requires exactly one full-model record")
+    full_record = full_records[0]
+    diagnostics = full_record.get("economic_diagnostics")
+    if not isinstance(diagnostics, Mapping) or set(diagnostics) != {
+        "capacity_sensitivity",
+        "primary",
+        "semantics",
+        "source_model_id",
+    }:
+        raise G3FExecutionBoundaryError("full-model economic diagnostics are incomplete")
+    if (
+        diagnostics.get("source_model_id") != FULL_MODEL_ID
+        or diagnostics.get("semantics") != G3F_ECONOMIC_SEMANTICS
+        or full_record.get("diagnostic_threshold_semantics")
+        != G3F_THRESHOLD_SEMANTICS
+    ):
+        raise G3FExecutionBoundaryError("economic diagnostic semantics mismatch")
+    primary = _economic_policy_projection(
+        diagnostics.get("primary"), expected_policy_id=RELEASE_POLICY_ID
+    )
+    sensitivity = _economic_policy_projection(
+        diagnostics.get("capacity_sensitivity"),
+        expected_policy_id=CAPACITY_POLICY_ID,
+    )
+    if primary["candidate_long_signals"] != sensitivity["candidate_long_signals"]:
+        raise G3FExecutionBoundaryError("economic policy candidate counts diverged")
+    return {
+        "source_model_id": FULL_MODEL_ID,
+        "semantics": G3F_ECONOMIC_SEMANTICS,
+        "threshold_semantics": G3F_THRESHOLD_SEMANTICS,
+        "economic_diagnostic_calls": 1,
+        "economic_policy_evaluations": 2,
+        "mes_multiplier_usd_per_point": MES_MULTIPLIER_USD_PER_POINT,
+        "omitted_ledger_preimage": G3F_OMITTED_LEDGER_PREIMAGE,
+        "primary": primary,
+        "capacity_sensitivity": sensitivity,
+    }
+
+
 def assemble_g3f_record(
     evaluation: Test2Evaluation,
     *,
     budget: FoldFitBudget,
     run_context: EvaluationRunContext,
     g3p_binding: VerifiedG3PBinding,
-    code_identity: str,
-    branch: str,
-    authorization_sha256: str,
-    request_set_sha256: str,
+    execution_authorization: VerifiedExecutionAuthorization,
+    run_identity: RunIdentityInputs,
     audit_written_utc: str | None = None,
 ) -> dict[str, object]:
     """Project evaluator output into the closed aggregate-only G3-F schema."""
 
+    assert_verified_execution_authorization(execution_authorization)
     assert_verified_g3p_binding(g3p_binding)
+    if (
+        run_identity.authorization_identity_sha256
+        != execution_authorization.identity_sha256
+        or run_identity.authorization_status != execution_authorization.status
+        or run_identity.g3p_record_sha256 != g3p_binding.record_sha256
+        or run_identity.pooled_retained_sha256
+        != evaluation.preflight.pooled_retained_sha256
+        or run_identity.branch != G3F_EXECUTION_BRANCH
+    ):
+        raise G3FExecutionBoundaryError("G3-F frozen run identity does not cross-bind")
     budget.seal()
     witness = budget.witness()
     _assert_real_evaluation_witness(
@@ -300,8 +576,6 @@ def assemble_g3f_record(
         budget_witness=witness,
         run_context=run_context,
     )
-    if branch != G3F_EXECUTION_BRANCH:
-        raise G3FExecutionBoundaryError("G3-F record branch mismatch")
     if evaluation.decision is None or evaluation.decision.disposition not in {
         "INTERESTING_ENOUGH_TO_CONTINUE",
         "NOT_INTERESTING_ENOUGH",
@@ -357,24 +631,21 @@ def assemble_g3f_record(
     )
     completed = witness["completed_fits"]
     assert isinstance(completed, list)
-    run_id = _run_id_seed(
-        code_identity=code_identity,
-        authorization_sha256=authorization_sha256,
-        g3p_binding=g3p_binding,
-        pooled_retained_sha256=evaluation.preflight.pooled_retained_sha256,
-        request_set_sha256=request_set_sha256,
-    )
+    run_id = _run_id_seed(run_identity)
     record: dict[str, object] = {
         "gate_literal": G3F_GATE_LITERAL,
         "status": "PASS",
         "audit_written_utc": audit_written_utc
         or datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "branch": branch,
-        "code_identity": code_identity,
+        "branch": run_identity.branch,
+        "code_identity": run_identity.code_identity,
         "run_id": run_id,
         "disposition": evaluation.decision.disposition,
         "fit_budget": witness,
-        "authorization_binding": {"identity_sha256": authorization_sha256},
+        "authorization_binding": {
+            "identity_sha256": execution_authorization.identity_sha256,
+            "status": execution_authorization.status,
+        },
         "g3p_binding": {
             "run_id": PINNED_G3P_RUN_ID,
             "record_sha256": PINNED_G3P_RECORD_SHA256,
@@ -389,6 +660,7 @@ def assemble_g3f_record(
         },
         "fold_metrics": fold_metrics,
         "pooled_metrics": _pooled_metrics(evaluation),
+        "economic_summary": _economic_summary(evaluation),
         "bootstrap_summary": {
             "primary_lower_bound_vs_prior": float(primary.lower_bound_vs_prior),
             "primary_lower_bound_vs_nuisance": float(
@@ -398,6 +670,15 @@ def assemble_g3f_record(
             "repetitions": int(primary.repetitions),
             "primary_block_length": int(primary.block_length),
             "diagnostic_block_lengths": list(DIAGNOSTIC_BLOCK_LENGTHS),
+            "diagnostic_lower_bounds": [
+                [
+                    int(item.block_length),
+                    float(item.lower_bound_vs_prior),
+                    float(item.lower_bound_vs_nuisance),
+                ]
+                for item in evaluation.bootstraps
+                if item.block_length in DIAGNOSTIC_BLOCK_LENGTHS
+            ],
         },
         "optimizer_summary": {
             "converged_fit_count": len(completed),
@@ -449,6 +730,7 @@ def write_g3f_record(
         "run_id": run_id,
         "code_identity": record["code_identity"],
         "authorization_identity_sha256": authorization["identity_sha256"],
+        "authorization_status": authorization["status"],
         "g3p_record_sha256": g3p_binding["record_sha256"],
     }
     if reservation != expected_reservation:
@@ -478,9 +760,11 @@ def terminal_witness_lines(record: Mapping[str, object]) -> tuple[str, ...]:
     budget = record["fit_budget"]
     bootstrap = record["bootstrap_summary"]
     counters = record["access_counters"]
+    economic = record["economic_summary"]
     assert isinstance(budget, Mapping)
     assert isinstance(bootstrap, Mapping)
     assert isinstance(counters, Mapping)
+    assert isinstance(economic, Mapping)
     repetitions = int(bootstrap["repetitions"])
     diagnostic_blocks = bootstrap["diagnostic_block_lengths"]
     assert isinstance(diagnostic_blocks, list)
@@ -492,6 +776,9 @@ def terminal_witness_lines(record: Mapping[str, object]) -> tuple[str, ...]:
         f"BOOTSTRAP_REPETITIONS_PER_BLOCK={repetitions}",
         f"BOOTSTRAP_BLOCK_COUNT={1 + len(diagnostic_blocks)}",
         f"BOOTSTRAP_REPLICATES_TOTAL={total_replicates}",
+        f"ECONOMIC_DIAGNOSTIC_CALLS={economic['economic_diagnostic_calls']}",
+        f"ECONOMIC_POLICY_EVALUATIONS={economic['economic_policy_evaluations']}",
+        f"DISPOSITION={record['disposition']}",
         f"VALIDATION_ROWS_READ={counters['validation_rows_read']}",
         f"FINAL_TEST={record['final_test_status']}",
     )
@@ -508,10 +795,17 @@ def run_g3f_conditional_fit(
     cell14_run_id: str,
     output_root: str | Path,
 ) -> tuple[dict[str, object], Path]:
+    root = Path(project_root).resolve()
+    canonical_output_root = canonical_g3f_output_root(root)
+    if Path(output_root).resolve() != canonical_output_root:
+        raise G3FExecutionBoundaryError(
+            f"G3-F output_root must be exactly {canonical_output_root}"
+        )
     if gate_literal != G3F_GATE_LITERAL:
         raise G3FExecutionBoundaryError("G3-F execution gate literal mismatch")
-    code_identity, branch = git_execution_context(project_root)
-    execution_authorization = verify_real_execution_authorization_document(project_root)
+    code_identity, branch = git_execution_context(root)
+    execution_authorization = verify_real_execution_authorization_document(root)
+    assert_verified_execution_authorization(execution_authorization)
     authorization_sha256 = execution_authorization.identity_sha256
     g3p_binding = verify_pinned_g3p_record_file(g3p_record_path)
     evidence = collect_g3p_pre_fit_evidence(
@@ -533,18 +827,27 @@ def run_g3f_conditional_fit(
         authorization_identity=G3F_EXECUTION_GATE_ID,
         authorization_record_sha256=authorization_sha256,
     )
-    run_id = _run_id_seed(
+    run_identity = RunIdentityInputs(
         code_identity=code_identity,
-        authorization_sha256=authorization_sha256,
-        g3p_binding=g3p_binding,
+        branch=branch,
+        authorization_identity_sha256=execution_authorization.identity_sha256,
+        authorization_status=execution_authorization.status,
+        g3p_record_sha256=g3p_binding.record_sha256,
         pooled_retained_sha256=evidence.preflight.pooled_retained_sha256,
         request_set_sha256=evidence.targets.request_set_sha256,
     )
+    run_id = _run_id_seed(run_identity)
+    consume_g3f_execution_authorization(
+        canonical_output_root=canonical_output_root,
+        authorization=execution_authorization,
+        run_identity=run_identity,
+    )
     run_directory = reserve_g3f_run(
-        output_root=output_root,
+        output_root=canonical_output_root,
         run_id=run_id,
         code_identity=code_identity,
         authorization_sha256=authorization_sha256,
+        authorization_status=execution_authorization.status,
         g3p_record_sha256=g3p_binding.record_sha256,
     )
     budget = mint_fold_fit_budget(
@@ -565,10 +868,8 @@ def run_g3f_conditional_fit(
         budget=budget,
         run_context=run_context,
         g3p_binding=g3p_binding,
-        code_identity=code_identity,
-        branch=branch,
-        authorization_sha256=authorization_sha256,
-        request_set_sha256=evidence.targets.request_set_sha256,
+        execution_authorization=execution_authorization,
+        run_identity=run_identity,
     )
     if record["run_id"] != run_id:
         raise G3FExecutionBoundaryError("reserved and assembled G3-F run IDs differ")
@@ -645,8 +946,12 @@ def main(
 
 __all__ = [
     "G3FExecutionBoundaryError",
+    "RunIdentityInputs",
     "VerifiedExecutionAuthorization",
     "assemble_g3f_record",
+    "assert_verified_execution_authorization",
+    "canonical_g3f_output_root",
+    "consume_g3f_execution_authorization",
     "git_execution_context",
     "main",
     "reserve_g3f_run",
