@@ -23,6 +23,22 @@ SYNTHETIC_SOURCE_STATUS = "SYNTHETIC_DECLARED_IDENTITIES_NOT_ARTIFACT_VERIFIED"
 VERIFIED_SOURCE_STATUS = "ARTIFACT_IDENTITIES_VERIFIED"
 TEST_FIXTURE_SOURCE_STATUS = "SYNTHETIC_G1_CONTRACT_FIXTURE"
 
+FIT_STATUS_COMPLETED = "COMPLETED"
+FIT_STATUS_SKIPPED_INCONCLUSIVE_UNDERPOWERED = "SKIPPED_INCONCLUSIVE_UNDERPOWERED"
+FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED = "BLOCKED_FIT_NOT_AUTHORIZED_G3P_PRE_FIT"
+
+# A real L1 record may truthfully report zero fits only under one of these
+# pre-declared statuses. `SKIPPED_INCONCLUSIVE_UNDERPOWERED` is the frozen
+# support-floor termination; `BLOCKED_FIT_NOT_AUTHORIZED_G3P_PRE_FIT` is the
+# G3-P pre-fit evidence gate, which stops before fitting even when support passes.
+ZERO_FIT_STATUSES = frozenset(
+    {
+        FIT_STATUS_SKIPPED_INCONCLUSIVE_UNDERPOWERED,
+        FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED,
+    }
+)
+ALLOWED_FIT_STATUSES = frozenset({FIT_STATUS_COMPLETED}) | ZERO_FIT_STATUSES
+
 
 class RunContextContractError(ValueError):
     """Raised when a record context could misstate access or source provenance."""
@@ -271,7 +287,7 @@ class EvaluationRunContext:
         self,
         *,
         real_models_fitted: int,
-        fit_status: str = "COMPLETED",
+        fit_status: str = FIT_STATUS_COMPLETED,
     ) -> dict[str, object]:
         if (
             isinstance(real_models_fitted, bool)
@@ -279,9 +295,11 @@ class EvaluationRunContext:
             or real_models_fitted < 0
         ):
             raise RunContextContractError("real_models_fitted must be non-negative")
+        if fit_status not in ALLOWED_FIT_STATUSES:
+            raise RunContextContractError(f"unknown fit_status: {fit_status}")
         if self.is_synthetic and real_models_fitted != 0:
             raise RunContextContractError("synthetic context cannot record real model fits")
-        allowed_zero_fit = fit_status == "SKIPPED_INCONCLUSIVE_UNDERPOWERED"
+        allowed_zero_fit = fit_status in ZERO_FIT_STATUSES
         if (
             not self.is_synthetic
             and not self.is_test_fixture
@@ -289,7 +307,7 @@ class EvaluationRunContext:
             and not allowed_zero_fit
         ):
             raise RunContextContractError("completed real L1 record must count real fold fits")
-        if real_models_fitted > 0 and fit_status != "COMPLETED":
+        if real_models_fitted > 0 and fit_status != FIT_STATUS_COMPLETED:
             raise RunContextContractError("non-completed fit status cannot record real fits")
         return {
             "access_level": self.access_level,

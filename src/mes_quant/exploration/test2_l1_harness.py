@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -26,6 +26,19 @@ from mes_quant.exploration.test2_evaluation import (
     ConsumerRetainedIndex,
     FoldEvaluationData,
 )
+from mes_quant.exploration.test2_g3_contract import (
+    CELL12_COVERAGE_POLICY_ID,
+    CELL12_FULL_COVERAGE_PASS,
+    CELL12_NUMERIC_PATH_FIELDS,
+    CELL12_RECONCILIATION_NOT_PERFORMED,
+    CELL12_RECONCILIATION_PASS_STATUSES,
+    CELL12_RECONCILIATION_UNUSABLE_PASS,
+    CELL12_RECONCILIATION_USABLE_PASS,
+    CELL12_STATUS_SEALED_FINAL_TEST,
+    CELL12_STATUS_USABLE,
+    CELL12_TRAIN_REQUIRED_COLUMNS,
+    CELL12_UNUSABLE_STATUSES,
+)
 from mes_quant.exploration.test2_path_contract import (
     CELL8_SPLIT_ASSIGNMENT_SHA256,
     CELL10_LABEL_SHA256,
@@ -38,6 +51,7 @@ from mes_quant.exploration.test2_path_contract import (
     ORDERED_FEATURE_CONTENT_SHA256,
     OUTER_TRAIN_ROLE,
     OUTER_VALIDATION_BOUNDARY_UTC,
+    PATH_BAR_COUNT,
     RAW_DBN_SHA256,
     VOLATILITY_DECILE_POLICY_ID,
 )
@@ -54,11 +68,13 @@ from mes_quant.exploration.test2_run_context import (
 )
 from mes_quant.exploration.test2_stats import FOLD_ORDER
 from mes_quant.exploration.test2_target import (
+    Disposition,
     PathBar,
     PathTargetRequest,
     PathTargetRow,
+    PolicyAction,
     TargetCoverage,
-    build_path_target_rows,
+    build_path_target_row,
     price_to_ticks,
 )
 from mes_quant.features.contract import FEATURE_COLUMNS, METADATA_COLUMNS
@@ -508,6 +524,7 @@ class PreparedTrainInputs:
     feature_max_source_time_asserted: bool
     physical_train_predicate_asserted: bool
     availability_policy_id: str = FEATURE_AVAILABILITY_POLICY_ID
+    cell8_role_binding_asserted: bool = False
 
 
 def _utc_series(values: pd.Series, *, field: str) -> pd.Series:
@@ -528,11 +545,90 @@ def _require_columns(frame: pd.DataFrame, columns: Sequence[str], *, field: str)
         raise Test2HarnessContractError(f"{field} lacks: {', '.join(missing)}")
 
 
+def read_train_cell8_assignments(path: str | Path) -> pd.DataFrame:
+    """Physically read the outer-TRAIN Cell 8 split assignments."""
+
+    frame = read_train_only_parquet(path, columns=CELL8_REQUIRED_COLUMNS)
+    _require_columns(frame, CELL8_REQUIRED_COLUMNS, field="Cell 8 assignment frame")
+    return frame
+
+
+def _assert_cell8_cross_binding(joined: pd.DataFrame, assignments: pd.DataFrame) -> None:
+    """Cross-assert Cell 8 role/instrument/time against the Cell 10/Cell 14 join."""
+
+    _require_columns(assignments, CELL8_REQUIRED_COLUMNS, field="Cell 8 assignment frame")
+    if assignments.empty:
+        raise Test2HarnessContractError("Cell 8 assignment frame is empty")
+    if not assignments["outer_partition"].eq(OUTER_TRAIN_ROLE).all():
+        raise Test2HarnessContractError("Cell 8 assignment frame contains non-TRAIN rows")
+    if assignments["decision_id"].isna().any() or assignments["decision_id"].duplicated().any():
+        raise Test2HarnessContractError(
+            "Cell 8 assignment decision IDs are missing or duplicated"
+        )
+    assignment_times = _utc_series(
+        assignments["decision_time"], field="Cell 8 decision_time"
+    )
+    if assignment_times.ge(OUTER_VALIDATION_BOUNDARY_UTC).any():
+        raise Test2HarnessContractError(
+            "Cell 8 TRAIN assignments cross the outer-Validation boundary"
+        )
+
+    joined_ids = joined["decision_id"].astype(str)
+    assignment_ids = assignments["decision_id"].astype(str)
+    if len(assignment_ids) != len(joined_ids) or set(assignment_ids) != set(joined_ids):
+        raise Test2HarnessContractError(
+            "Cell 8 and feature/label TRAIN decision sets differ"
+        )
+
+    aligned = (
+        assignments.assign(
+            decision_id=assignment_ids.to_numpy(),
+            decision_time=assignment_times.to_numpy(),
+        )
+        .set_index("decision_id")
+        .reindex(joined_ids.to_numpy())
+    )
+    if aligned.isna().all(axis=1).any():
+        raise Test2HarnessContractError("Cell 8 assignment alignment produced a gap")
+    if not np.array_equal(
+        aligned["decision_time"].to_numpy(),
+        joined["decision_time_feature"].to_numpy(),
+    ):
+        raise Test2HarnessContractError("Cell 8 decision_time mismatch")
+    for role_column in ("role_wf_2022", "role_wf_2023"):
+        if not np.array_equal(
+            aligned[role_column].astype(str).to_numpy(),
+            joined[f"{role_column}_feature"].astype(str).to_numpy(),
+        ):
+            raise Test2HarnessContractError(f"Cell 8 {role_column} mismatch")
+    if not np.array_equal(
+        aligned["outer_partition"].astype(str).to_numpy(),
+        joined["outer_partition_feature"].astype(str).to_numpy(),
+    ):
+        raise Test2HarnessContractError("Cell 8 outer_partition mismatch")
+    if not all(
+        _same_native_instrument(assignment_instrument, feature_instrument)
+        for assignment_instrument, feature_instrument in zip(
+            aligned["instrument_id"],
+            joined["instrument_id_feature"],
+            strict=True,
+        )
+    ):
+        raise Test2HarnessContractError("Cell 8 instrument_id mismatch")
+
+
 def prepare_train_inputs(
     features: pd.DataFrame,
     labels: pd.DataFrame,
+    *,
+    assignments: pd.DataFrame | None = None,
 ) -> PreparedTrainInputs:
-    """Join caller-supplied physical TRAIN reads and assert PIT/role identity."""
+    """Join caller-supplied physical TRAIN reads and assert PIT/role identity.
+
+    When the physically read Cell 8 outer-TRAIN assignments are supplied, their
+    role, instrument, and decision-time columns are cross-asserted against the
+    Cell 10/Cell 14 join before any path lookup is sealed.
+    """
 
     _require_columns(features, FEATURE_REQUIRED_COLUMNS, field="feature frame")
     _require_columns(labels, CELL10_REQUIRED_COLUMNS, field="label frame")
@@ -607,6 +703,10 @@ def prepare_train_inputs(
     joined = joined.sort_values(
         ["decision_time_feature", "decision_id"], kind="stable"
     ).reset_index(drop=True)
+    cell8_role_binding_asserted = False
+    if assignments is not None:
+        _assert_cell8_cross_binding(joined, assignments)
+        cell8_role_binding_asserted = True
     decisions = tuple(
         TrainPathDecision(
             decision_identity=str(row.decision_id),
@@ -632,6 +732,7 @@ def prepare_train_inputs(
         decisions,
         True,
         physical_train_predicate_asserted,
+        cell8_role_binding_asserted=cell8_role_binding_asserted,
     )
 
 
@@ -730,23 +831,162 @@ class DataFramePathBarProvider:
         return result
 
 
+class VectorizedDataFramePathBarProvider(DataFramePathBarProvider):
+    """Batch-resolve sealed keys without a per-key `.loc`, element-for-element.
+
+    Every observable behaviour of `DataFramePathBarProvider` is preserved: the
+    same seal validation and error, the same missing/mismatch/examined counters
+    in the same order, and the same `PathBar` values. Only the lookup mechanism
+    changes — one vectorized `get_indexer` per batch instead of one indexing
+    operation per key. Row values are materialized through `DataFrame.to_numpy`,
+    which resolves the same common dtype that a `.loc[timestamp]` row Series
+    would, so native instrument comparison stays byte-for-byte identical.
+    """
+
+    def __init__(
+        self,
+        frame: pd.DataFrame,
+        *,
+        sealed: StreamingSealedRequestSet,
+        expected_native_instruments: Mapping[str, object],
+        timestamp_column: str | None = None,
+    ) -> None:
+        super().__init__(
+            frame,
+            sealed=sealed,
+            expected_native_instruments=expected_native_instruments,
+            timestamp_column=timestamp_column,
+        )
+        self._row_values = self._frame.to_numpy()
+        self._column_positions = tuple(
+            int(self._frame.columns.get_loc(name)) for name in DECODED_COLUMNS
+        )
+        self._lookup_index = pd.DatetimeIndex(self._frame.index)
+
+    def fetch_path_bar_batch(
+        self,
+        request_keys: tuple[RequestKey, ...],
+        *,
+        request_set_sha256: str,
+    ) -> Mapping[RequestKey, PathBar]:
+        if request_set_sha256 != self._request_set_sha256:
+            raise Test2HarnessContractError("provider received the wrong sealed request hash")
+        materialized = tuple(request_keys)
+        requested: list[datetime] = []
+        for key in materialized:
+            decision_time = self._decision_times.get(key.decision_identity)
+            normalized = (
+                None
+                if not isinstance(key.requested_timestamp_utc, datetime)
+                or key.requested_timestamp_utc.tzinfo is None
+                else key.requested_timestamp_utc.astimezone(UTC)
+            )
+            if (
+                decision_time is None
+                or normalized is None
+                or key.minute_offset not in range(60)
+                or normalized != decision_time + timedelta(minutes=key.minute_offset)
+            ):
+                raise Test2HarnessContractError("provider received a key outside the seal")
+            requested.append(normalized)
+        if not materialized:
+            return {}
+
+        positions = self._lookup_index.get_indexer(
+            pd.DatetimeIndex(requested).tz_convert("UTC")
+        )
+        open_at, high_at, low_at, close_at, instrument_at = self._column_positions
+        result: dict[RequestKey, PathBar] = {}
+        for key, position in zip(materialized, positions, strict=True):
+            if position < 0:
+                self.missing_keys += 1
+                continue
+            self.rows_examined += 1
+            row = self._row_values[position]
+            if not _same_native_instrument(
+                row[instrument_at], self._expected[key.decision_identity]
+            ):
+                self.instrument_mismatch_keys += 1
+                continue
+            result[key] = PathBar(
+                minute_offset=key.minute_offset,
+                instrument_id="MES",
+                open_price=float(row[open_at]),
+                high_price=float(row[high_at]),
+                low_price=float(row[low_at]),
+                close_price=float(row[close_at]),
+            )
+        return result
+
+
 @dataclass(frozen=True)
 class Cell12PathExpectation:
+    """One physically read outer-TRAIN Cell 12 row, including its status flags.
+
+    Cell 12 exposes numeric path fields only for rows it declares usable. An
+    unusable row carries `NaN` for every numeric path field, so this contract
+    represents those fields as absent rather than substituting a value.
+    """
+
     decision_identity: str
-    path_high_60m: float
-    path_low_60m: float
-    long_mfe_points_60m: float
-    long_mae_points_60m: float
+    path_status: str
+    path_usable: bool
+    path_1m_present: int | None
+    path_high_60m: float | None
+    path_low_60m: float | None
+    long_mfe_points_60m: float | None
+    long_mae_points_60m: float | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.decision_identity, str) or not self.decision_identity:
+            raise Test2HarnessContractError("Cell 12 decision_identity must be non-empty")
+        if not isinstance(self.path_usable, bool):
+            raise Test2HarnessContractError("Cell 12 path_usable must be a boolean")
+        if self.path_status == CELL12_STATUS_SEALED_FINAL_TEST:
+            raise Test2HarnessContractError(
+                "outer-TRAIN Cell 12 read exposed a sealed Final-Test row"
+            )
+        numeric = tuple(getattr(self, field) for field in CELL12_NUMERIC_PATH_FIELDS)
+        if self.path_usable:
+            if self.path_status != CELL12_STATUS_USABLE:
+                raise Test2HarnessContractError(
+                    "Cell 12 usable row must carry the USABLE path status"
+                )
+            if self.path_1m_present != PATH_BAR_COUNT:
+                raise Test2HarnessContractError(
+                    "Cell 12 usable row must declare exactly 60 present one-minute bars"
+                )
+            if any(
+                value is None or not math.isfinite(float(value)) for value in numeric
+            ):
+                raise Test2HarnessContractError(
+                    "Cell 12 usable row must expose finite numeric path fields"
+                )
+            return
+        if self.path_status not in CELL12_UNUSABLE_STATUSES:
+            raise Test2HarnessContractError(
+                f"Cell 12 unusable row has an unexpected status: {self.path_status}"
+            )
+        if any(value is not None for value in numeric):
+            raise Test2HarnessContractError(
+                "Cell 12 unusable row must not expose numeric path fields"
+            )
+        if self.path_1m_present is not None and not 0 <= self.path_1m_present < PATH_BAR_COUNT:
+            raise Test2HarnessContractError(
+                "Cell 12 unusable row cannot declare a complete one-minute path"
+            )
 
 
 @dataclass(frozen=True)
 class PathMetricReconciliation:
     decision_identity: str
-    path_high_60m: float
-    path_low_60m: float
-    long_mfe_points_60m: float
-    long_mae_points_60m: float
+    path_high_60m: float | None
+    path_low_60m: float | None
+    long_mfe_points_60m: float | None
+    long_mae_points_60m: float | None
     cell12_status: str
+    cell12_path_status: str | None = None
+    cell12_path_usable: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -760,6 +1000,12 @@ class PathTargetBuildResult:
     native_instrument_mismatch_keys: int
     validation_path_bar_lookup_count: int
     final_test_path_bar_lookup_count: int
+    cell12_expectation_rows: int = 0
+    cell12_absent_rows: int = 0
+    cell12_usable_reconciled_rows: int = 0
+    cell12_unusable_reconciled_rows: int = 0
+    cell12_reconciliation_status: str = CELL12_RECONCILIATION_NOT_PERFORMED
+    cell12_coverage_policy_id: str = CELL12_COVERAGE_POLICY_ID
 
 
 @dataclass(frozen=True)
@@ -773,39 +1019,161 @@ def _metric_ticks(value: float, *, field: str) -> int:
     return price_to_ticks(float(value), field=field)
 
 
-def _path_metrics(
+def _optional_float(value: object, *, field: str) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise Test2HarnessContractError(f"{field} must be numeric or absent")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise Test2HarnessContractError(f"{field} must be finite when present")
+    return numeric
+
+
+def _optional_bar_count(value: object, *, field: str) -> int | None:
+    numeric = _optional_float(value, field=field)
+    if numeric is None:
+        return None
+    if not numeric.is_integer() or numeric < 0:
+        raise Test2HarnessContractError(f"{field} must be a non-negative whole bar count")
+    return int(numeric)
+
+
+def _strict_bool(value: object, *, field: str) -> bool:
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    raise Test2HarnessContractError(f"{field} must be a strict boolean")
+
+
+def read_train_cell12_expectations(
+    path: str | Path,
+) -> dict[str, Cell12PathExpectation]:
+    """Physically read outer-TRAIN Cell 12 rows including their status flags.
+
+    Numeric path fields are read as absent when Cell 12 declares the row
+    unusable; they are never defaulted, imputed, or intersected away.
+    """
+
+    frame = read_train_only_parquet(path, columns=CELL12_TRAIN_REQUIRED_COLUMNS)
+    _require_columns(frame, CELL12_TRAIN_REQUIRED_COLUMNS, field="Cell 12 TRAIN frame")
+    if frame["decision_id"].isna().any() or frame["decision_id"].duplicated().any():
+        raise Test2HarnessContractError(
+            "Cell 12 TRAIN decision IDs are missing or duplicated"
+        )
+    expectations: dict[str, Cell12PathExpectation] = {}
+    for row in frame.itertuples(index=False):
+        identity = str(row.decision_id)
+        expectations[identity] = Cell12PathExpectation(
+            decision_identity=identity,
+            path_status=str(row.path_status),
+            path_usable=_strict_bool(row.path_usable, field="Cell 12 path_usable"),
+            path_1m_present=_optional_bar_count(
+                row.path_1m_present, field="Cell 12 path_1m_present"
+            ),
+            path_high_60m=_optional_float(row.path_high_60m, field="Cell 12 path high"),
+            path_low_60m=_optional_float(row.path_low_60m, field="Cell 12 path low"),
+            long_mfe_points_60m=_optional_float(
+                row.long_mfe_points_60m, field="Cell 12 long MFE"
+            ),
+            long_mae_points_60m=_optional_float(
+                row.long_mae_points_60m, field="Cell 12 long MAE"
+            ),
+        )
+    return expectations
+
+
+def _recomputed_path_ticks(
     decision: TrainPathDecision,
     bars: tuple[PathBar, ...],
-    expectation: Cell12PathExpectation | None,
-) -> PathMetricReconciliation | None:
-    if len(bars) != 60 or decision.entry_reference_close is None:
-        return None
+) -> tuple[int, int, int, int]:
     path_high_ticks = max(_metric_ticks(bar.high_price, field="path high") for bar in bars)
     path_low_ticks = min(_metric_ticks(bar.low_price, field="path low") for bar in bars)
     entry_ticks = _metric_ticks(decision.entry_reference_close, field="entry reference")
-    mfe_ticks = max(path_high_ticks - entry_ticks, 0)
-    mae_ticks = max(entry_ticks - path_low_ticks, 0)
-    observed_ticks = (path_high_ticks, path_low_ticks, mfe_ticks, mae_ticks)
-    status = "NOT_PERFORMED_CELL12_NOT_SUPPLIED"
-    if expectation is not None:
-        if expectation.decision_identity != decision.decision_identity:
-            raise Test2HarnessContractError("Cell 12 expectation identity mismatch")
-        expected_ticks = (
-            _metric_ticks(expectation.path_high_60m, field="Cell 12 path high"),
-            _metric_ticks(expectation.path_low_60m, field="Cell 12 path low"),
-            _metric_ticks(expectation.long_mfe_points_60m, field="Cell 12 long MFE"),
-            _metric_ticks(expectation.long_mae_points_60m, field="Cell 12 long MAE"),
-        )
-        if observed_ticks != expected_ticks:
-            raise Test2HarnessContractError("recomputed TRAIN path metrics differ from Cell 12")
-        status = "EXACT_TICK_RECONCILIATION_PASS"
+    return (
+        path_high_ticks,
+        path_low_ticks,
+        max(path_high_ticks - entry_ticks, 0),
+        max(entry_ticks - path_low_ticks, 0),
+    )
+
+
+def _unreconciled_path_metrics(
+    decision: TrainPathDecision,
+    bars: tuple[PathBar, ...],
+) -> PathMetricReconciliation | None:
+    """Report recomputed metrics when no Cell 12 evidence was supplied."""
+
+    if len(bars) != PATH_BAR_COUNT or decision.entry_reference_close is None:
+        return None
+    high, low, mfe, mae = _recomputed_path_ticks(decision, bars)
     return PathMetricReconciliation(
         decision_identity=decision.decision_identity,
-        path_high_60m=path_high_ticks / 4.0,
-        path_low_60m=path_low_ticks / 4.0,
-        long_mfe_points_60m=mfe_ticks / 4.0,
-        long_mae_points_60m=mae_ticks / 4.0,
-        cell12_status=status,
+        path_high_60m=high / 4.0,
+        path_low_60m=low / 4.0,
+        long_mfe_points_60m=mfe / 4.0,
+        long_mae_points_60m=mae / 4.0,
+        cell12_status=CELL12_RECONCILIATION_NOT_PERFORMED,
+    )
+
+
+def _reconcile_cell12_row(
+    decision: TrainPathDecision,
+    bars: tuple[PathBar, ...],
+    target_row: PathTargetRow,
+    expectation: Cell12PathExpectation,
+) -> PathMetricReconciliation:
+    """Reconcile one recomputed TRAIN path against its physical Cell 12 row."""
+
+    if expectation.decision_identity != decision.decision_identity:
+        raise Test2HarnessContractError("Cell 12 expectation identity mismatch")
+    complete = (
+        len(bars) == PATH_BAR_COUNT and decision.entry_reference_close is not None
+    )
+    if not expectation.path_usable:
+        # Cell 12 declared this row unusable, so the recomputed path must be
+        # equally unusable: an incomplete or unpriced path that fails closed to
+        # NO_SCORE, with no numeric Cell 12 path field available to compare.
+        if target_row.disposition is not Disposition.NO_SCORE:
+            raise Test2HarnessContractError(
+                "Cell 12 unusable TRAIN row recomputed a scored path"
+            )
+        if complete:
+            raise Test2HarnessContractError(
+                "Cell 12 unusable TRAIN row recomputed a complete priced path"
+            )
+        return PathMetricReconciliation(
+            decision_identity=decision.decision_identity,
+            path_high_60m=None,
+            path_low_60m=None,
+            long_mfe_points_60m=None,
+            long_mae_points_60m=None,
+            cell12_status=CELL12_RECONCILIATION_UNUSABLE_PASS,
+            cell12_path_status=expectation.path_status,
+            cell12_path_usable=False,
+        )
+
+    if not complete:
+        raise Test2HarnessContractError(
+            "Cell 12 usable TRAIN row lacks a complete recomputed 60-bar priced path"
+        )
+    observed_ticks = _recomputed_path_ticks(decision, bars)
+    expected_ticks = (
+        _metric_ticks(expectation.path_high_60m, field="Cell 12 path high"),
+        _metric_ticks(expectation.path_low_60m, field="Cell 12 path low"),
+        _metric_ticks(expectation.long_mfe_points_60m, field="Cell 12 long MFE"),
+        _metric_ticks(expectation.long_mae_points_60m, field="Cell 12 long MAE"),
+    )
+    if observed_ticks != expected_ticks:
+        raise Test2HarnessContractError("recomputed TRAIN path metrics differ from Cell 12")
+    return PathMetricReconciliation(
+        decision_identity=decision.decision_identity,
+        path_high_60m=observed_ticks[0] / 4.0,
+        path_low_60m=observed_ticks[1] / 4.0,
+        long_mfe_points_60m=observed_ticks[2] / 4.0,
+        long_mae_points_60m=observed_ticks[3] / 4.0,
+        cell12_status=CELL12_RECONCILIATION_USABLE_PASS,
+        cell12_path_status=expectation.path_status,
+        cell12_path_usable=True,
     )
 
 
@@ -830,44 +1198,93 @@ def build_train_path_targets(
     for identity, decision in by_identity.items():
         if decision.decision_time_utc.astimezone(UTC) != sealed_identity_times[identity]:
             raise Test2HarnessContractError("TRAIN path decision time differs from sealed parent")
-    if cell12_expectations is not None and set(cell12_expectations) != set(by_identity):
-        raise Test2HarnessContractError(
-            "supplied Cell 12 expectations must exactly cover sealed TRAIN decisions"
-        )
+    absent_rows = 0
+    if cell12_expectations is not None:
+        supplied = set(cell12_expectations)
+        absent_rows = len(set(by_identity).difference(supplied))
+        extra_rows = sorted(supplied.difference(by_identity))
+        if absent_rows or extra_rows:
+            raise Test2HarnessContractError(
+                "Cell 12 TRAIN evidence must exactly cover the sealed TRAIN decisions; "
+                f"absent={absent_rows}, unexpected={extra_rows}"
+            )
 
+    # The request iterator is ordered by sealed decision and then by offset.
+    # Retain PathBar objects only until all 60 requests for a decision have
+    # crossed the provider.  This keeps peak PathBar retention proportional to
+    # one batch instead of the full ~1.54M-key canonical request set.
+    sealed_decisions = tuple(sealed.decisions)
+    decision_by_identity = {
+        decision.decision_identity: decision for decision in materialized
+    }
     bars_by_identity: dict[str, list[PathBar]] = defaultdict(list)
+    target_rows_list: list[PathTargetRow] = []
+    reconciliations: list[PathMetricReconciliation] = []
+    usable_rows = 0
+    unusable_rows = 0
+    processed_keys = 0
+    finalized_decisions = 0
+
+    def finalize_through(stop: int) -> None:
+        nonlocal finalized_decisions, usable_rows, unusable_rows
+        while finalized_decisions < stop:
+            parent = sealed_decisions[finalized_decisions]
+            decision = decision_by_identity[parent.decision_identity]
+            bars = tuple(
+                sorted(
+                    bars_by_identity.pop(parent.decision_identity, ()),
+                    key=lambda bar: bar.minute_offset,
+                )
+            )
+            target_row = build_path_target_row(
+                PathTargetRequest(
+                    decision_identity=decision.decision_identity,
+                    entry_reference_close=decision.entry_reference_close,
+                    endpoint_close_60m=decision.endpoint_close_60m,
+                    bars=bars,
+                )
+            )
+            target_rows_list.append(target_row)
+            if cell12_expectations is None:
+                metrics = _unreconciled_path_metrics(decision, bars)
+                if metrics is not None:
+                    reconciliations.append(metrics)
+            else:
+                expectation = cell12_expectations[decision.decision_identity]
+                reconciliations.append(
+                    _reconcile_cell12_row(decision, bars, target_row, expectation)
+                )
+                if expectation.path_usable:
+                    usable_rows += 1
+                else:
+                    unusable_rows += 1
+            finalized_decisions += 1
+
     for batch in iter_path_bar_batches(sealed, provider, batch_size=batch_size):
         for key, bar in batch.items():
             bars_by_identity[key.decision_identity].append(bar)
+        processed_keys += min(batch_size, sealed.key_count - processed_keys)
+        finalize_through(processed_keys // PATH_BAR_COUNT)
 
-    requests: list[PathTargetRequest] = []
-    reconciliations: list[PathMetricReconciliation] = []
-    for decision in materialized:
-        bars = tuple(
-            sorted(
-                bars_by_identity.get(decision.decision_identity, ()),
-                key=lambda bar: bar.minute_offset,
-            )
-        )
-        requests.append(
-            PathTargetRequest(
-                decision_identity=decision.decision_identity,
-                entry_reference_close=decision.entry_reference_close,
-                endpoint_close_60m=decision.endpoint_close_60m,
-                bars=bars,
-            )
-        )
-        metrics = _path_metrics(
-            decision,
-            bars,
-            None
-            if cell12_expectations is None
-            else cell12_expectations[decision.decision_identity],
-        )
-        if metrics is not None:
-            reconciliations.append(metrics)
+    if processed_keys != sealed.key_count:
+        raise Test2HarnessContractError("path provider did not traverse the sealed key count")
+    finalize_through(len(sealed_decisions))
+    if bars_by_identity:
+        raise Test2HarnessContractError("path-bar batch retention did not drain")
 
-    target_rows, coverage = build_path_target_rows(requests)
+    target_rows = tuple(target_rows_list)
+    counts = Counter(row.disposition for row in target_rows)
+    coverage = TargetCoverage(
+        total_rows=len(target_rows),
+        favorable_first=counts[Disposition.FAVORABLE_FIRST],
+        adverse_first=counts[Disposition.ADVERSE_FIRST],
+        neither_touch=counts[Disposition.NEITHER_TOUCH],
+        ambiguous_same_bar=counts[Disposition.AMBIGUOUS_SAME_BAR],
+        no_score=counts[Disposition.NO_SCORE],
+        retained_rows=sum(row.retained for row in target_rows),
+        flat_rows=sum(row.policy_action is PolicyAction.FLAT for row in target_rows),
+    )
+
     return PathTargetBuildResult(
         target_rows=target_rows,
         coverage=coverage,
@@ -878,6 +1295,17 @@ def build_train_path_targets(
         native_instrument_mismatch_keys=provider.instrument_mismatch_keys,
         validation_path_bar_lookup_count=sealed.validation_path_bar_lookup_count,
         final_test_path_bar_lookup_count=sealed.final_test_path_bar_lookup_count,
+        cell12_expectation_rows=(
+            0 if cell12_expectations is None else len(cell12_expectations)
+        ),
+        cell12_absent_rows=absent_rows,
+        cell12_usable_reconciled_rows=usable_rows,
+        cell12_unusable_reconciled_rows=unusable_rows,
+        cell12_reconciliation_status=(
+            CELL12_RECONCILIATION_NOT_PERFORMED
+            if cell12_expectations is None
+            else CELL12_FULL_COVERAGE_PASS
+        ),
     )
 
 
@@ -1044,18 +1472,39 @@ def build_real_l1_run_context(
         raise Test2HarnessContractError(
             "prepared inputs lack physical outer-TRAIN predicate evidence"
         )
+    if not prepared.cell8_role_binding_asserted:
+        raise Test2HarnessContractError(
+            "prepared inputs lack the physical Cell 8 role/instrument/time cross-binding"
+        )
     if {decision.decision_identity for decision in prepared.path_decisions} != {
         row.decision_identity for row in targets.target_rows
     }:
         raise Test2HarnessContractError("prepared and targeted TRAIN decision sets differ")
-    reconciled_rows = sum(row.instrument_id == "MES" for row in targets.target_rows)
-    if len(targets.path_metrics) != reconciled_rows or any(
-        row.cell12_status != "EXACT_TICK_RECONCILIATION_PASS"
+    total_target_rows = len(targets.target_rows)
+    if targets.cell12_reconciliation_status != CELL12_FULL_COVERAGE_PASS:
+        raise Test2HarnessContractError(
+            "TRAIN paths lack exact full-coverage Cell 12 reconciliation"
+        )
+    if targets.cell12_absent_rows != 0:
+        raise Test2HarnessContractError(
+            "Cell 12 TRAIN evidence does not cover every sealed TRAIN decision"
+        )
+    if targets.cell12_expectation_rows != total_target_rows:
+        raise Test2HarnessContractError(
+            "Cell 12 TRAIN row count differs from the sealed TRAIN decision count"
+        )
+    if len(targets.path_metrics) != total_target_rows or any(
+        row.cell12_status not in CELL12_RECONCILIATION_PASS_STATUSES
         for row in targets.path_metrics
     ):
         raise Test2HarnessContractError(
-            "complete TRAIN paths lack exact Cell 12 reconciliation"
+            "every TRAIN path must carry an exact Cell 12 reconciliation verdict"
         )
+    if (
+        targets.cell12_usable_reconciled_rows + targets.cell12_unusable_reconciled_rows
+        != total_target_rows
+    ):
+        raise Test2HarnessContractError("Cell 12 reconciliation verdicts do not reconcile")
     if coverage.scope != "ALL_OOF_ROWS_PRETARGET_FOLD_TRAIN_DECILES":
         raise Test2HarnessContractError("coverage evidence has the wrong counter scope")
     coverage_payload = coverage.by_fold_decile

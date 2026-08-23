@@ -12,7 +12,12 @@ from mes_quant.exploration.test2_path_contract import (
     RAW_DBN_SHA256,
 )
 from mes_quant.exploration.test2_run_context import (
+    ALLOWED_FIT_STATUSES,
+    FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED,
+    FIT_STATUS_COMPLETED,
+    FIT_STATUS_SKIPPED_INCONCLUSIVE_UNDERPOWERED,
     VERIFIED_SOURCE_STATUS,
+    ZERO_FIT_STATUSES,
     CoverageEvidence,
     EvaluationRunContext,
     RunContextContractError,
@@ -91,6 +96,62 @@ class EvaluationRunContextTests(unittest.TestCase):
     def test_real_context_requires_availability_assertion(self) -> None:
         with self.assertRaisesRegex(RunContextContractError, "availability"):
             _real_context(feature_max_source_time_asserted=False)
+
+
+class FitStatusContractTests(unittest.TestCase):
+    def test_fit_status_literals_are_closed_and_zero_fit_aware(self) -> None:
+        self.assertEqual(
+            ZERO_FIT_STATUSES,
+            frozenset(
+                {
+                    FIT_STATUS_SKIPPED_INCONCLUSIVE_UNDERPOWERED,
+                    FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED,
+                }
+            ),
+        )
+        self.assertEqual(
+            ALLOWED_FIT_STATUSES, ZERO_FIT_STATUSES | {FIT_STATUS_COMPLETED}
+        )
+        self.assertNotIn(FIT_STATUS_COMPLETED, ZERO_FIT_STATUSES)
+
+    def test_g3p_pre_fit_status_records_zero_fits_truthfully(self) -> None:
+        record = _real_context().as_record(
+            real_models_fitted=0,
+            fit_status=FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED,
+        )
+        self.assertEqual(record["real_models_fitted"], 0)
+        self.assertEqual(record["fit_status"], FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED)
+        self.assertEqual(record["validation_rows_read"], 0)
+        self.assertEqual(record["final_test_rows_read"], 0)
+
+    def test_zero_fit_status_cannot_be_paired_with_a_real_fit(self) -> None:
+        for status in sorted(ZERO_FIT_STATUSES):
+            with self.assertRaisesRegex(RunContextContractError, "cannot record real fits"):
+                _real_context().as_record(real_models_fitted=2, fit_status=status)
+
+    def test_unknown_fit_status_is_refused(self) -> None:
+        for status in ("SKIPPED", "BLOCKED", "completed", ""):
+            with self.assertRaisesRegex(RunContextContractError, "unknown fit_status"):
+                _real_context().as_record(real_models_fitted=0, fit_status=status)
+
+    def test_completed_real_record_still_requires_counted_fits(self) -> None:
+        with self.assertRaisesRegex(RunContextContractError, "must count real fold fits"):
+            _real_context().as_record(
+                real_models_fitted=0, fit_status=FIT_STATUS_COMPLETED
+            )
+
+    def test_synthetic_context_cannot_borrow_the_pre_fit_status_for_a_fit(self) -> None:
+        synthetic = EvaluationRunContext.synthetic()
+        record = synthetic.as_record(
+            real_models_fitted=0,
+            fit_status=FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED,
+        )
+        self.assertEqual(record["real_models_fitted"], 0)
+        with self.assertRaisesRegex(RunContextContractError, "real model fits"):
+            synthetic.as_record(
+                real_models_fitted=1,
+                fit_status=FIT_STATUS_BLOCKED_FIT_NOT_AUTHORIZED,
+            )
 
 
 if __name__ == "__main__":
