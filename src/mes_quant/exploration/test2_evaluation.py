@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import numpy as np
@@ -18,6 +18,7 @@ from mes_quant.exploration.l1_lr001 import (
     fit_frozen_logistic,
 )
 from mes_quant.exploration.test2_diagnostics import EconomicSignal, build_economic_diagnostics
+from mes_quant.exploration.test2_g3f_contract import FoldFitBudget
 from mes_quant.exploration.test2_path_contract import (
     CAPACITY_POLICY_ID,
     EXPLORATION_SCOPE_ID,
@@ -62,6 +63,44 @@ NOT_INTERESTING_ENOUGH = "NOT_INTERESTING_ENOUGH"
 
 class Test2EvaluationContractError(ValueError):
     """Raised before fitting when a frozen Test 2 evaluation gate is violated."""
+
+
+def _fit_with_authority(
+    train: np.ndarray,
+    labels: np.ndarray,
+    *,
+    model_id: str,
+    fold_id: str,
+    authority: FoldFitBudget,
+) -> tuple[np.ndarray, Mapping[str, object]]:
+    """Consume before fitting and expose only a coefficient identity afterward."""
+
+    permit = authority.consume(model_id=model_id, fold_id=fold_id)
+    beta, optimizer = fit_frozen_logistic(train, labels)
+    coefficient_dimension = int(beta.size)
+    identity_prefix = canonical_json_bytes(
+        {
+            "coefficient_dimension": coefficient_dimension,
+            "fold_id": fold_id,
+            "model_id": model_id,
+        }
+    )
+    beta_sha256 = sha256_bytes(
+        identity_prefix
+        + np.ascontiguousarray(beta, dtype="<f8").tobytes(order="C")
+    )
+    gradient_norm = float(optimizer["gradient_inf_norm"])
+    authority.complete_fit(
+        permit,
+        model_id=model_id,
+        fold_id=fold_id,
+        beta_sha256=beta_sha256,
+        coefficient_dimension=coefficient_dimension,
+        optimizer_converged=(
+            np.isfinite(gradient_norm) and gradient_norm <= GRADIENT_TOL
+        ),
+    )
+    return beta, optimizer
 
 
 @dataclass(frozen=True)
@@ -152,6 +191,7 @@ class Test2Evaluation:
     decision: ContinuationDecision | None
     experiment_records: tuple[Mapping[str, object], ...]
     synthetic_fitter_calls: int
+    pooled_primary_metrics: Mapping[str, float] = field(default_factory=dict)
 
 
 SyntheticEvaluation = Test2Evaluation
@@ -515,11 +555,27 @@ def _run_evaluation(
     code_identity: str,
     run_context: EvaluationRunContext,
     governance_gates_passed: bool = False,
+    fold_fit_authority: FoldFitBudget | None = None,
 ) -> Test2Evaluation:
     """Run the frozen evaluator with an explicit, validated provenance context."""
 
     if not isinstance(run_context, EvaluationRunContext):
         raise Test2EvaluationContractError("run_context must be an EvaluationRunContext")
+    real_non_fixture = not run_context.is_synthetic and not run_context.is_test_fixture
+    if real_non_fixture and fold_fit_authority is None:
+        raise Test2EvaluationContractError(
+            "real TRAIN evaluation requires a fold-fit authority"
+        )
+    if not real_non_fixture and fold_fit_authority is not None:
+        raise Test2EvaluationContractError(
+            "synthetic or fixture evaluation cannot consume a real fold-fit authority"
+        )
+    if fold_fit_authority is not None and not isinstance(
+        fold_fit_authority, FoldFitBudget
+    ):
+        raise Test2EvaluationContractError(
+            "fold-fit authority must be a minted FoldFitBudget"
+        )
     if timestamp_utc.tzinfo is None or timestamp_utc.utcoffset() is None:
         raise Test2EvaluationContractError("timestamp_utc must be timezone-aware")
     timestamp = timestamp_utc.astimezone(UTC)
@@ -632,9 +688,29 @@ def _run_evaluation(
             feature_names=tuple(FEATURE_COLUMNS[index] for index in nuisance_indices),
         )
         full = standardize_fold(train, holdout, feature_names=FEATURE_COLUMNS)
-        nuisance_beta, nuisance_optimizer = fit_frozen_logistic(nuisance.train, train_labels)
+        if fold_fit_authority is None:
+            nuisance_beta, nuisance_optimizer = fit_frozen_logistic(
+                nuisance.train, train_labels
+            )
+        else:
+            nuisance_beta, nuisance_optimizer = _fit_with_authority(
+                nuisance.train,
+                train_labels,
+                model_id=NUISANCE_MODEL_ID,
+                fold_id=fold.fold_id,
+                authority=fold_fit_authority,
+            )
         fitter_calls += 1
-        full_beta, full_optimizer = fit_frozen_logistic(full.train, train_labels)
+        if fold_fit_authority is None:
+            full_beta, full_optimizer = fit_frozen_logistic(full.train, train_labels)
+        else:
+            full_beta, full_optimizer = _fit_with_authority(
+                full.train,
+                train_labels,
+                model_id=FULL_MODEL_ID,
+                fold_id=fold.fold_id,
+                authority=fold_fit_authority,
+            )
         fitter_calls += 1
         nuisance_logits = _linear_logits(nuisance.holdout, nuisance_beta)
         full_logits = _linear_logits(full.holdout, full_beta)
@@ -979,7 +1055,19 @@ def _run_evaluation(
         for model_id in (NUISANCE_MODEL_ID, FULL_MODEL_ID)
     )
     return Test2Evaluation(
-        preflight, tuple(fold_runs), bootstraps, decision, records, fitter_calls
+        preflight,
+        tuple(fold_runs),
+        bootstraps,
+        decision,
+        records,
+        fitter_calls,
+        {
+            "prior_log_loss": pooled_loss_sums["prior"] / rows,
+            "nuisance_log_loss": pooled_loss_sums["nuisance"] / rows,
+            "full_log_loss": pooled_loss_sums["full"] / rows,
+            "improvement_vs_prior": pooled_metrics.improvement_vs_prior,
+            "improvement_vs_nuisance": pooled_metrics.improvement_vs_nuisance,
+        },
     )
 
 
@@ -1008,6 +1096,7 @@ def run_authorized_train_evaluation(
     code_identity: str,
     run_context: EvaluationRunContext,
     governance_gates_passed: bool,
+    fold_fit_authority: FoldFitBudget | None = None,
 ) -> Test2Evaluation:
     """Run L1 only with a non-fixture TRAIN-only authorization context."""
 
@@ -1019,10 +1108,15 @@ def run_authorized_train_evaluation(
         raise Test2EvaluationContractError(
             "authorized TRAIN evaluation requires all governance gates to pass"
         )
+    if fold_fit_authority is None:
+        raise Test2EvaluationContractError(
+            "authorized TRAIN evaluation requires a fold-fit authority"
+        )
     return _run_evaluation(
         folds,
         timestamp_utc=timestamp_utc,
         code_identity=code_identity,
         run_context=run_context,
         governance_gates_passed=True,
+        fold_fit_authority=fold_fit_authority,
     )

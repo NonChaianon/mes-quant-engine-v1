@@ -23,7 +23,11 @@ from mes_quant.exploration.test2_g3f_contract import (
     G3F_CODE_ONLY_BRANCH,
     G3F_CODE_ONLY_GATE_LITERAL,
     G3F_CODE_ONLY_STATUS,
+    G3F_EXECUTION_ALLOWED_CHANGED_FILES,
+    G3F_EXECUTION_BASE_COMMIT,
+    G3F_EXECUTION_BRANCH,
     G3F_EXECUTION_STATUS,
+    G3F_SUPPORT_STATUS,
     MAX_REAL_FOLD_FIT_CALLS,
     MAX_REAL_MODELS,
     PINNED_G3P_FILE_SHA256,
@@ -34,6 +38,7 @@ from mes_quant.exploration.test2_g3f_contract import (
     VerifiedG3PBinding,
     aggregate_record_sha256,
     changed_file_firewall_failures,
+    execution_changed_file_firewall_failures,
     mint_fold_fit_budget,
     protected_surface_failures,
     scientific_contract_witness,
@@ -122,7 +127,7 @@ def _aggregate_record(seed: int = 100) -> dict[str, object]:
         "gate_literal": G3F_GATE_LITERAL,
         "status": "PASS",
         "audit_written_utc": "2026-08-23T00:00:00Z",
-        "branch": G3F_CODE_ONLY_BRANCH,
+        "branch": G3F_EXECUTION_BRANCH,
         "code_identity": "1" * 40,
         "run_id": "MES_T2_G3F_0123456789ABCDEF",
         "disposition": "NOT_INTERESTING_ENOUGH",
@@ -185,7 +190,7 @@ def _aggregate_record(seed: int = 100) -> dict[str, object]:
             ],
         },
         "support_summary": {
-            "status": SUPPORT_GATE_PASS_FIT_NOT_AUTHORIZED,
+            "status": G3F_SUPPORT_STATUS,
             "floors_relaxed": False,
             "folds": {
                 "WF_2022": {
@@ -222,6 +227,14 @@ class G3FCodeOnlyIdentityTests(unittest.TestCase):
         self.assertEqual(G3F_CODE_ONLY_STATUS, "OWNER_AUTHORIZED_CODE_ONLY_PREPARATION")
         self.assertEqual(G3F_EXECUTION_STATUS, "NOT_AUTHORIZED")
         self.assertEqual(
+            G3F_EXECUTION_BASE_COMMIT,
+            "d3d0455a4299f0dc881974029d457a4197ef321d",
+        )
+        self.assertEqual(
+            G3F_EXECUTION_BRANCH,
+            "research/test2-g3f-execution-package-v1",
+        )
+        self.assertEqual(
             G3F_ALLOWED_CHANGED_FILES,
             {
                 "docs/research/TEST2_G3F_PACKAGE_V1.md",
@@ -232,8 +245,14 @@ class G3FCodeOnlyIdentityTests(unittest.TestCase):
         self.assertEqual(changed_file_firewall_failures(G3F_ALLOWED_CHANGED_FILES), ())
         self.assertTrue(changed_file_firewall_failures(set()))
         self.assertTrue(changed_file_firewall_failures({"tools/run_test2_g3f_fit.py"}))
+        self.assertEqual(
+            execution_changed_file_firewall_failures(
+                G3F_EXECUTION_ALLOWED_CHANGED_FILES
+            ),
+            (),
+        )
 
-    def test_every_guarded_and_fit_surface_is_byte_identical(self) -> None:
+    def test_every_guarded_and_fit_surface_matches_its_execution_pin(self) -> None:
         self.assertEqual(protected_surface_failures(PROJECT_ROOT), ())
 
     def test_frozen_scientific_witness_has_no_knobs(self) -> None:

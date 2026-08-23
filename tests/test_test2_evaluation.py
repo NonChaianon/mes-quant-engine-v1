@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -25,6 +26,7 @@ from mes_quant.exploration.test2_evaluation import (
 from mes_quant.exploration.test2_evaluation import (
     Test2EvaluationContractError as EvaluationError,
 )
+from mes_quant.exploration.test2_g3f_contract import FoldFitBudget
 from mes_quant.exploration.test2_path_contract import (
     CELL8_SPLIT_ASSIGNMENT_SHA256,
     DECODED_MES_1M_SHA256,
@@ -427,7 +429,29 @@ def test_full_model_probabilities_drive_predeclared_economic_policies(monkeypatc
 
 def test_authorized_train_entrypoint_records_two_models_and_four_fold_fits(monkeypatch) -> None:
     def fake_fit(train, labels):
-        return np.zeros(train.shape[1] + 1), {"iterations": 0}
+        return np.zeros(train.shape[1] + 1), {
+            "iterations": 0,
+            "gradient_inf_norm": 0.0,
+            "objective": 0.0,
+        }
+
+    authority = Mock(spec=FoldFitBudget)
+    pending = []
+    completed = []
+
+    def consume(*, model_id, fold_id):
+        assert not pending
+        pending.append((model_id, fold_id))
+        return pending[0]
+
+    def complete_fit(permit, **outcome):
+        assert permit == pending[0]
+        assert "beta" not in outcome
+        completed.append(outcome)
+        pending.clear()
+
+    authority.consume.side_effect = consume
+    authority.complete_fit.side_effect = complete_fit
 
     monkeypatch.setattr(
         "mes_quant.exploration.test2_evaluation.fit_frozen_logistic", fake_fit
@@ -441,10 +465,76 @@ def test_authorized_train_entrypoint_records_two_models_and_four_fold_fits(monke
         code_identity="synthetic-test-of-real-entrypoint",
         run_context=_real_run_context(),
         governance_gates_passed=True,
+        fold_fit_authority=authority,
     )
+    assert [
+        (item["model_id"], item["fold_id"]) for item in completed
+    ] == [
+        ("PATHNUISANCE001", "WF_2022"),
+        ("PATHFULL001", "WF_2022"),
+        ("PATHNUISANCE001", "WF_2023"),
+        ("PATHFULL001", "WF_2023"),
+    ]
+    assert all(len(item["beta_sha256"]) == 64 for item in completed)
+    assert [item["coefficient_dimension"] for item in completed] == [5, 30, 5, 30]
     for record in result.experiment_records:
         assert record["real_models_fitted"] == 2
         assert record["run_real_fold_fitter_calls"] == 4
         assert record["model_real_fold_fitter_calls"] == 2
         assert record["missing_path_bar_keys"] == 7
         assert record["native_instrument_mismatch_keys"] == 3
+
+
+def test_authorized_train_entrypoint_without_authority_fails_before_fit(monkeypatch) -> None:
+    fitter = Mock(side_effect=AssertionError("fitter must not be called"))
+    monkeypatch.setattr(
+        "mes_quant.exploration.test2_evaluation.fit_frozen_logistic", fitter
+    )
+    with pytest.raises(EvaluationError, match="fold-fit authority"):
+        run_authorized_train_evaluation(
+            (),
+            timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
+            code_identity="synthetic-test-of-real-entrypoint",
+            run_context=_real_run_context(),
+            governance_gates_passed=True,
+        )
+    fitter.assert_not_called()
+
+
+def test_authority_completion_failure_raises_and_stops_the_run(monkeypatch) -> None:
+    fitter = Mock(
+        return_value=(
+            np.zeros(5),
+            {"iterations": 0, "gradient_inf_norm": 0.0, "objective": 0.0},
+        )
+    )
+    monkeypatch.setattr(
+        "mes_quant.exploration.test2_evaluation.fit_frozen_logistic", fitter
+    )
+
+    authority = Mock(spec=FoldFitBudget)
+    authority.consume.side_effect = lambda *, model_id, fold_id: (model_id, fold_id)
+
+    def fail_completion(permit, **outcome):
+        assert "beta" not in outcome
+        raise RuntimeError("authority completion failed")
+
+    authority.complete_fit.side_effect = fail_completion
+
+    with pytest.raises(RuntimeError, match="authority completion failed"):
+        run_authorized_train_evaluation(
+            (
+                _with_retained_targets(
+                    _fold("WF_2022", holdout_rows=2_000, rows_per_session=40)
+                ),
+                _with_retained_targets(
+                    _fold("WF_2023", holdout_rows=2_000, rows_per_session=40)
+                ),
+            ),
+            timestamp_utc=datetime(2026, 8, 23, tzinfo=UTC),
+            code_identity="synthetic-authority-failure",
+            run_context=_real_run_context(),
+            governance_gates_passed=True,
+            fold_fit_authority=authority,
+        )
+    assert fitter.call_count == 1

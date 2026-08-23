@@ -75,6 +75,13 @@ G3F_CODE_ONLY_BRANCH = "research/test2-g3f-code-only-v1"
 G3F_CODE_ONLY_GATE_LITERAL = "G3F_CODE_ONLY_PREPARATION"
 G3F_CODE_ONLY_STATUS = "OWNER_AUTHORIZED_CODE_ONLY_PREPARATION"
 G3F_EXECUTION_STATUS = "NOT_AUTHORIZED"
+G3F_EXECUTION_BASE_COMMIT = "d3d0455a4299f0dc881974029d457a4197ef321d"
+G3F_EXECUTION_BRANCH = "research/test2-g3f-execution-package-v1"
+PINNED_G3F_CODE_ONLY_AUTHORIZATION_DOC_SHA256 = (
+    "8d70e05b12466faa2860b3d810cf74d2c7fe0320e420b4147900ae9f1dc6c129"
+)
+PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256: str | None = None
+G3F_SUPPORT_STATUS = "SUPPORT_GATE_PASS_RECOMPUTED_G3F_TRAIN_ONLY"
 
 PINNED_G3P_RECORD_SHA256 = (
     "a6906cf0a1392c76065c3e98cee0f48ad431af0d043d4d65749b03644704e32e"
@@ -92,6 +99,20 @@ G3F_ALLOWED_CHANGED_FILES = frozenset(
     }
 )
 
+G3F_EXECUTION_ALLOWED_CHANGED_FILES = frozenset(
+    {
+        "docs/research/TEST2_G3F_EXECUTION_PACKAGE_V1.md",
+        "docs/research/TEST2_G3F_OWNER_AUTHORIZATION_V1.md",
+        "src/mes_quant/exploration/test2_evaluation.py",
+        "src/mes_quant/exploration/test2_g3f_contract.py",
+        "src/mes_quant/exploration/test2_g3f_execution.py",
+        "tests/test_test2_evaluation.py",
+        "tests/test_test2_g3f_contract.py",
+        "tests/test_test2_g3f_execution.py",
+        "tools/run_test2_g3f_conditional_fit.py",
+    }
+)
+
 G3F_PROTECTED_SURFACE_SHA256 = MappingProxyType(
     {
         "src/mes_quant/exploration/l1_lr001.py": (
@@ -101,7 +122,7 @@ G3F_PROTECTED_SURFACE_SHA256 = MappingProxyType(
             "26068239193ed41d45e3183f4957d30fec6136265ae88a0ea8bfac661a21d2b7"
         ),
         "src/mes_quant/exploration/test2_evaluation.py": (
-            "1196cae9c80c085417cc51203f967bf58e9f4e75914a34352288c5b96ae6cf41"
+            "fa5231835a090b08cb778380081279051cc92c27657e205059c6ba06c85e2088"
         ),
         "src/mes_quant/exploration/test2_stats.py": (
             "ea7d784cad2e5cb287e8831d04142894cba9bc749a71153bee3275b064ea2236"
@@ -126,6 +147,15 @@ G3F_PROTECTED_SURFACE_SHA256 = MappingProxyType(
         ),
         "src/mes_quant/exploration/test2_request_set.py": (
             "0eb8f02b929d28f26e2195412eb52f39feec1c5f8835d951154d6419e294b9ca"
+        ),
+        "src/mes_quant/exploration/test2_run_context.py": (
+            "c0d7969539ea24a29b91c1665d507c0109fc20321573b810f766f93dd5532d1d"
+        ),
+        "src/mes_quant/exploration/test2_metadata_preflight.py": (
+            "14d84b8c4ad11cf2c6bf8fb326473f4da70f30e9ba0f1884d1b3929dbe8e64be"
+        ),
+        "src/mes_quant/exploration/test2_decode.py": (
+            "d537346b84905523fec1d18f4af11f7e7c74ffafe7f5f3186202ebeb5c2bffe9"
         ),
         "src/mes_quant/features/contract.py": (
             "23b89e78a3658d5cf8809a7ca78cf99071efef66fadb0ce92c301cc57c07f05e"
@@ -172,6 +202,20 @@ class VerifiedG3PBinding:
     file_sha256: str
     disposition: str
     _verification_key: object
+
+
+def assert_verified_g3p_binding(binding: VerifiedG3PBinding) -> None:
+    """Reject bindings not minted by the pinned byte-and-semantic verifier."""
+
+    if (
+        not isinstance(binding, VerifiedG3PBinding)
+        or binding._verification_key is not _G3P_VERIFY_KEY
+        or binding.run_id != PINNED_G3P_RUN_ID
+        or binding.record_sha256 != PINNED_G3P_RECORD_SHA256
+        or binding.file_sha256 != PINNED_G3P_FILE_SHA256
+        or binding.disposition != DISPOSITION_DEFERRED_PENDING_G3F
+    ):
+        raise G3FContractError("G3-P binding was not minted by the pinned verifier")
 
 
 @dataclass(frozen=True)
@@ -404,8 +448,24 @@ def changed_file_firewall_failures(changed_files: Iterable[str]) -> tuple[str, .
     return tuple(failures)
 
 
+def execution_changed_file_firewall_failures(
+    changed_files: Iterable[str],
+) -> tuple[str, ...]:
+    """Return deviations from the exact G3-F execution-package allowlist."""
+
+    observed = frozenset(str(path) for path in changed_files)
+    failures: list[str] = []
+    unexpected = sorted(observed.difference(G3F_EXECUTION_ALLOWED_CHANGED_FILES))
+    missing = sorted(G3F_EXECUTION_ALLOWED_CHANGED_FILES.difference(observed))
+    if unexpected:
+        failures.append(f"unexpected={unexpected}")
+    if missing:
+        failures.append(f"missing={missing}")
+    return tuple(failures)
+
+
 def protected_surface_failures(project_root: str | Path) -> tuple[str, ...]:
-    """Verify that every G3-P guard/fit surface is byte-identical to `7d66c43`."""
+    """Verify exact execution-package pins, including the authorized evaluator."""
 
     root = Path(project_root).resolve()
     failures: list[str] = []
@@ -763,7 +823,7 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
             raise G3FContractError("audit_written_utc is not valid ISO-8601") from error
         if parsed_audit_time.tzinfo is None:
             raise G3FContractError("audit_written_utc must be timezone-aware")
-    if "branch" in record and record["branch"] != G3F_CODE_ONLY_BRANCH:
+    if "branch" in record and record["branch"] != G3F_EXECUTION_BRANCH:
         raise G3FContractError("G3-F aggregate record branch mismatch")
     if "code_identity" in record and (
         not isinstance(record["code_identity"], str)
@@ -1034,7 +1094,7 @@ def validate_aggregate_record(record: Mapping[str, object]) -> None:
         frozenset({"floors_relaxed", "folds", "pooled", "status"}),
         field="support_summary",
     )
-    if support.get("status") != SUPPORT_GATE_PASS_FIT_NOT_AUTHORIZED:
+    if support.get("status") != G3F_SUPPORT_STATUS:
         raise G3FContractError("G3-F support summary status mismatch")
     if support.get("floors_relaxed") is not False:
         raise G3FContractError("G3-F support floors must remain frozen")
@@ -1098,10 +1158,16 @@ __all__ = [
     "G3F_CODE_ONLY_BRANCH",
     "G3F_CODE_ONLY_GATE_LITERAL",
     "G3F_CODE_ONLY_STATUS",
+    "G3F_EXECUTION_ALLOWED_CHANGED_FILES",
+    "G3F_EXECUTION_BASE_COMMIT",
+    "G3F_EXECUTION_BRANCH",
     "G3F_EXECUTION_STATUS",
     "G3F_PROTECTED_SURFACE_SHA256",
+    "G3F_SUPPORT_STATUS",
     "MAX_REAL_FOLD_FIT_CALLS",
     "MAX_REAL_MODELS",
+    "PINNED_G3F_CODE_ONLY_AUTHORIZATION_DOC_SHA256",
+    "PINNED_G3F_REAL_EXECUTION_AUTHORIZATION_DOC_SHA256",
     "PINNED_G3P_FILE_SHA256",
     "PINNED_G3P_RECORD_SHA256",
     "PINNED_G3P_RUN_ID",
@@ -1110,7 +1176,9 @@ __all__ = [
     "G3FContractError",
     "VerifiedG3PBinding",
     "aggregate_record_sha256",
+    "assert_verified_g3p_binding",
     "changed_file_firewall_failures",
+    "execution_changed_file_firewall_failures",
     "g3p_record_semantic_sha256",
     "mint_fold_fit_budget",
     "protected_surface_failures",
