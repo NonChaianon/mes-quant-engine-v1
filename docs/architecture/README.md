@@ -32,6 +32,9 @@ completed experiment evidence, and the current project position.
   snapshot.
 - [`../research/TEST2_PATH_AWARE_PROTOCOL_V1.md`](../research/TEST2_PATH_AWARE_PROTOCOL_V1.md)
   — frozen historical Test 2 protocol; its one-shot authorization is consumed and sealed.
+- [`../research/TEST2_PATH_AWARE_PROTOCOL_V1_ERRATUM_001.md`](../research/TEST2_PATH_AWARE_PROTOCOL_V1_ERRATUM_001.md)
+  — additive correction of two pre-eligibility row-count transcriptions; the executed
+  protocol remains byte-exact.
 
 ## Authority rule
 
