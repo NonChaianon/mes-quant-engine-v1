@@ -1,0 +1,263 @@
+{
+  "access_level": "G2P_TARGET_BLIND_OUTER_TRAIN_PREDICTORS_ONLY",
+  "audit_written_utc": "2026-08-24T17:13:51.959830Z",
+  "authorization_binding": {
+    "authorization_document_sha256": "6042c4e6b9fff928facb41dc5fba2997908bfd7aefb0f6714fd6d9b0630fadcc",
+    "authorization_id": "AUTH_TEST3_G2P_SINGLE_PROVEN_DEFECT_SUCCESSOR_20260824",
+    "authorization_token_sha256": "698efc301cd18e4e54bdd17a273b99579b0ed1145a3a58a862648ab7f99b19bf",
+    "document_bindings": {
+      "docs/research/TEST3_G2P_PROVEN_DEFECT_REPAIR_AMENDMENT_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "135fed474c115269421bf9f59cf838f58609b4d6cf83aee2a2118b195cb13fa6",
+        "match": true,
+        "observed": "135fed474c115269421bf9f59cf838f58609b4d6cf83aee2a2118b195cb13fa6"
+      },
+      "docs/research/TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_AUTHORIZATION_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "6042c4e6b9fff928facb41dc5fba2997908bfd7aefb0f6714fd6d9b0630fadcc",
+        "match": true,
+        "observed": "6042c4e6b9fff928facb41dc5fba2997908bfd7aefb0f6714fd6d9b0630fadcc"
+      },
+      "docs/research/TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_PACKAGE_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "537d89621786bf8588131db04021194a8286fc4eb53286faae226276f03b1b8f",
+        "match": true,
+        "observed": "537d89621786bf8588131db04021194a8286fc4eb53286faae226276f03b1b8f"
+      },
+      "docs/research/TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_AUTHORIZATION_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98",
+        "match": true,
+        "observed": "2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98"
+      },
+      "docs/research/TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_PACKAGE_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "584cd0623463e79803b69df15646e9e30db1a78944e067d0bff87d69409b11c2",
+        "match": true,
+        "observed": "584cd0623463e79803b69df15646e9e30db1a78944e067d0bff87d69409b11c2"
+      },
+      "docs/research/TEST3_G2_METADATA_PREFLIGHT_AUTHORIZATION_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "5b74295d9b14d3a7de1445b8b5baaa884bfdcdea92c62dfd376aa53d2aa7ea5e",
+        "match": true,
+        "observed": "5b74295d9b14d3a7de1445b8b5baaa884bfdcdea92c62dfd376aa53d2aa7ea5e"
+      },
+      "docs/research/TEST3_G2_METADATA_PREFLIGHT_PACKAGE_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "3d0926a2fd7dc63d2b50cea8cc653921c4a936de9cc83c410147195a7eb390b1",
+        "match": true,
+        "observed": "3d0926a2fd7dc63d2b50cea8cc653921c4a936de9cc83c410147195a7eb390b1"
+      },
+      "docs/research/TEST3_L0_CODE_ONLY_AUTHORIZATION_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "5747fb5b58c528557e02692e574170a9deb5e53491243b10f14d56c580ba14ca",
+        "match": true,
+        "observed": "5747fb5b58c528557e02692e574170a9deb5e53491243b10f14d56c580ba14ca"
+      },
+      "docs/research/TEST3_L0_IMPLEMENTATION_PACKAGE_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "e34a42c5fa34e0a1470e2e15539e3f60159ab4b9fcee485723d1ba2b6ac257e0",
+        "match": true,
+        "observed": "e34a42c5fa34e0a1470e2e15539e3f60159ab4b9fcee485723d1ba2b6ac257e0"
+      },
+      "docs/research/TEST3_PROJECT_HYPOTHESIS_BUDGET_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "4e939608d0753c608675510c4e449cdac7d452022b0ec9d632fd989f045f58ed",
+        "match": true,
+        "observed": "4e939608d0753c608675510c4e449cdac7d452022b0ec9d632fd989f045f58ed"
+      },
+      "docs/research/TEST3_PROTOCOL_AND_BUDGET_OWNER_RATIFICATION_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "383243c73b3d4ba35878ff5119366e0c05dadd8e7ea32ec5bb90d3b2375675ec",
+        "match": true,
+        "observed": "383243c73b3d4ba35878ff5119366e0c05dadd8e7ea32ec5bb90d3b2375675ec"
+      },
+      "docs/research/TEST3_VOLATILITY_RISK_EDGE_PROTOCOL_V1.md": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "974ff7942f17174a2fbd855e42b591b2c0dad123ddae62d4436b418e68d4c826",
+        "match": true,
+        "observed": "974ff7942f17174a2fbd855e42b591b2c0dad123ddae62d4436b418e68d4c826"
+      },
+      "tests/test_test3_g2p_proven_defect.py": {
+        "binding_status": "PINNED_BEFORE_G2P_ACCESS",
+        "expected": "ffe8a2c18f034a8c5280bba488cbb11a2dbcac617284e1be0a268d717ef19b4c",
+        "match": true,
+        "observed": "ffe8a2c18f034a8c5280bba488cbb11a2dbcac617284e1be0a268d717ef19b4c"
+      }
+    },
+    "repair_lineage_id": "MES_TEST3_G2P_SINGLE_PROVEN_DEFECT_REPAIR_V1",
+    "reservation_file_sha256": "8040981b79ad5281830bc43b3d82dff1cb7b272cf839256b741799aa6b2527e2",
+    "reservation_path": "${REPOSITORY}/artifacts/exploration/test3/g2p/repair/MES_TEST3_G2P_SINGLE_PROVEN_DEFECT_REPAIR_V1.consumed.json",
+    "reservation_status": "CONSUMED_BEFORE_PREDICTOR_ACCESS",
+    "successor_limit": 1,
+    "successor_ordinal": 1
+  },
+  "base_commit": "2d4fccf4ac2040e8e908bfadda27b81b3663afad",
+  "branch": "research/test3-g2p-proven-defect-successor-v1",
+  "cause_audit_status": "PROVEN_DEFECT_REPAIRED_NO_FURTHER_SUCCESSOR",
+  "counter_semantics": {
+    "parquet_compressed_byte_or_internal_page_decode_exclusion_claimed": false,
+    "rows_read": "APPLICATION_EXPOSED_ROWS",
+    "validation_predictor_values_exposed_to_python": 0
+  },
+  "execution_commit": "37552b84ab38a27b3bbd699e83da379a8b396b1b",
+  "execution_tree": "eb361eab45327a5f349c95defa7b5ec6f0083712",
+  "final_test_status": "SEALED",
+  "frozen_predictor_definition": {
+    "cell14_ordered_feature_sha256_declared": "dbee5a9607f05de8460e4738fa8c288368be9afabba58fc53a1ff373fbb2074d",
+    "global_usability_or_status_fields_read": false,
+    "outer_train_rows": 25685,
+    "predictor_order": [
+      "realized_vol_60m",
+      "realized_vol_120m",
+      "realized_vol_240m"
+    ],
+    "status_order": [
+      "PREDICTOR_USABLE",
+      "PREDICTOR_UNUSABLE",
+      "PREDICTOR_NONFINITE",
+      "PREDICTOR_NONPOSITIVE"
+    ]
+  },
+  "g2_evidence_binding": {
+    "binding_status": "EXACT_COMMITTED_G2_EVIDENCE_VERIFIED_BEFORE_G2P_ACCESS",
+    "evidence_commit": "21c42de47deeb8fac1da9208fdbc8ad4fa6369ca",
+    "implementation_commit": "4572b97c577f4445641f2b0e0b84549b0ae1b78c",
+    "record_file_sha256": "ef8d24d59dd5fcc6a36fba7766c9237f19e31db52ca3c9d67a700a5d41198cf6",
+    "record_path": "${REPOSITORY}/artifacts/exploration/test3/g2/MES_T3_G2_0F9A89A4A5C74EAD/metadata_preflight_record.json",
+    "record_semantic_sha256": "3d87467c273847a8a8443bb2d535a5c1c7ecca50a0370f731ad6d688f81fad52",
+    "record_size_bytes": 15270,
+    "reservation_file_sha256": "0b8f019a20d5af2d2b4e65ab2bfcd402340ffe31413fe7a3adc060fb52efb696",
+    "reservation_path": "${REPOSITORY}/artifacts/exploration/test3/g2/authorization/5b74295d9b14d3a7de1445b8b5baaa884bfdcdea92c62dfd376aa53d2aa7ea5e.consumed.json",
+    "reservation_size_bytes": 449
+  },
+  "g3f_status": "NOT_AUTHORIZED",
+  "g3p_status": "NOT_AUTHORIZED",
+  "gate_id": "MES_TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_PREFLIGHT_V1",
+  "live_execution_status": "DISABLED",
+  "local_upstream_equal": true,
+  "not_computed": {
+    "bootstrap_draw_identity": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "coefficient_identities": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "common_eligibility": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "dependence_results": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "duan_factors": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "fit_permits_and_completions": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "fold_and_session_counts": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "qlike_results": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "target_and_reason_counts": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+    "target_and_request_hashes": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED"
+  },
+  "predictor_status_ledger": {
+    "hash_projection_id": "MES_TEST3_PREDICTOR_LEDGER_PIPE_UTF8_V1",
+    "hash_serialization": "UTF8_SOURCE_ORDER_DECISION_ID_PIPE_UTC_ISOFORMAT_PLUS_OPTIONAL_STATUS_LF",
+    "ordered_identity_sha256": "6d66c96a14b1bf3108bf1d387eb8e97e1c32eb923f547e4b58ef87a90d784a25",
+    "ordered_identity_status_sha256": "be9edbef2e9a4eb89f5ce6b5731b4ea6064df4225a8696c5869b1431e0255cd1",
+    "per_row_identities_persisted": false,
+    "raw_predictor_values_persisted": false,
+    "row_count": 25685,
+    "status_counts": {
+      "PREDICTOR_NONFINITE": 0,
+      "PREDICTOR_NONPOSITIVE": 0,
+      "PREDICTOR_UNUSABLE": 968,
+      "PREDICTOR_USABLE": 24717
+    }
+  },
+  "project_budget_id": "MES_PROJECT_TARGET_SPACE_BUDGET_V1",
+  "protocol_id": "MES_TEST3_RV60_HAR_RISK_EDGE_V1",
+  "proven_defect_predecessor_binding": {
+    "binding_status": "EXACT_PROVEN_DEFECT_PREDECESSOR_VERIFIED_BEFORE_SUCCESSOR",
+    "failure_file_sha256": "9b9f7f7824c89af2fa32de3cda00cfa38a519795a6c88bae6a6201d89717a439",
+    "failure_path": "${REPOSITORY}/artifacts/exploration/test3/g2p/authorization/2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98.failure.json",
+    "failure_size_bytes": 1719,
+    "invalid_evidence_category": "DECISION_ID_LEDGER_HASH_DELIMITER_PRESENT",
+    "predecessor_evidence_commit": "f0a3387f077ac30c99287601adeb81014068ff08",
+    "predecessor_evidence_tree": "ac415152ba6eca60c50907c7fe1dc42460bf7a4b",
+    "predecessor_package_commit": "485bfa16a6567b5c54e91b7cc72e7f1be58775a9",
+    "predecessor_package_tree": "86e7f382586d0155ec058a148a83be858768cf4d",
+    "proof_commit": "2d4fccf4ac2040e8e908bfadda27b81b3663afad",
+    "proof_tree": "9b07390a40a4720fe0a64c97cb982cf0345a8207",
+    "protected_surface_counters_all_zero": true,
+    "repair_lineage_id": "MES_TEST3_G2P_SINGLE_PROVEN_DEFECT_REPAIR_V1",
+    "reservation_file_sha256": "2cf1ce922a012045af9959265b613df662727e268c8797f9555ee19072c9c68c",
+    "reservation_path": "${REPOSITORY}/artifacts/exploration/test3/g2p/authorization/2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98.consumed.json",
+    "reservation_size_bytes": 465,
+    "target_space_consumed": false
+  },
+  "ratification_record_commit": "05f569f3ee2093461b5330e8069cb2fd0099d3b1",
+  "ratified_commit": "7c17b292958aeb8252f9c0911ef7028b6071cdbb",
+  "record_sha256": "ce56c5668cd2c1bafd1840ef49494c561c43d4aa90ed45767f01eeb3093e088e",
+  "record_version": "1.0",
+  "repository_strategy": {
+    "changed_file_allowlist": [
+      "docs/research/TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_AUTHORIZATION_V1.md",
+      "docs/research/TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_PACKAGE_V1.md",
+      "src/mes_quant/exploration/test3_g2p_preflight.py",
+      "tests/test_test3_g2p_preflight.py"
+    ],
+    "execution_strategy": "DIRECT_DESCENDANT_BRANCH_NO_MERGE",
+    "merge_authorized": false
+  },
+  "run_id": "MES_T3_G2P_D9DBB6F304D1777B",
+  "runtime_binding": {
+    "module_origins": {
+      "core_hashing": "${REPOSITORY}/src/mes_quant/core/hashing.py",
+      "g2p": "${REPOSITORY}/src/mes_quant/exploration/test3_g2p_preflight.py",
+      "pyarrow": "${VENV_SITE_PACKAGES}/pyarrow/__init__.py",
+      "pyarrow_parquet": "${VENV_SITE_PACKAGES}/pyarrow/parquet/__init__.py",
+      "test3_contract": "${REPOSITORY}/src/mes_quant/exploration/test3_contract.py"
+    },
+    "pyarrow_version": "18.1.0",
+    "python_dont_write_bytecode": true,
+    "python_executable": "${REPOSITORY}/.venv/bin/python",
+    "python_ignore_environment": true,
+    "python_isolated": true,
+    "python_no_user_site": true,
+    "python_safe_path": true
+  },
+  "safety_counters": {
+    "cell10_rows_read": 0,
+    "cell12_rows_read": 0,
+    "cell14_final_test_control_rows_read": 0,
+    "cell14_train_control_rows_read": 25685,
+    "cell14_validation_control_rows_read": 0,
+    "cell8_final_test_control_rows_read": 0,
+    "cell8_train_control_rows_read": 25685,
+    "cell8_validation_control_rows_read": 0,
+    "final_test_target_rows_read": 0,
+    "g2p_final_test_predictor_rows_read": 0,
+    "g2p_predictor_cells_inspected": 77055,
+    "g2p_target_or_path_rows_read": 0,
+    "g2p_train_predictor_rows_read": 25685,
+    "g2p_validation_predictor_rows_read": 0,
+    "non_allowlisted_cell14_value_columns_read": 0,
+    "outer_train_target_rows_read": 0,
+    "outer_validation_target_rows_read": 0,
+    "raw_dbn_messages_decoded": 0,
+    "real_bootstrap_replicates": 0,
+    "real_fold_fit_calls": 0,
+    "real_models_fitted": 0,
+    "targets_constructed": 0
+  },
+  "source_bindings": {
+    "cell14": {
+      "byte_sha256": "aaf606e3d8869a414f0e687835c44529303a9b4e98f0092da39631ab2fc53452",
+      "path": "${MES_G2P_ARTIFACTS}/cell14/cell14_development_point_in_time_features_v1.parquet",
+      "size_bytes": 6194740
+    },
+    "cell8": {
+      "byte_sha256": "2e13ee7d1e7de321411604c3500c73e68a080b02fa2983288d41d399aeb43035",
+      "path": "${MES_G2P_ARTIFACTS}/cell8/cell8_purged_split_assignments_v1.parquet",
+      "size_bytes": 1447931
+    },
+    "outer_train_control_binding_sha256": "d1ba487685828363e6abc53d67b4d3a6f68c39f06f10626be206ba259b2bd911"
+  },
+  "stage_status": "G2P_PROVEN_DEFECT_SUCCESSOR_PREFLIGHT_PASS",
+  "status": "COMPLETE",
+  "target_space_consumption_status": "NOT_CONSUMED_TARGET_BLIND_PREDICTOR_PREFLIGHT",
+  "target_space_id": "TARGET_SPACE_003",
+  "target_space_state": "LOCKED / RESERVED",
+  "terminal_disposition": "NOT_COMPUTED_STAGE_NOT_AUTHORIZED",
+  "upstream_commit": "37552b84ab38a27b3bbd699e83da379a8b396b1b",
+  "validation_status": "UNOPENED"
+}
