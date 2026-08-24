@@ -115,21 +115,44 @@ requires:
 - `c_59` exactly equal to the frozen Cell 10 `+60m` endpoint;
 - finite `RV_FWD_60(t) > 0`.
 
-A missing path bar or missing reference produces an explicit `TARGET_UNUSABLE` reason; it
-does not permit imputation or a shortened window. Instrument mismatch, endpoint mismatch,
-duplicate key, unordered key, nonpositive price, or nonfinite arithmetic fails closed as a
-contract defect. No epsilon floor, winsorization, annualization, square root, jump-robust
-replacement, or alternate sampling rule is allowed.
+A target satisfying every requirement above must emit `TARGET_USABLE`.
+
+A missing path bar or missing reference must emit `TARGET_UNUSABLE` for the later common
+mask; it does not permit imputation or a shortened window. Instrument mismatch, endpoint
+mismatch, duplicate key, unordered key, nonpositive price, or nonfinite arithmetic fails
+closed immediately as a contract defect; unlike `TARGET_ZERO_VARIANCE`, those defects do
+not require completion of the remaining target ledger. No epsilon floor, winsorization,
+annualization, square root, jump-robust replacement, or alternate sampling rule is allowed.
 
 A finite `RV_FWD_60(t) == 0` must emit the exact reason code
 `TARGET_ZERO_VARIANCE` and stop the entire run before common eligibility or any fit. It may
 not be excluded, floored, or converted into a positive target.
+
+The builder must not abort at the first `TARGET_ZERO_VARIANCE`. It must complete and seal
+the target-status ledger for every key in the already authorized outer-TRAIN request set,
+then halt before common eligibility, fit permits, forecasts, or scientific evaluation.
 
 Cell 12 reconciliation must be exact for every row for which the corresponding Cell 12
 path is present. Target construction must record counts and hashes before any model
 eligibility mask is applied.
 
 ## 5. Frozen predictors and common eligibility
+
+Before any target request set is opened against the decoded one-minute provider, a separate
+Owner-authorized **G2-P target-blind predictor-domain preflight** must read only the three
+pinned Cell 14 volatility columns for outer-TRAIN rows. It must bind the Cell 8/14
+identities, distinguish declared Cell 14 missingness from present values, and seal a complete
+status ledger without reading or constructing any target. Its persisted output contains
+status counts and ordered identity/status hashes, not raw predictor values or distributions.
+
+Declared missing values must emit `PREDICTOR_UNUSABLE` for the later common mask. A
+present nonfinite value emits `PREDICTOR_NONFINITE`; a present finite value less than or
+equal to zero emits `PREDICTOR_NONPOSITIVE`. Those two failure codes halt before
+target-aware access, so they do not consume `TARGET_SPACE_003`. A later source/ledger
+mismatch fails closed as `INVALID_EVIDENCE`; it is repair-eligible only if synthetic
+evidence proves implementation nonconformance under the companion budget.
+
+A present finite positive value must emit `PREDICTOR_USABLE`.
 
 The volatility predictors reuse only these exact pinned Cell 14 values:
 
@@ -151,13 +174,10 @@ predictor for a one-minute-sampled future target is deliberate: the hypothesis i
 coarse, already-locked volatility memory adds forward risk information. Test 3 does not
 claim the predictor and target are identical estimators.
 
-Missing values in one of these three exact predictor columns produce an explicit
-`PREDICTOR_UNUSABLE` reason. A present nonfinite volatility must emit
-`PREDICTOR_NONFINITE`; a present finite volatility less than or equal to zero must emit
-`PREDICTOR_NONPOSITIVE`. Either exact code stops the entire run before common eligibility
-or any fit. The row may not be dropped, floored, or imputed after inspection. The global
-Cell 14 `feature_row_usable` flag may not exclude a row merely because an unrelated one of
-the 29 candidates is missing.
+The G2-P status ledger governs these three exact predictor columns. A row may not be
+dropped, floored, or imputed after inspection except for the predeclared common-mask
+exclusion of `PREDICTOR_UNUSABLE`. The global Cell 14 `feature_row_usable` flag may not
+exclude a row merely because an unrelated one of the 29 candidates is missing.
 
 Baseline and challenger use one identical common eligible set, defined only after:
 
@@ -165,6 +185,11 @@ Baseline and challenger use one identical common eligible set, defined only afte
 2. target and exact predictor statuses are joined by decision identity and timestamp;
 3. fold roles and time boundaries are verified;
 4. no outcome-dependent filtering occurs.
+
+A row belongs to that common set if and only if its target status is `TARGET_USABLE` and
+all three exact predictor statuses are `PREDICTOR_USABLE`, subject to the already frozen
+TRAIN partition and fold/time assertions. No other status, reason, or row-level discretion
+may add or remove a row.
 
 ## 6. One early-close-aware intraday harmonic
 
@@ -252,8 +277,10 @@ The lifetime Test 3 fit budget is exactly:
 
 No fit occurs during protocol, code-only, metadata-only, or pre-fit support gates. A failed
 or nonconvergent fit consumes its permit and may not be replaced. A code defect proven with
-synthetic evidence requires a separate Owner repair authorization; it does not silently
-reset the scientific budget.
+synthetic evidence requires a separate Owner repair authorization and qualifies only under
+the companion budget's single-successor boundary before any fit permit/call, forecast,
+coefficient, QLIKE result, or bootstrap replicate. It does not silently reset the scientific
+budget, and no post-fit defect permits repair execution.
 
 ## 9. Dependence and support audit
 
@@ -370,6 +397,14 @@ The terminal disposition must be exactly one of:
   `TARGET_ZERO_VARIANCE`, `PREDICTOR_NONFINITE`, `PREDICTOR_NONPOSITIVE`, fit-budget, or
   record integrity fails.
 
+`TARGET_USABLE`, `TARGET_UNUSABLE`, `PREDICTOR_USABLE`, and `PREDICTOR_UNUSABLE` are
+non-terminal row-status codes. Only the two exact `*_USABLE` statuses enter the frozen
+common eligibility mask; the other two are excluded. None may be reclassified, imputed,
+floored, or converted into a whole-run failure after inspection.
+
+An `UNDERPOWERED_STOP` caused by too few rows after applying that frozen mask does not
+reclassify any row status; it is a separate aggregate structural disposition.
+
 `NOT_INTERESTING_ENOUGH` is a valid scientific result and ends this Test 3 hypothesis. It
 does not permit a same-target model swap.
 
@@ -379,9 +414,11 @@ Each stage requires separate Owner authorization:
 
 1. **L0 code-only:** contracts, synthetic tests, no real artifact read;
 2. **G2 metadata-only:** identities/schema/row-group metadata, zero numeric row values;
-3. **G3-P TRAIN pre-fit:** sealed request set, target construction, Cell 12 reconciliation,
+3. **G2-P TRAIN predictor-domain preflight:** only the three pinned Cell 14 predictor
+   columns; complete status ledger; no target/path value and zero fits;
+4. **G3-P TRAIN pre-fit:** sealed request set, target construction, Cell 12 reconciliation,
    common eligibility, fold boundaries, ACF/ESS and structural support; zero fits;
-4. **G3-F one-shot:** exactly four fits, OOF forecasts, QLIKE, bootstrap, diagnostics, and
+5. **G3-F one-shot:** exactly four fits, OOF forecasts, QLIKE, bootstrap, diagnostics, and
    immutable evidence.
 
 Every record must include protocol/base/source identities, branch and commit equality,
@@ -393,7 +430,11 @@ counters, terminal disposition, and record SHA-256.
 Minimum safety counters are:
 
 ```text
-OUTER_TRAIN_TARGET_ROWS_READ
+G2P_TRAIN_PREDICTOR_ROWS_READ
+G2P_VALIDATION_PREDICTOR_ROWS_READ = 0
+G2P_FINAL_TEST_PREDICTOR_ROWS_READ = 0
+G2P_TARGET_OR_PATH_ROWS_READ       = 0
+OUTER_TRAIN_TARGET_ROWS_READ       = 0 until G3-P
 OUTER_VALIDATION_TARGET_ROWS_READ = 0
 FINAL_TEST_TARGET_ROWS_READ       = 0
 REAL_FOLD_FIT_CALLS               = 0 until G3-F; exactly 4 at completion
@@ -429,14 +470,34 @@ Without a new Owner-ratified protocol, Test 3 forbids:
 The current Test 4 concept assumes the winning Test 3 risk model as its baseline. If Test 3
 ends `NOT_INTERESTING_ENOUGH`, `UNDERPOWERED_STOP`, or `INVALID_EVIDENCE`, Test 4 in that
 form is void. A differently framed Test 4 would require a new hypothesis and protocol; it
-cannot reinterpret or rescue Test 3.
+cannot reinterpret or rescue Test 3. A repair-eligible `INVALID_EVIDENCE` run keeps Test 4
+void unless and until an exact same-slot successor is separately ratified, executed, and
+passes every Test 3 continuation gate.
 
 ## 16. Ratification and next authority
 
 Owner ratification freezes this protocol together with
 `TEST3_PROJECT_HYPOTHESIS_BUDGET_V1.md`. It also acknowledges that a present nonpositive
-Cell 14 volatility predictor and a zero forward realized-variance target stop the complete
-run before fit rather than exclude a row. After ratification, the next eligible request is
-**Test 3 L0 code-only implementation**. Before any code is written, the Owner must choose
+or nonfinite Cell 14 volatility predictor stops G2-P before target access, while a zero
+forward realized-variance target completes its already authorized ledger and then stops
+before fit. Neither may be excluded as a scientific rescue. The only possible successor is
+the narrow, same-slot defect-repair path defined by the companion budget. Before a successor
+can be ratified, synthetic evidence must prove that the implementation failed to conform to
+the frozen protocol; an observed source or real-data state alone is not proof. A genuine
+source/data state that triggers whole-run `INVALID_EVIDENCE` is terminal with no successor,
+including zero variance, nonfinite, nonpositive, or mismatch. Non-terminal
+`TARGET_UNUSABLE` and `PREDICTOR_UNUSABLE` retain only their frozen common-mask treatment.
+The successor requires new exact Owner ratification and authorization and may amend only the
+minimum implementation handling causally required to restore conformance with the frozen
+protocol.
+
+The successor may not change the frozen source lineage, target or horizon, predictor set,
+harmonic, folds, transform/back-transform, common-eligibility or row-status/reason-code
+dispositions, `RVBASE001`/`RVHAR001` model pair, four-fit budget, QLIKE contract, bootstrap
+seed/repetitions/block lengths/sidedness, numerical policy, dependence-audit/ESS contract,
+or continuation gates; it is never a model, predictor, metric, or row-selection rescue.
+The companion budget governs slot consumption, reuse, and successor eligibility. After
+ratification, the next eligible request is **Test 3 L0 code-only implementation**. Before
+any code is written, the Owner must choose
 whether to implement personally or authorize Codex. Claude remains the read-only
 adversarial reviewer unless the Owner expands its authority.
