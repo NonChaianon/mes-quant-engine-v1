@@ -207,8 +207,8 @@ decoded path data nor the Cell 12 target parquet.
 The frozen OOF holdouts remain:
 
 - `WF_2022`: 5,510 rows before feature/target eligibility;
-- `WF_2023`: 5,474 rows before feature/target eligibility;
-- pooled maximum before eligibility: 10,984 rows.
+- `WF_2023`: 5,476 rows before feature/target eligibility;
+- pooled maximum before eligibility: 10,986 rows.
 
 Cell 13 records descriptive effective sample sizes of approximately `1,290–1,370` per
 fold and lag-1 return autocorrelation of approximately `0.756–0.769`. Row count is not an
