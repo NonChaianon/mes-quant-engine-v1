@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24
 
-**Status:** `INTEGRATION CANDIDATE / RESEARCH STATE RECONCILIATION`
+**Status:** `COMPLETE / MERGED / QUEUE RECONCILED`
 
 **Authority created by this document:** `NONE`
 
@@ -26,6 +26,14 @@ Preserved Test 2 evidence source
 branch research/test2-g3f-real-execution-v1
 commit c6e02818443c7a538e04053a14aa7ab0fe765248
 tree d3bd9a31cdbb6b608e333fea7c8cc77c522a5df9
+
+Integration candidate
+branch integration/test2-repository-closeout-v1
+commit b4a2aa539d03e0baacd084beb68fa54ae79955ac
+
+Default-branch closeout result
+pull request 45
+commit 9778b9bd5c87ea177473b4ee7cb3cf27efd17110
 ```
 
 Before integration, `origin/main` had three commits not in the Test 2 branch and the Test 2
@@ -72,9 +80,14 @@ At closeout start, the only open items were:
 - Draft PR #43 — VNext ancestor commit `17b169e`, subsequently superseded by the LangGraph
   retirement amendment and the completed Test 2 chain.
 
-Their correct dispositions are `CLOSED / COMPLETED` for Issue #28 and
-`CLOSED / SUPERSEDED WITHOUT MERGE` for PR #43. Closing either item creates no new research
-or execution authority.
+Final dispositions after PR #45 merged:
+
+- Issue #28 — `CLOSED / COMPLETED-BUT-FAILED`; its closing note records the negative
+  continuation result and grants no follow-on authority;
+- PR #43 — `CLOSED / SUPERSEDED WITHOUT MERGE`; its branch remains preserved.
+
+Live GitHub observation after reconciliation reported zero open Issues and zero open pull
+requests. Closing either historical item created no new research or execution authority.
 
 ## Files intentionally current after closeout
 
@@ -111,18 +124,21 @@ navigation/progress/closeout layer.
 - no force-push, evidence-branch deletion, Validation/Final access, fit, bootstrap, or economic
   diagnostic occurs during closeout.
 
-## Pending integration gates
+## Integration gates completed
 
-- re-fetch and confirm live `origin/main @ a732236` immediately before push;
-- push only `integration/test2-repository-closeout-v1` without force;
-- open a reviewed integration pull request and obtain passing CI;
-- preserve `research/test2-g3f-real-execution-v1 @ c6e0281` before and after merge;
-- keep default-branch history linear;
-- reconcile Issue #28 as completed-but-failed and PR #43 as superseded without merge;
-- update Obsidian and `CRASH_MEMORY.md` to the final main integration identity.
+- live `origin/main` equaled `a732236` immediately before integration push;
+- branch `integration/test2-repository-closeout-v1 @ b4a2aa5` was pushed without force;
+- PR #45 passed Quant CI V1 and merged by squash to `main @ 9778b9b`;
+- `research/test2-g3f-real-execution-v1` remained exactly `c6e0281` after merge;
+- default-branch history remained linear;
+- Issue #28 and PR #43 received the exact historical dispositions above;
+- open Issue/PR queue was empty after reconciliation.
+
+Obsidian and `CRASH_MEMORY.md` must use `main @ 9778b9b` (or a later explicitly observed
+documentation-only successor) as the integrated repository checkpoint while continuing to
+cite `c6e0281` as the canonical Test 2 source evidence identity.
 
 ## Next gate
 
-After repository and human-memory identities are reconciled, the next work package is a
-separately reviewed and Owner-approved Test 3 protocol. No Test 3 implementation, new data
-access, or model training is authorized by this closeout.
+The next work package is a separately reviewed and Owner-approved Test 3 protocol. No Test 3
+implementation, new data access, or model training is authorized by this closeout.
