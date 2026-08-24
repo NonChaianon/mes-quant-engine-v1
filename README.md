@@ -13,8 +13,10 @@
 - **Test 2:** one-shot TRAIN evaluation complete on preserved evidence branch
   `research/test2-g3f-real-execution-v1 @ c6e0281`; disposition
   `NOT_INTERESTING_ENOUGH`
-- **Current gate:** repository closeout, then freeze the Test 3 hypothesis/protocol before
-  any implementation, new data access, or model training
+- **Repository closeout:** complete on `main @ 9778b9b` via PR #45; open Issues = `0`,
+  open PRs = `0` at closeout
+- **Current gate:** freeze the Test 3 hypothesis/protocol before any implementation, new
+  data access, or model training
 - **Validation:** `UNOPENED`
 - **Final Test:** `SEALED`
 - **Live trading / broker execution:** `DISABLED`

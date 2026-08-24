@@ -6,9 +6,9 @@
 
 **Execution status:** `RESEARCH_ONLY / LIVE_DISABLED`
 
-**Current project stage:** `REPOSITORY CLOSEOUT BEFORE TEST 3 PROTOCOL FREEZE`
+**Current project stage:** `TEST 3 PROTOCOL DRAFT / NO IMPLEMENTATION AUTHORITY`
 
-**Current gate:** `integrate verified Test 2 state -> reconcile GitHub queue -> freeze Test 3 before implementation`
+**Current gate:** `freeze Test 3 research question, target, budget, metrics, gates, and stop rule`
 
 > This file is the project-level progress source of truth. It describes observed state but
 > grants no merge, data-access, model-fit, Validation, Final-Test, broker, or trading authority.
@@ -18,7 +18,9 @@
 ## Current position
 
 ```text
-Default branch before closeout:         origin/main @ a732236
+Test 2 integration commit on main:      9778b9bd5c87ea177473b4ee7cb3cf27efd17110
+Repository integration PR:              #45 / MERGED / CI PASS
+GitHub open Issues / PRs at closeout:    0 / 0
 Preserved Test 2 evidence branch:       research/test2-g3f-real-execution-v1
 Preserved Test 2 evidence HEAD:         c6e02818443c7a538e04053a14aa7ab0fe765248
 Preserved Test 2 evidence tree:         d3bd9a31cdbb6b608e333fea7c8cc77c522a5df9
@@ -53,8 +55,10 @@ The repository had two linear histories after common commit `083008c`:
 
 Obsidian summarized the latter, while the default GitHub branch still showed the former.
 No Test 2 commit or evidence was missing: the exact source branch was pushed and local/upstream
-were equal. Repository closeout imports the verified Test 2 snapshot onto the current main
-baseline without rebasing, force-pushing, deleting, or rewriting the original evidence refs.
+were equal. Repository closeout PR #45 imported the verified Test 2 snapshot onto the current
+main baseline without rebasing, force-pushing, deleting, or rewriting the original evidence
+refs. Issue #28 was then closed as completed-but-failed; Draft PR #43 was closed as superseded
+without merge.
 
 See `../research/TEST2_REPOSITORY_CLOSEOUT_V1.md`.
 
@@ -114,12 +118,10 @@ evidence. It is not a database, research runtime, execution surface, or source o
 ## Current next sequence
 
 ```text
-1. Complete repository closeout and reconcile GitHub Issue/PR status
-2. Confirm Git main, remote evidence branch, and Obsidian identities
-3. Draft and adversarially review one Test 3 hypothesis/protocol
-4. Freeze exact source, target, partitions, model budget, metrics, gates, and stop rule
-5. Request separate Owner authorization for implementation
-6. Implement synthetic/code-only layer before any newly authorized data access or fit
+1. Draft and adversarially review one Test 3 hypothesis/protocol
+2. Freeze exact source, target, partitions, model budget, metrics, gates, and stop rule
+3. Request separate Owner authorization for implementation
+4. Implement synthetic/code-only layer before any newly authorized data access or fit
 ```
 
 Test 3 direction under discussion is not a frozen protocol. In particular, no target formula,
