@@ -2,48 +2,57 @@
 
 ## สถานะสั้นที่สุด
 
-- Colab Cells 0–13: **LOCKED / เก็บเป็นหลักฐาน ห้ามแก้ตามปกติ**
-- VS Code Cell 14: **LOCKED computation + deterministic feature artifact**
-- 29 candidate features: **PROVISIONAL** จนกว่าจะผ่านการตรวจ redundancy
+- Test 1 / Sprint 1: **ปิดแล้ว; LR001 และ TREE001 ไม่ผ่าน; budget 2/2 ถูกใช้ครบ**
+- Test 2: **ปิดแล้วที่ evidence branch `c6e0281`; ผล `NOT_INTERESTING_ENOUGH`**
+- Validation: **ยังไม่เปิด**
 - Final Test ปี 2025–2026: **SEALED**
-- ขั้นถัดไป: **Stage B — Redundancy and stability**
+- Live trading / broker execution: **DISABLED**
+- LangGraph: **RETIRED / ห้ามนำกลับมาใช้หรือ merge**
+- ขั้นถัดไป: **ล็อก Test 3 protocol ก่อน code, data access หรือ training**
 
-ตอนนี้คุณไม่ต้องส่ง API key, IBKR credentials หรือดาวน์โหลดข้อมูลเพิ่ม ไฟล์ Cells 5/7/8 ที่
-ต้องใช้ถูกดาวน์โหลดและตรวจ SHA256 ตรงกับ Google Drive แล้ว
+ผล Test 2 เป็นผลลบที่ชัดภายใน scope ที่กำหนด ไม่ใช่สิทธิ์ให้ rerun, เพิ่มโมเดลตัวที่สาม,
+เปิด Validation หรือเริ่ม Test 3 โดยอัตโนมัติ
 
 ## เปิดไฟล์ไหน
 
-1. เปิด `MES_Quant_Engine_V1.code-workspace` ด้วย VS Code.
-2. อ่าน `docs/handoff/MES_V1_HANDOFF.md` เมื่อต้องการภาพรวมทั้งโครงการ.
-3. อ่าน `docs/CELL14_FEATURE_CONTRACT.md` เมื่อต้องการตรวจสิ่งที่ Cell 14 ทำ.
-4. ให้ developer เริ่มต่อที่ `docs/STAGE_B_REDUNDANCY_CONTRACT.md`.
-5. ไฟล์โค้ดแรกของ Stage B คือ `src/mes_quant/redundancy/contract.py` แล้วจึงสร้าง
-   `analyzer.py`; อย่ากลับไปเพิ่ม Cell ใหม่ใน Colab.
+1. `README.md` — ภาพรวมสั้น
+2. `docs/architecture/ARCHITECTURE_PROGRESS.md` — ตำแหน่งปัจจุบันและ next gate
+3. `docs/research/TEST2_REPOSITORY_CLOSEOUT_V1.md` — การผูก main/governance กับ Test 2
+4. `docs/research/TEST2_PATH_AWARE_PROTOCOL_V1.md` — frozen Test 2 protocol
+5. `docs/architecture/README.md` — แผนที่ architecture และสถานะเอกสาร
 
-## สิ่งที่ Cell 14 ให้เรา
+เมื่อเริ่ม Test 3 ให้เปิดเฉพาะ protocol ที่ Owner อนุมัติและตรวจ `CRASH_MEMORY.md` ใน
+Obsidian ก่อนทุก project action ตาม workflow ปัจจุบัน
 
-- 31,193 จุดตัดสินใจใน TRAIN/VALIDATION เท่านั้น.
-- 29 features ที่ใช้ข้อมูลไม่เกินเวลาตัดสินใจ.
-- 30,197 แถวพร้อมใช้ครบทุก feature (`96.807%`).
-- 996 แถวมีบริบทย้อนหลังไม่สมบูรณ์ จึงถูกทำเครื่องหมาย ไม่เติมค่าหรือทิ้งแบบเงียบ ๆ.
-- 5,703 ค่าที่หายมีเหตุผลกำกับแบบหนึ่งต่อหนึ่ง.
-- Final Test rows = 0 และ forbidden Cell 9–13 inputs opened = 0.
-- รันจริงสองรอบแล้วได้ไฟล์เหมือนกัน byte-for-byte.
+## สิ่งที่ต้องตรวจทุกครั้งก่อนเปลี่ยน repository
 
-## คำสั่งตรวจสุขภาพ
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m pytest -v
-ruff check src pipelines tools tests
-python tools\verify_migration.py --artifact-root artifacts\cache\source_v1
-python tools\verify_cell14_release.py
+```bash
+git fetch origin --prune
+git status --short --branch
+git log --oneline -3
+python -m pytest -q
+python -m ruff check --select E9,F401,F63,F7,F82 src tests tools
 ```
 
-ถ้าทั้งหมด PASS จึงเริ่ม Stage B ได้ หากมี hash ใดเปลี่ยน ให้หยุดและ audit ก่อน ไม่ควรแก้ตัวเลข
-expected ให้ผ่านตาม output ใหม่โดยไม่มี defect statement และ version bump.
+จากนั้นรัน full Ruff เฉพาะ Python files ที่เปลี่ยน ห้ามแก้ frozen notebook หรือ legacy
+surface นอก scope เพียงเพื่อกำจัด baseline lint findings
 
-## หลักคิดง่าย ๆ
+ต้องแยกให้ชัดระหว่าง:
 
-Cell 14 ตอบว่า “ก่อนตัดสินใจ เรารู้อะไรได้บ้าง” ส่วน Stage B จะตอบว่า “ข้อมูล 29 อย่างนี้มีอะไร
-ซ้ำกัน และควรเก็บตัวแทนอะไรไว้” หลังจากนั้นจึงเริ่มโมเดลแบบโปร่งใสใน Stage C.
+- code/test ผ่าน;
+- protocol หรือ authorization อนุญาต;
+- real-data execution เกิดขึ้นจริง;
+- evidence ถูก commit/push;
+- Validation/Final Test ถูกเปิดหรือยัง
+
+อย่างหนึ่งไม่ทำให้อีกอย่างเป็นจริงโดยอัตโนมัติ
+
+## Stable historical foundation
+
+- Colab Cells 0–13: `LOCKED / historical evidence`
+- Cell 14 computation: `LOCKED / deterministic`
+- 29 candidate features: historical Test 1/Test 2 inputs; ไม่ใช่คำสั่งให้ใช้ต่อทุก Test
+- Final Test rows opened: `0`
+
+ไม่ต้องส่ง API key หรือ IBKR credentials สำหรับ repository closeout หรือ Test 3 protocol
+design และห้ามแก้ frozen reference/hash เพื่อให้ผลใหม่ผ่าน
