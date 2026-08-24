@@ -34,6 +34,11 @@ The hypothesis budget is one instrument, one target, one horizon, one sampling r
 baseline, one challenger, two folds, and exactly four real fits. No rescue hypothesis is
 available after target-aware access.
 
+The project search ledger records Test 3 as `TARGET_SPACE_003`, the third and final
+OHLCV-only target-space hypothesis. Ratification of this protocol must co-ratify the
+companion `TEST3_PROJECT_HYPOTHESIS_BUDGET_V1.md`; neither document grants execution
+authority by itself.
+
 ## 2. Frozen upstream identities
 
 Later authorized execution must bind all of these identities before any numeric target
@@ -116,6 +121,10 @@ duplicate key, unordered key, nonpositive price, or nonfinite arithmetic fails c
 contract defect. No epsilon floor, winsorization, annualization, square root, jump-robust
 replacement, or alternate sampling rule is allowed.
 
+A finite `RV_FWD_60(t) == 0` must emit the exact reason code
+`TARGET_ZERO_VARIANCE` and stop the entire run before common eligibility or any fit. It may
+not be excluded, floored, or converted into a positive target.
+
 Cell 12 reconciliation must be exact for every row for which the corresponding Cell 12
 path is present. Target construction must record counts and hashes before any model
 eligibility mask is applied.
@@ -133,6 +142,9 @@ X120(t) = 2 * ln(realized_vol_120m(t))
 X240(t) = 2 * ln(realized_vol_240m(t))
 ```
 
+`V60/V120/V240` document the variance-scale meaning only. The actual ordered model design
+uses `X60/X120/X240` exactly as specified in Section 7.
+
 Cell 14 defines each `realized_vol_Hm` as the square root of the sum of squared completed
 15-minute log returns over the fixed `H`-minute lookback. Using a 15-minute realized-state
 predictor for a one-minute-sampled future target is deliberate: the hypothesis is whether
@@ -140,10 +152,12 @@ coarse, already-locked volatility memory adds forward risk information. Test 3 d
 claim the predictor and target are identical estimators.
 
 Missing values in one of these three exact predictor columns produce an explicit
-`PREDICTOR_UNUSABLE` reason. A present but nonfinite or nonpositive volatility fails closed;
-it may not be dropped, floored, or imputed after inspection. The global Cell 14
-`feature_row_usable` flag may not exclude a row merely because an unrelated one of the 29
-candidates is missing.
+`PREDICTOR_UNUSABLE` reason. A present nonfinite volatility must emit
+`PREDICTOR_NONFINITE`; a present finite volatility less than or equal to zero must emit
+`PREDICTOR_NONPOSITIVE`. Either exact code stops the entire run before common eligibility
+or any fit. The row may not be dropped, floored, or imputed after inspection. The global
+Cell 14 `feature_row_usable` flag may not exclude a row merely because an unrelated one of
+the 29 candidates is missing.
 
 Baseline and challenger use one identical common eligible set, defined only after:
 
@@ -291,7 +305,7 @@ RELATIVE_QLIKE_REDUCTION =
 
 The baseline denominator must be positive and finite.
 
-The confidence method inherits the Cell 13/Test 2 family:
+The confidence method adapts the Cell 13/Test 2 family:
 
 - paired, non-circular consecutive-session moving blocks;
 - 2,000 repetitions;
@@ -300,6 +314,11 @@ The confidence method inherits the Cell 13/Test 2 family:
 - master seed `20260809`;
 - identical session draws for both models;
 - blocks never cross fold boundaries.
+
+The consecutive-session moving-block family originates in Cell 13. The one-sided fifth
+percentile and the `+90000` pooled-seed namespace are inherited specifically from the
+frozen Test 2 implementation in `test2_stats.py`; they are intentional Test 3 choices and
+are not a claim of byte-identical Cell 13 two-sided `p025/p975` output.
 
 For block length `L`, use:
 
@@ -348,7 +367,8 @@ The terminal disposition must be exactly one of:
 - `UNDERPOWERED_STOP`: a pre-fit structural minimum such as fewer than 20 holdout sessions,
   insufficient training rows, or rank impossibility fails before any fit;
 - `INVALID_EVIDENCE`: source identity, access, request, reconciliation, numerical,
-  fit-budget, or record integrity fails.
+  `TARGET_ZERO_VARIANCE`, `PREDICTOR_NONFINITE`, `PREDICTOR_NONPOSITIVE`, fit-budget, or
+  record integrity fails.
 
 `NOT_INTERESTING_ENOUGH` is a valid scientific result and ends this Test 3 hypothesis. It
 does not permit a same-target model swap.
@@ -413,7 +433,10 @@ cannot reinterpret or rescue Test 3.
 
 ## 16. Ratification and next authority
 
-Owner ratification freezes this protocol text only. After ratification, the next eligible
-request is **Test 3 L0 code-only implementation**. Before any code is written, the Owner
-must choose whether to implement personally or authorize Codex. Claude remains the
-read-only adversarial reviewer unless the Owner expands its authority.
+Owner ratification freezes this protocol together with
+`TEST3_PROJECT_HYPOTHESIS_BUDGET_V1.md`. It also acknowledges that a present nonpositive
+Cell 14 volatility predictor and a zero forward realized-variance target stop the complete
+run before fit rather than exclude a row. After ratification, the next eligible request is
+**Test 3 L0 code-only implementation**. Before any code is written, the Owner must choose
+whether to implement personally or authorize Codex. Claude remains the read-only
+adversarial reviewer unless the Owner expands its authority.

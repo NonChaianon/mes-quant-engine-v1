@@ -90,6 +90,32 @@ before eligibility, while the authoritative Cell 8 audit, handoff, and fold CSV 
 Stage B redundancy contract. This branch corrects the Test 2 transcription and its pooled
 pre-eligibility maximum from `10,984` to `10,986`; no experiment result or artifact changes.
 
+### 3.8 Owner adversarial read and ratification amendments
+
+The Owner read both draft files section by section and reported five non-blocking findings.
+The ratification candidate resolves all five:
+
+1. finite zero forward variance now has exact code `TARGET_ZERO_VARIANCE` and stops the
+   complete run before eligibility or fit rather than being silently excluded;
+2. source inspection confirmed Test 2 uses `np.quantile(..., 0.05)` and seed namespace
+   `MASTER_SEED + 90000 + L`; the protocol now distinguishes those Test 2 choices from
+   Cell 13's two-sided `p025/p975` outputs;
+3. project-level target-space finality is preserved in the separate companion
+   `TEST3_PROJECT_HYPOTHESIS_BUDGET_V1.md` and must be co-ratified;
+4. the protocol records `TARGET_SPACE_003` explicitly in the project search ledger;
+5. `V60/V120/V240` are labeled scale documentation, while only the `X` transforms enter
+   the ordered model designs.
+
+The Owner also surfaced the deliberate fail-closed predictor rule: any present nonpositive
+Cell 14 volatility stops G3-P before a fit rather than dropping a row. The ratification
+clause now makes acceptance of both zero-variance stop rules explicit. Claude's amendment
+review found that the predictor rule still lacked symmetric machine codes; the final text
+therefore adds `PREDICTOR_NONFINITE` and `PREDICTOR_NONPOSITIVE`, both mapped explicitly to
+whole-run `INVALID_EVIDENCE` before eligibility or fit.
+
+Claude re-read the amended zero-target, predictor, disposition, ratification, and companion
+budget sections and returned `APPROVE_AMENDMENTS`; no blocker/high remained.
+
 ## 4. Claude final position
 
 After the factual correction and design amendments, Claude reported that the only remaining
@@ -98,5 +124,6 @@ the WF_2023 transcription described in Section 3.7. The source audit governs, an
 is corrected to `5,476`. Technical review found no remaining blocker/high issue after that
 correction.
 
-The protocol is now complete enough for Owner ratification. It remains unauthorized for
-implementation or data access until that ratification is explicit.
+The amended protocol and companion project-budget artifact are complete enough for Owner
+ratification. They remain unauthorized for implementation or data access until that
+ratification is explicit.
