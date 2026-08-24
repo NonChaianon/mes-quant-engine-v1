@@ -39,34 +39,91 @@ from mes_quant.exploration.test3_contract import (
     RowStatus,
 )
 
-G2P_AUTHORIZATION_ID = "AUTH_TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_20260824"
+G2P_AUTHORIZATION_ID = "AUTH_TEST3_G2P_SINGLE_PROVEN_DEFECT_SUCCESSOR_20260824"
 G2P_AUTHORIZATION_TOKEN = (
-    "OWNER_AUTHORIZED_TEST3_G2P_TARGET_BLIND_TRAIN_PREFLIGHT_20260824"
+    "OWNER_AUTHORIZED_TEST3_G2P_SINGLE_PROVEN_DEFECT_SUCCESSOR_20260824"
 )
 G2P_AUTHORIZATION_DOCUMENT = (
-    "docs/research/TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_AUTHORIZATION_V1.md"
+    "docs/research/TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_AUTHORIZATION_V1.md"
 )
 G2P_AUTHORIZATION_DOCUMENT_SHA256 = (
-    "2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98"
+    "6042c4e6b9fff928facb41dc5fba2997908bfd7aefb0f6714fd6d9b0630fadcc"
 )
 G2P_PACKAGE_DOCUMENT = (
-    "docs/research/TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_PACKAGE_V1.md"
+    "docs/research/TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_PACKAGE_V1.md"
 )
 G2P_PACKAGE_DOCUMENT_SHA256 = (
-    "584cd0623463e79803b69df15646e9e30db1a78944e067d0bff87d69409b11c2"
+    "537d89621786bf8588131db04021194a8286fc4eb53286faae226276f03b1b8f"
 )
-G2P_GATE_LITERAL = "G2P_TEST3_TARGET_BLIND_TRAIN_PREDICTOR_PREFLIGHT"
-G2P_GATE_ID = "MES_TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_V1"
+G2P_REPAIR_AMENDMENT_DOCUMENT = (
+    "docs/research/TEST3_G2P_PROVEN_DEFECT_REPAIR_AMENDMENT_V1.md"
+)
+G2P_REPAIR_AMENDMENT_DOCUMENT_SHA256 = (
+    "135fed474c115269421bf9f59cf838f58609b4d6cf83aee2a2118b195cb13fa6"
+)
+G2P_PROOF_TEST = "tests/test_test3_g2p_proven_defect.py"
+G2P_PROOF_TEST_SHA256 = (
+    "ffe8a2c18f034a8c5280bba488cbb11a2dbcac617284e1be0a268d717ef19b4c"
+)
+G2P_GATE_LITERAL = "G2P_TEST3_SINGLE_PROVEN_DEFECT_SUCCESSOR_PREFLIGHT"
+G2P_GATE_ID = "MES_TEST3_G2P_PROVEN_DEFECT_SUCCESSOR_PREFLIGHT_V1"
 G2P_RECORD_VERSION = "1.0"
 G2P_ACCESS_LEVEL = "G2P_TARGET_BLIND_OUTER_TRAIN_PREDICTORS_ONLY"
+G2P_REPAIR_LINEAGE_ID = "MES_TEST3_G2P_SINGLE_PROVEN_DEFECT_REPAIR_V1"
+G2P_SUCCESSOR_ORDINAL = 1
+G2P_SUCCESSOR_LIMIT = 1
 LEDGER_HASH_PROJECTION_ID = "MES_TEST3_PREDICTOR_LEDGER_PIPE_UTF8_V1"
 LEDGER_HASH_SERIALIZATION = (
     "UTF8_SOURCE_ORDER_DECISION_ID_PIPE_UTC_ISOFORMAT_PLUS_OPTIONAL_STATUS_LF"
 )
-G2P_BASE_COMMIT = "21c42de47deeb8fac1da9208fdbc8ad4fa6369ca"
-G2P_BRANCH = "research/test3-g2p-predictor-preflight-v1"
+G2P_BASE_COMMIT = "2d4fccf4ac2040e8e908bfadda27b81b3663afad"
+G2P_BASE_TREE = "9b07390a40a4720fe0a64c97cb982cf0345a8207"
+G2P_BRANCH = "research/test3-g2p-proven-defect-successor-v1"
+
+G2P_PREDECESSOR_PACKAGE_COMMIT = "485bfa16a6567b5c54e91b7cc72e7f1be58775a9"
+G2P_PREDECESSOR_PACKAGE_TREE = "86e7f382586d0155ec058a148a83be858768cf4d"
+G2P_PREDECESSOR_EVIDENCE_COMMIT = "f0a3387f077ac30c99287601adeb81014068ff08"
+G2P_PREDECESSOR_EVIDENCE_TREE = "ac415152ba6eca60c50907c7fe1dc42460bf7a4b"
+G2P_PREDECESSOR_AUTHORIZATION_ID = (
+    "AUTH_TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_20260824"
+)
+G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT = (
+    "docs/research/TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_AUTHORIZATION_V1.md"
+)
+G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT_SHA256 = (
+    "2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98"
+)
+G2P_PREDECESSOR_PACKAGE_DOCUMENT = (
+    "docs/research/TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_PACKAGE_V1.md"
+)
+G2P_PREDECESSOR_PACKAGE_DOCUMENT_SHA256 = (
+    "584cd0623463e79803b69df15646e9e30db1a78944e067d0bff87d69409b11c2"
+)
+G2P_PREDECESSOR_RESERVATION_RECORD = (
+    "artifacts/exploration/test3/g2p/authorization/"
+    f"{G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT_SHA256}.consumed.json"
+)
+G2P_PREDECESSOR_RESERVATION_SHA256 = (
+    "2cf1ce922a012045af9959265b613df662727e268c8797f9555ee19072c9c68c"
+)
+G2P_PREDECESSOR_FAILURE_RECORD = (
+    "artifacts/exploration/test3/g2p/authorization/"
+    f"{G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT_SHA256}.failure.json"
+)
+G2P_PREDECESSOR_FAILURE_SHA256 = (
+    "9b9f7f7824c89af2fa32de3cda00cfa38a519795a6c88bae6a6201d89717a439"
+)
+G2P_REPAIR_RESERVATION_RECORD = (
+    "artifacts/exploration/test3/g2p/repair/"
+    f"{G2P_REPAIR_LINEAGE_ID}.consumed.json"
+)
+G2P_REPAIR_FAILURE_RECORD = (
+    "artifacts/exploration/test3/g2p/repair/"
+    f"{G2P_REPAIR_LINEAGE_ID}.failure.json"
+)
 
 G2_IMPLEMENTATION_COMMIT = "4572b97c577f4445641f2b0e0b84549b0ae1b78c"
+G2_EVIDENCE_COMMIT = "21c42de47deeb8fac1da9208fdbc8ad4fa6369ca"
 G2_EVIDENCE_RECORD = (
     "artifacts/exploration/test3/g2/MES_T3_G2_0F9A89A4A5C74EAD/"
     "metadata_preflight_record.json"
@@ -117,7 +174,6 @@ G2P_ALLOWED_CHANGED_FILES = frozenset(
         G2P_PACKAGE_DOCUMENT,
         "src/mes_quant/exploration/test3_g2p_preflight.py",
         "tests/test_test3_g2p_preflight.py",
-        "tools/run_test3_g2p_preflight.py",
     }
 )
 
@@ -139,6 +195,12 @@ _DOCUMENT_BINDINGS = {
     "docs/research/TEST3_G2_METADATA_PREFLIGHT_PACKAGE_V1.md": (
         "3d0926a2fd7dc63d2b50cea8cc653921c4a936de9cc83c410147195a7eb390b1"
     ),
+    G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT: (
+        G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT_SHA256
+    ),
+    G2P_PREDECESSOR_PACKAGE_DOCUMENT: G2P_PREDECESSOR_PACKAGE_DOCUMENT_SHA256,
+    G2P_REPAIR_AMENDMENT_DOCUMENT: G2P_REPAIR_AMENDMENT_DOCUMENT_SHA256,
+    G2P_PROOF_TEST: G2P_PROOF_TEST_SHA256,
     G2P_AUTHORIZATION_DOCUMENT: G2P_AUTHORIZATION_DOCUMENT_SHA256,
     G2P_PACKAGE_DOCUMENT: G2P_PACKAGE_DOCUMENT_SHA256,
 }
@@ -510,7 +572,7 @@ def _verify_g2_evidence(project_root: Path) -> dict[str, object]:
     ):
         _fail("G2 reservation binding mismatch")
     return {
-        "evidence_commit": G2P_BASE_COMMIT,
+        "evidence_commit": G2_EVIDENCE_COMMIT,
         "implementation_commit": G2_IMPLEMENTATION_COMMIT,
         "record_path": "${REPOSITORY}/" + G2_EVIDENCE_RECORD,
         "record_file_sha256": G2_EVIDENCE_RECORD_SHA256,
@@ -520,6 +582,104 @@ def _verify_g2_evidence(project_root: Path) -> dict[str, object]:
         "reservation_file_sha256": G2_RESERVATION_FILE_SHA256,
         "reservation_size_bytes": reservation_size,
         "binding_status": "EXACT_COMMITTED_G2_EVIDENCE_VERIFIED_BEFORE_G2P_ACCESS",
+    }
+
+
+def _verify_predecessor_invalid_evidence(project_root: Path) -> dict[str, object]:
+    expected_lineage = (
+        (
+            G2P_PREDECESSOR_PACKAGE_COMMIT,
+            G2_EVIDENCE_COMMIT,
+            G2P_PREDECESSOR_PACKAGE_TREE,
+        ),
+        (
+            G2P_PREDECESSOR_EVIDENCE_COMMIT,
+            G2P_PREDECESSOR_PACKAGE_COMMIT,
+            G2P_PREDECESSOR_EVIDENCE_TREE,
+        ),
+        (G2P_BASE_COMMIT, G2P_PREDECESSOR_EVIDENCE_COMMIT, G2P_BASE_TREE),
+    )
+    for commit, parent, tree in expected_lineage:
+        parents = _git_output(
+            project_root, "rev-list", "--parents", "-n", "1", commit
+        ).split()
+        if parents != [commit, parent]:
+            _fail(f"repair lineage parent mismatch: {commit}")
+        if _git_output(project_root, "rev-parse", f"{commit}^{{tree}}") != tree:
+            _fail(f"repair lineage tree mismatch: {commit}")
+
+    reservation, reservation_size = _strict_json_file(
+        project_root / G2P_PREDECESSOR_RESERVATION_RECORD,
+        expected_sha256=G2P_PREDECESSOR_RESERVATION_SHA256,
+    )
+    reservation_expected = {
+        "authorization_id": G2P_PREDECESSOR_AUTHORIZATION_ID,
+        "authorization_document_sha256": (
+            G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT_SHA256
+        ),
+        "execution_commit": G2P_PREDECESSOR_PACKAGE_COMMIT,
+        "execution_tree": G2P_PREDECESSOR_PACKAGE_TREE,
+        "branch": "research/test3-g2p-predictor-preflight-v1",
+        "status": "CONSUMED_BEFORE_PREDICTOR_ACCESS",
+    }
+    for field, expected in reservation_expected.items():
+        if reservation.get(field) != expected:
+            _fail(f"predecessor reservation field mismatch: {field}")
+
+    failure, failure_size = _strict_json_file(
+        project_root / G2P_PREDECESSOR_FAILURE_RECORD,
+        expected_sha256=G2P_PREDECESSOR_FAILURE_SHA256,
+    )
+    failure_expected = {
+        "authorization_id": G2P_PREDECESSOR_AUTHORIZATION_ID,
+        "authorization_document_sha256": (
+            G2P_PREDECESSOR_AUTHORIZATION_DOCUMENT_SHA256
+        ),
+        "status": "PROTOCOL_INVALID_EVIDENCE_AFTER_CONSUMPTION_NO_RETRY",
+        "terminal_disposition": "INVALID_EVIDENCE",
+        "invalid_evidence_category": "DECISION_ID_LEDGER_HASH_DELIMITER_PRESENT",
+        "ledger_status": "NOT_SEALED_SOURCE_OR_LEDGER_MISMATCH",
+        "cause_audit_status": "REQUIRED_BEFORE_TARGET_SPACE_STATE_TRANSITION",
+        "target_space_state": "LOCKED / RESERVED",
+        "target_space_consumption_status": (
+            "NOT_CONSUMED_TARGET_BLIND_PREDICTOR_PREFLIGHT"
+        ),
+        "projection_access_attested": True,
+        "validation_status": "UNOPENED",
+        "final_test_status": "SEALED",
+        "live_execution_status": "DISABLED",
+        "g3p_status": "NOT_AUTHORIZED",
+        "g3f_status": "NOT_AUTHORIZED",
+    }
+    for field, expected in failure_expected.items():
+        if failure.get(field) != expected:
+            _fail(f"predecessor failure field mismatch: {field}")
+    counters = failure.get("protected_surface_counters")
+    if (
+        not isinstance(counters, dict)
+        or set(counters) != set(_ZERO_COUNTERS)
+        or any(value != 0 for value in counters.values())
+    ):
+        _fail("predecessor failure protected counters are not exact zeroes")
+
+    return {
+        "repair_lineage_id": G2P_REPAIR_LINEAGE_ID,
+        "proof_commit": G2P_BASE_COMMIT,
+        "proof_tree": G2P_BASE_TREE,
+        "predecessor_package_commit": G2P_PREDECESSOR_PACKAGE_COMMIT,
+        "predecessor_package_tree": G2P_PREDECESSOR_PACKAGE_TREE,
+        "predecessor_evidence_commit": G2P_PREDECESSOR_EVIDENCE_COMMIT,
+        "predecessor_evidence_tree": G2P_PREDECESSOR_EVIDENCE_TREE,
+        "reservation_path": "${REPOSITORY}/" + G2P_PREDECESSOR_RESERVATION_RECORD,
+        "reservation_file_sha256": G2P_PREDECESSOR_RESERVATION_SHA256,
+        "reservation_size_bytes": reservation_size,
+        "failure_path": "${REPOSITORY}/" + G2P_PREDECESSOR_FAILURE_RECORD,
+        "failure_file_sha256": G2P_PREDECESSOR_FAILURE_SHA256,
+        "failure_size_bytes": failure_size,
+        "invalid_evidence_category": "DECISION_ID_LEDGER_HASH_DELIMITER_PRESENT",
+        "protected_surface_counters_all_zero": True,
+        "target_space_consumed": False,
+        "binding_status": "EXACT_PROVEN_DEFECT_PREDECESSOR_VERIFIED_BEFORE_SUCCESSOR",
     }
 
 
@@ -543,7 +703,7 @@ def _normalized_time(value: object, *, field: str) -> datetime:
 def _normalized_identity(value: object) -> str:
     if not isinstance(value, str) or not value.strip():
         _invalid_evidence("DECISION_ID_MISSING_OR_INVALID")
-    if any(delimiter in value for delimiter in ("|", "\r", "\n")):
+    if any(delimiter in value for delimiter in ("\r", "\n")):
         _invalid_evidence("DECISION_ID_LEDGER_HASH_DELIMITER_PRESENT")
     return value
 
@@ -758,6 +918,7 @@ def build_g2p_record(
     authorization: _ObservedAuthorization,
     document_bindings: Mapping[str, object],
     g2_evidence_binding: Mapping[str, object],
+    predecessor_failure_binding: Mapping[str, object],
     runtime_binding: Mapping[str, object],
     audit_written_utc: str | None = None,
 ) -> dict[str, object]:
@@ -831,9 +992,9 @@ def build_g2p_record(
     ledger = _build_ledger(cell14_controls, cell14_rows)
     _assert_forbidden_modules_absent(phase="after complete predictor ledger")
     stage_status = (
-        "G2P_INVALID_EVIDENCE_SEALED"
+        "G2P_SUCCESSOR_TERMINAL_INVALID_EVIDENCE"
         if ledger.terminal_failure_present
-        else "G2P_PREDICTOR_PREFLIGHT_PASS"
+        else "G2P_PROVEN_DEFECT_SUCCESSOR_PREFLIGHT_PASS"
     )
     terminal_disposition = (
         "INVALID_EVIDENCE"
@@ -853,7 +1014,9 @@ def build_g2p_record(
         "protocol_id": PROTOCOL_ID,
         "project_budget_id": PROJECT_BUDGET_ID,
         "target_space_id": TARGET_SPACE_ID,
-        "target_space_state": TARGET_SPACE_STATE,
+        "target_space_state": (
+            "CLOSED_UNCONSUMED" if ledger.terminal_failure_present else TARGET_SPACE_STATE
+        ),
         "ratified_commit": RATIFIED_COMMIT,
         "ratification_record_commit": RATIFICATION_RECORD_COMMIT,
         "base_commit": G2P_BASE_COMMIT,
@@ -867,9 +1030,9 @@ def build_g2p_record(
         "stage_status": stage_status,
         "terminal_disposition": terminal_disposition,
         "cause_audit_status": (
-            "REQUIRED_BEFORE_TARGET_SPACE_STATE_TRANSITION"
+            "SUCCESSOR_FAILED_TEST3_TERMINAL_NO_RETRY"
             if ledger.terminal_failure_present
-            else "NOT_REQUIRED_ON_G2P_PASS"
+            else "PROVEN_DEFECT_REPAIRED_NO_FURTHER_SUCCESSOR"
         ),
         "authorization_binding": {
             "authorization_id": authorization.authorization_id,
@@ -877,15 +1040,16 @@ def build_g2p_record(
             "authorization_token_sha256": hashlib.sha256(
                 G2P_AUTHORIZATION_TOKEN.encode("utf-8")
             ).hexdigest(),
-            "reservation_path": (
-                "${REPOSITORY}/artifacts/exploration/test3/g2p/authorization/"
-                + authorization.reservation_path.name
-            ),
+            "repair_lineage_id": G2P_REPAIR_LINEAGE_ID,
+            "successor_ordinal": G2P_SUCCESSOR_ORDINAL,
+            "successor_limit": G2P_SUCCESSOR_LIMIT,
+            "reservation_path": "${REPOSITORY}/" + G2P_REPAIR_RESERVATION_RECORD,
             "reservation_file_sha256": authorization.reservation_file_sha256,
             "reservation_status": "CONSUMED_BEFORE_PREDICTOR_ACCESS",
             "document_bindings": dict(document_bindings),
         },
         "g2_evidence_binding": dict(g2_evidence_binding),
+        "proven_defect_predecessor_binding": dict(predecessor_failure_binding),
         "runtime_binding": dict(runtime_binding),
         "repository_strategy": {
             "execution_strategy": "DIRECT_DESCENDANT_BRANCH_NO_MERGE",
@@ -930,7 +1094,9 @@ def build_g2p_record(
         "safety_counters": counters,
         "not_computed": dict(_NOT_COMPUTED),
         "target_space_consumption_status": (
-            "NOT_CONSUMED_TARGET_BLIND_PREDICTOR_PREFLIGHT"
+            "CLOSED_UNCONSUMED_SUCCESSOR_FAILED"
+            if ledger.terminal_failure_present
+            else "NOT_CONSUMED_TARGET_BLIND_PREDICTOR_PREFLIGHT"
         ),
         "validation_status": "UNOPENED",
         "final_test_status": "SEALED",
@@ -991,17 +1157,26 @@ def _consume_authorization(
         observed,
         field="G2-P Owner authorization document",
     )
-    reservation_path = (
-        output_root
-        / "authorization"
-        / f"{G2P_AUTHORIZATION_DOCUMENT_SHA256}.consumed.json"
-    )
+    expected_output_root = project_root / "artifacts/exploration/test3/g2p"
+    if output_root != expected_output_root:
+        _fail("G2-P successor output root differs from the fixed repair lineage")
+    reservation_path = project_root / G2P_REPAIR_RESERVATION_RECORD
     payload = {
         "authorization_id": G2P_AUTHORIZATION_ID,
         "authorization_document_sha256": G2P_AUTHORIZATION_DOCUMENT_SHA256,
+        "authorization_token_sha256": hashlib.sha256(
+            G2P_AUTHORIZATION_TOKEN.encode("utf-8")
+        ).hexdigest(),
+        "repair_lineage_id": G2P_REPAIR_LINEAGE_ID,
+        "successor_ordinal": G2P_SUCCESSOR_ORDINAL,
+        "successor_limit": G2P_SUCCESSOR_LIMIT,
+        "proof_commit": G2P_BASE_COMMIT,
         "execution_commit": git_context.code_identity,
         "execution_tree": git_context.tree_identity,
         "branch": git_context.branch,
+        "predecessor_evidence_commit": G2P_PREDECESSOR_EVIDENCE_COMMIT,
+        "predecessor_reservation_sha256": G2P_PREDECESSOR_RESERVATION_SHA256,
+        "predecessor_failure_sha256": G2P_PREDECESSOR_FAILURE_SHA256,
         "status": "CONSUMED_BEFORE_PREDICTOR_ACCESS",
         "consumed_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }
@@ -1024,18 +1199,16 @@ def write_failure_summary_if_consumed(
     *, project_root: str | Path, error: BaseException
 ) -> Path | None:
     root = _absolute_lexical_path(project_root, field="project root")
-    authorization_root = root / "artifacts/exploration/test3/g2p/authorization"
-    reservation = authorization_root / (
-        f"{G2P_AUTHORIZATION_DOCUMENT_SHA256}.consumed.json"
-    )
+    reservation = root / G2P_REPAIR_RESERVATION_RECORD
     if not _regular_file_exists_no_follow(reservation):
         return None
-    failure = authorization_root / (
-        f"{G2P_AUTHORIZATION_DOCUMENT_SHA256}.failure.json"
-    )
+    failure = root / G2P_REPAIR_FAILURE_RECORD
     payload = {
         "authorization_id": G2P_AUTHORIZATION_ID,
         "authorization_document_sha256": G2P_AUTHORIZATION_DOCUMENT_SHA256,
+        "repair_lineage_id": G2P_REPAIR_LINEAGE_ID,
+        "successor_ordinal": G2P_SUCCESSOR_ORDINAL,
+        "successor_limit": G2P_SUCCESSOR_LIMIT,
         "error_class": type(error).__name__,
         "failed_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "raw_error_message_committed": False,
@@ -1062,10 +1235,10 @@ def write_failure_summary_if_consumed(
                 "terminal_disposition": "INVALID_EVIDENCE",
                 "invalid_evidence_category": error.category,
                 "ledger_status": "NOT_SEALED_SOURCE_OR_LEDGER_MISMATCH",
-                "cause_audit_status": "REQUIRED_BEFORE_TARGET_SPACE_STATE_TRANSITION",
-                "target_space_state": TARGET_SPACE_STATE,
+                "cause_audit_status": "SUCCESSOR_FAILED_TEST3_TERMINAL_NO_RETRY",
+                "target_space_state": "CLOSED_UNCONSUMED",
                 "target_space_consumption_status": (
-                    "NOT_CONSUMED_TARGET_BLIND_PREDICTOR_PREFLIGHT"
+                    "CLOSED_UNCONSUMED_SUCCESSOR_FAILED"
                 ),
                 "projection_access_attested": error.projection_access_attested,
                 "protected_surface_counters": protected_counters,
@@ -1077,7 +1250,36 @@ def write_failure_summary_if_consumed(
             }
         )
     else:
-        payload["status"] = "FAILED_AFTER_AUTHORIZATION_CONSUMPTION_NO_RETRY"
+        protected_counters = {
+            key: (
+                0
+                if key in _INVARIANT_ZERO_COUNTER_KEYS
+                else "NOT_ATTESTED_DUE_TO_EXECUTION_FAILURE"
+            )
+            for key in _ZERO_COUNTERS
+        }
+        payload.update(
+            {
+                "status": "FAILED_AFTER_SUCCESSOR_AUTHORIZATION_CONSUMPTION_NO_RETRY",
+                "terminal_disposition": "EXECUTION_FAILURE",
+                "failure_category": (
+                    "UNCLASSIFIED_EXECUTION_FAILURE_AFTER_CONSUMPTION"
+                ),
+                "ledger_status": "NOT_ATTESTED_DUE_TO_EXECUTION_FAILURE",
+                "cause_audit_status": "SUCCESSOR_FAILED_TEST3_TERMINAL_NO_RETRY",
+                "target_space_state": "CLOSED_UNCONSUMED",
+                "target_space_consumption_status": (
+                    "CLOSED_UNCONSUMED_SUCCESSOR_FAILED"
+                ),
+                "projection_access_attested": False,
+                "protected_surface_counters": protected_counters,
+                "validation_status": "ACCESS_STATUS_NOT_ATTESTED_FAIL_CLOSED",
+                "final_test_status": "ACCESS_STATUS_NOT_ATTESTED_FAIL_CLOSED",
+                "live_execution_status": "DISABLED",
+                "g3p_status": "NOT_AUTHORIZED",
+                "g3f_status": "NOT_AUTHORIZED",
+            }
+        )
     try:
         _atomic_create_json(failure, payload)
     except FileExistsError:
@@ -1499,6 +1701,7 @@ def main(
     runtime_binding = _assert_runtime_module_origins(root)
     documents = _verify_document_bindings(root)
     g2_evidence = _verify_g2_evidence(root)
+    predecessor_failure = _verify_predecessor_invalid_evidence(root)
     _assert_forbidden_modules_absent(phase="pre-reservation")
     authorization = _consume_authorization(
         project_root=root,
@@ -1513,6 +1716,7 @@ def main(
         authorization=authorization,
         document_bindings=documents,
         g2_evidence_binding=g2_evidence,
+        predecessor_failure_binding=predecessor_failure,
         runtime_binding=runtime_binding,
     )
     _assert_forbidden_modules_absent(phase="post-ledger")

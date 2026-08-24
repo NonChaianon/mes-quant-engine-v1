@@ -140,6 +140,7 @@ def _build(
             authorization=_authorization(root),
             document_bindings={"synthetic": {"match": True}},
             g2_evidence_binding={"synthetic": {"match": True}},
+            predecessor_failure_binding={"synthetic": {"match": True}},
             runtime_binding={"synthetic": {"match": True}},
             audit_written_utc=audit_written_utc,
         )
@@ -175,6 +176,7 @@ def test_projection_is_train_filtered_exact_and_validation_sentinel_is_unexposed
                 authorization=_authorization(root),
                 document_bindings={},
                 g2_evidence_binding={},
+                predecessor_failure_binding={},
                 runtime_binding={},
             )
     assert calls == [
@@ -191,7 +193,7 @@ def test_projection_is_train_filtered_exact_and_validation_sentinel_is_unexposed
         "PREDICTOR_NONFINITE": 0,
         "PREDICTOR_NONPOSITIVE": 0,
     }
-    assert record["stage_status"] == "G2P_PREDICTOR_PREFLIGHT_PASS"
+    assert record["stage_status"] == "G2P_PROVEN_DEFECT_SUCCESSOR_PREFLIGHT_PASS"
     assert record["terminal_disposition"] == "NOT_COMPUTED_STAGE_NOT_AUTHORIZED"
     assert record["safety_counters"]["g2p_validation_predictor_rows_read"] == 0
 
@@ -218,9 +220,13 @@ def test_null_bitmap_and_failure_precedence_match_l0_contract() -> None:
     assert counts == dict(expected.status_counts)
     assert counts[FailureReason.PREDICTOR_NONFINITE.value] == 1
     assert counts[FailureReason.PREDICTOR_NONPOSITIVE.value] == 1
-    assert record["stage_status"] == "G2P_INVALID_EVIDENCE_SEALED"
+    assert record["stage_status"] == "G2P_SUCCESSOR_TERMINAL_INVALID_EVIDENCE"
     assert record["terminal_disposition"] == "INVALID_EVIDENCE"
-    assert record["cause_audit_status"] == "REQUIRED_BEFORE_TARGET_SPACE_STATE_TRANSITION"
+    assert record["cause_audit_status"] == "SUCCESSOR_FAILED_TEST3_TERMINAL_NO_RETRY"
+    assert record["target_space_state"] == "CLOSED_UNCONSUMED"
+    assert record["target_space_consumption_status"] == (
+        "CLOSED_UNCONSUMED_SUCCESSOR_FAILED"
+    )
     assert record["safety_counters"]["g2p_target_or_path_rows_read"] == 0
 
 
@@ -263,6 +269,7 @@ def test_cell8_cell14_control_mismatch_fails() -> None:
                 authorization=_authorization(root),
                 document_bindings={},
                 g2_evidence_binding={},
+                predecessor_failure_binding={},
                 runtime_binding={},
             )
 
@@ -325,6 +332,7 @@ def test_forged_authorization_fails_before_opening_artifacts() -> None:
             authorization=forged,
             document_bindings={},
             g2_evidence_binding={},
+            predecessor_failure_binding={},
             runtime_binding={},
         )
     opened.assert_not_called()
@@ -352,18 +360,24 @@ def test_current_document_pins_and_committed_g2_predecessor_are_exact() -> None:
         g2p.G2P_PACKAGE_DOCUMENT_SHA256
     )
     predecessor = g2p._verify_g2_evidence(project_root)
-    assert predecessor["evidence_commit"] == g2p.G2P_BASE_COMMIT
+    assert predecessor["evidence_commit"] == g2p.G2_EVIDENCE_COMMIT
     assert predecessor["binding_status"] == (
         "EXACT_COMMITTED_G2_EVIDENCE_VERIFIED_BEFORE_G2P_ACCESS"
     )
+    repaired = g2p._verify_predecessor_invalid_evidence(project_root)
+    assert repaired["repair_lineage_id"] == g2p.G2P_REPAIR_LINEAGE_ID
+    assert repaired["predecessor_evidence_commit"] == (
+        g2p.G2P_PREDECESSOR_EVIDENCE_COMMIT
+    )
+    assert repaired["protected_surface_counters_all_zero"] is True
+    assert repaired["target_space_consumed"] is False
 
 
 def test_failure_summary_is_scrubbed_and_create_once() -> None:
     with tempfile.TemporaryDirectory(dir=_TEST_TEMP_ROOT) as temporary:
         root = Path(temporary)
-        auth_root = root / "artifacts/exploration/test3/g2p/authorization"
-        auth_root.mkdir(parents=True)
-        reservation = auth_root / f"{g2p.G2P_AUTHORIZATION_DOCUMENT_SHA256}.consumed.json"
+        reservation = root / g2p.G2P_REPAIR_RESERVATION_RECORD
+        reservation.parent.mkdir(parents=True)
         reservation.write_text("{}\n", encoding="utf-8")
         first = g2p.write_failure_summary_if_consumed(
             project_root=root,
@@ -377,14 +391,26 @@ def test_failure_summary_is_scrubbed_and_create_once() -> None:
         payload = json.loads(first.read_text(encoding="utf-8"))
         assert payload["error_class"] == "RuntimeError"
         assert "secret" not in first.read_text(encoding="utf-8")
+    assert payload["terminal_disposition"] == "EXECUTION_FAILURE"
+    assert payload["failure_category"] == (
+        "UNCLASSIFIED_EXECUTION_FAILURE_AFTER_CONSUMPTION"
+    )
+    assert payload["ledger_status"] == "NOT_ATTESTED_DUE_TO_EXECUTION_FAILURE"
+    assert payload["projection_access_attested"] is False
+    counters = payload["protected_surface_counters"]
+    assert counters["real_models_fitted"] == 0
+    assert counters["g2p_validation_predictor_rows_read"] == (
+        "NOT_ATTESTED_DUE_TO_EXECUTION_FAILURE"
+    )
+    assert payload["validation_status"] == "ACCESS_STATUS_NOT_ATTESTED_FAIL_CLOSED"
+    assert payload["final_test_status"] == "ACCESS_STATUS_NOT_ATTESTED_FAIL_CLOSED"
 
 
 def test_source_ledger_mismatch_gets_typed_invalid_evidence_summary() -> None:
     with tempfile.TemporaryDirectory(dir=_TEST_TEMP_ROOT) as temporary:
         root = Path(temporary)
-        auth_root = root / "artifacts/exploration/test3/g2p/authorization"
-        auth_root.mkdir(parents=True)
-        reservation = auth_root / f"{g2p.G2P_AUTHORIZATION_DOCUMENT_SHA256}.consumed.json"
+        reservation = root / g2p.G2P_REPAIR_RESERVATION_RECORD
+        reservation.parent.mkdir(parents=True)
         reservation.write_text("{}\n", encoding="utf-8")
         failure = g2p.write_failure_summary_if_consumed(
             project_root=root,
@@ -397,10 +423,11 @@ def test_source_ledger_mismatch_gets_typed_invalid_evidence_summary() -> None:
     assert payload["invalid_evidence_category"] == (
         "CELL8_CELL14_OUTER_TRAIN_CONTROL_LEDGER_MISMATCH"
     )
-    assert payload["target_space_state"] == "LOCKED / RESERVED"
+    assert payload["target_space_state"] == "CLOSED_UNCONSUMED"
     assert payload["target_space_consumption_status"] == (
-        "NOT_CONSUMED_TARGET_BLIND_PREDICTOR_PREFLIGHT"
+        "CLOSED_UNCONSUMED_SUCCESSOR_FAILED"
     )
+    assert payload["cause_audit_status"] == "SUCCESSOR_FAILED_TEST3_TERMINAL_NO_RETRY"
     assert all(value == 0 for value in payload["protected_surface_counters"].values())
     assert payload["validation_status"] == "UNOPENED"
     assert payload["final_test_status"] == "SEALED"
@@ -409,9 +436,8 @@ def test_source_ledger_mismatch_gets_typed_invalid_evidence_summary() -> None:
 def test_invalid_projection_never_claims_unverified_exposure_zeros() -> None:
     with tempfile.TemporaryDirectory(dir=_TEST_TEMP_ROOT) as temporary:
         root = Path(temporary)
-        auth_root = root / "artifacts/exploration/test3/g2p/authorization"
-        auth_root.mkdir(parents=True)
-        reservation = auth_root / f"{g2p.G2P_AUTHORIZATION_DOCUMENT_SHA256}.consumed.json"
+        reservation = root / g2p.G2P_REPAIR_RESERVATION_RECORD
+        reservation.parent.mkdir(parents=True)
         reservation.write_text("{}\n", encoding="utf-8")
         failure = g2p.write_failure_summary_if_consumed(
             project_root=root,
@@ -466,7 +492,6 @@ def test_runtime_source_has_no_forbidden_reader_imports_or_all_features() -> Non
         g2p.G2P_PACKAGE_DOCUMENT,
         "src/mes_quant/exploration/test3_g2p_preflight.py",
         "tests/test_test3_g2p_preflight.py",
-        "tools/run_test3_g2p_preflight.py",
     }
 
 
@@ -575,6 +600,72 @@ def test_ledger_hash_projection_matches_l0_and_is_status_sensitive() -> None:
     )
 
 
+def test_pipe_identity_repair_is_byte_exact_and_matches_frozen_l0_hash() -> None:
+    values = (
+        (1.0, 2.0, 3.0),
+        (1.5, 2.5, 3.5),
+        (2.0, 3.0, 4.0),
+        (2.5, 3.5, 4.5),
+    )
+    with tempfile.TemporaryDirectory(dir=_TEST_TEMP_ROOT) as temporary:
+        root = Path(temporary)
+        cell8, cell14 = _fixture(root, train_values=values)
+        for path in (cell8, cell14):
+            table = pq.read_table(path)
+            identities = table.column("decision_id").to_pylist()
+            identities[0] = "SYNTH|ID"
+            changed = table.set_column(
+                table.schema.get_field_index("decision_id"),
+                "decision_id",
+                pa.array(identities),
+            )
+            pq.write_table(changed, path, row_group_size=changed.num_rows)
+        with (
+            patch.object(g2p, "EXPECTED_OUTER_TRAIN_ROWS", 4),
+            patch.object(g2p, "CELL8_SPLIT_ASSIGNMENT_SHA256", _sha(cell8)),
+            patch.object(g2p, "CELL14_FEATURE_FILE_SHA256", _sha(cell14)),
+            patch.object(g2p, "_assert_forbidden_modules_absent"),
+        ):
+            record = g2p.build_g2p_record(
+                cell8_path=cell8,
+                cell14_path=cell14,
+                git_context=_git_context(),
+                authorization=_authorization(root),
+                document_bindings={},
+                g2_evidence_binding={},
+                predecessor_failure_binding={},
+                runtime_binding={},
+                audit_written_utc="2026-08-24T00:00:00Z",
+            )
+
+    start = datetime(2023, 1, 3, 15, 0, tzinfo=UTC)
+    identities = ("SYNTH|ID", "D0001", "D0002", "D0003")
+    expected = build_synthetic_predictor_ledger(
+        SyntheticPredictorRequest(
+            identities[index],
+            start + timedelta(minutes=15 * index),
+            *row,
+        )
+        for index, row in enumerate(values)
+    )
+    assert g2p._normalized_identity("SYNTH|ID") == "SYNTH|ID"
+    assert record["predictor_status_ledger"]["ordered_identity_status_sha256"] == (
+        expected.ordered_status_sha256
+    )
+    assert record["predictor_status_ledger"]["hash_projection_id"] == (
+        "MES_TEST3_PREDICTOR_LEDGER_PIPE_UTF8_V1"
+    )
+
+
+@pytest.mark.parametrize("identity", ["SYNTH\rID", "SYNTH\nID"])
+def test_cr_and_lf_identity_delimiters_remain_fail_closed(identity: str) -> None:
+    with pytest.raises(
+        g2p.Test3G2PInvalidEvidenceError,
+        match="DECISION_ID_LEDGER_HASH_DELIMITER_PRESENT",
+    ):
+        g2p._normalized_identity(identity)
+
+
 def test_non_train_and_protected_surface_counters_are_explicit_zero() -> None:
     with tempfile.TemporaryDirectory(dir=_TEST_TEMP_ROOT) as temporary:
         record = _build(Path(temporary))
@@ -666,6 +757,7 @@ def test_same_descriptor_post_scan_hash_detects_mutation() -> None:
                 authorization=_authorization(root),
                 document_bindings={},
                 g2_evidence_binding={},
+                predecessor_failure_binding={},
                 runtime_binding={},
             )
 
@@ -700,9 +792,13 @@ def test_consume_authorization_is_create_once_and_binds_git_context() -> None:
                 authorization_token=g2p.G2P_AUTHORIZATION_TOKEN,
             )
             payload = json.loads(observed.reservation_path.read_text(encoding="utf-8"))
+            assert observed.reservation_path == root / g2p.G2P_REPAIR_RESERVATION_RECORD
             assert payload["execution_commit"] == context.code_identity
             assert payload["execution_tree"] == context.tree_identity
             assert payload["branch"] == context.branch
+            assert payload["repair_lineage_id"] == g2p.G2P_REPAIR_LINEAGE_ID
+            assert payload["successor_ordinal"] == 1
+            assert payload["successor_limit"] == 1
             assert payload["status"] == "CONSUMED_BEFORE_PREDICTOR_ACCESS"
             with pytest.raises(g2p.Test3G2PBoundaryError, match="already consumed"):
                 g2p._consume_authorization(
@@ -711,6 +807,27 @@ def test_consume_authorization_is_create_once_and_binds_git_context() -> None:
                     git_context=context,
                     authorization_token=g2p.G2P_AUTHORIZATION_TOKEN,
                 )
+
+
+def test_predecessor_token_cannot_mint_successor_reservation() -> None:
+    old_token = "OWNER_AUTHORIZED_TEST3_G2P_TARGET_BLIND_TRAIN_PREFLIGHT_20260824"
+    with tempfile.TemporaryDirectory(dir=_TEST_TEMP_ROOT) as temporary:
+        root = Path(temporary)
+        document = root / g2p.G2P_AUTHORIZATION_DOCUMENT
+        document.parent.mkdir(parents=True)
+        document.write_text("synthetic authorization\n", encoding="utf-8")
+        output_root = root / "artifacts/exploration/test3/g2p"
+        with (
+            patch.object(g2p, "G2P_AUTHORIZATION_DOCUMENT_SHA256", _sha(document)),
+            pytest.raises(g2p.Test3G2PBoundaryError, match="token mismatch"),
+        ):
+            g2p._consume_authorization(
+                project_root=root,
+                output_root=output_root,
+                git_context=_git_context(),
+                authorization_token=old_token,
+            )
+        assert not (root / g2p.G2P_REPAIR_RESERVATION_RECORD).exists()
 
 
 def test_git_context_requires_direct_child_allowlist_and_exact_upstream() -> None:
@@ -856,3 +973,46 @@ def test_only_exact_pinned_cli_artifact_paths_are_accepted() -> None:
         cell14,
         project_root=project_root,
     ) == (cell8, cell14)
+
+
+def test_predecessor_proof_is_verified_before_successor_consumption() -> None:
+    project_root = Path(g2p.__file__).parents[3]
+    events: list[str] = []
+
+    def predecessor(_root: Path) -> dict[str, object]:
+        events.append("predecessor")
+        return {"binding_status": "synthetic"}
+
+    def consume(**_kwargs):
+        events.append("consume")
+        raise RuntimeError("stop after ordering witness")
+
+    with (
+        patch.object(g2p, "_assert_isolated_runtime"),
+        patch.object(g2p, "_assert_forbidden_modules_absent"),
+        patch.object(g2p, "_git_execution_context", return_value=_git_context()),
+        patch.object(g2p, "_assert_runtime_module_origins", return_value={}),
+        patch.object(g2p, "_verify_document_bindings", return_value={}),
+        patch.object(g2p, "_verify_g2_evidence", return_value={}),
+        patch.object(
+            g2p,
+            "_verify_predecessor_invalid_evidence",
+            side_effect=predecessor,
+        ),
+        patch.object(g2p, "_consume_authorization", side_effect=consume),
+        pytest.raises(RuntimeError, match="ordering witness"),
+    ):
+        g2p.main(
+            [
+                "--gate",
+                g2p.G2P_GATE_LITERAL,
+                "--authorization-token",
+                g2p.G2P_AUTHORIZATION_TOKEN,
+                "--cell8",
+                str(project_root / g2p.CELL8_CANONICAL_RELATIVE_PATH),
+                "--cell14-features",
+                str(project_root / g2p.CELL14_CANONICAL_RELATIVE_PATH),
+            ],
+            project_root=project_root,
+        )
+    assert events == ["predecessor", "consume"]
