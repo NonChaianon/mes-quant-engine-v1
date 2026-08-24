@@ -200,3 +200,90 @@ See:
 - `MES_QUANT_TARGET_ARCHITECTURE_v2.2.md` — where the system is going
 - `ARCHITECTURE_PROGRESS.md` — where the project is now
 - stage contracts such as `../STAGE_B_REDUNDANCY_CONTRACT.md` — how the active stage is governed
+
+---
+
+## VNext — Test 2+ research architecture design candidate
+
+VNext was created after the bounded Sprint 1 LR001/TREE001 research record. It does not
+rewrite that history and does not change v2.2's status as the accepted, design-closed Test 1
+baseline.
+
+The current design candidate adds:
+
+- four explicit research pillars: Market Dynamics/Physics, Statistics/ML,
+  Economics/Regime, and Microstructure/Flow;
+- an exact-decision-time constitutional data rule and explicit PIT/vintage semantics;
+- Economics/Regime as numerical point-in-time context only;
+- Microstructure/Flow as exchange-observed numerical state for short-horizon alpha quality
+  and execution, not a mandatory equal-weight vote;
+- hypothesis-first microstructure research and raw feature-fishing controls;
+- a controlled six-family ML challenger stack with ensemble/calibration support;
+- champion–challenger and multiple-testing/search-budget controls;
+- LangGraph as research orchestration only, including an Alpha-Killer/Skeptic role;
+- a repeatable edge-factory model spanning information, modeling, structural, execution,
+  and risk edges;
+- explicit Test 1 historical-baseline versus Test 2 design-candidate separation.
+
+Current candidate:
+
+```text
+MES_QUANT_RESEARCH_ARCHITECTURE_VNEXT
+STATUS = CURRENT_DESIGN_CANDIDATE / TEST2+ / RESEARCH_ONLY
+EXECUTION AUTHORITY = NONE
+```
+
+See `README.md` in this directory for the current pointer and authority map.
+
+---
+
+## VNext amendment — LangGraph retired by Owner decision
+
+**Date:** 2026-08-22
+
+The Owner removed LangGraph from the MES project direction. VNext now defines research
+proposal, critique, and adversarial review as human-directed and framework-neutral. No
+graph runtime or orchestration framework is part of the active architecture.
+
+The local historical branches remain preserved for audit/history only:
+
+- `architecture/langgraph-boundary-v1` at `42cda10559b7b7ab9ffeb4fb4263a6d2e8bb5af3`;
+- `research/langgraph-prototype-v0` at `8d5befba64627c170ae97e1193be028b53ca7857`.
+
+Their status is `ABANDONED / DO NOT USE / DO NOT MERGE`. They grant no architecture,
+implementation, dependency, experiment, data-access, merge, execution, or trading
+authority. Historical governance statements that say a LangGraph runtime did not exist or
+was not authorized remain untouched because they are frozen evidence/non-claims, not active
+design dependencies.
+
+Decision record:
+
+`LANGGRAPH_RETIREMENT_DECISION_20260822.md`
+
+---
+
+## Repository closeout — Governance main + completed Test 2
+
+**Date:** 2026-08-24
+
+The default branch and the Test 2 research branch had diverged after common commit `083008c`.
+The default branch carried accepted governance through `a732236`; the research branch carried
+the VNext/retirement/protocol/implementation/evidence chain through `c6e0281`.
+
+Repository closeout preserves the exact research/evidence refs and imports their verified
+snapshot onto the current governance baseline using a linear-history-compatible integration.
+It does not rebase or force-push the evidence branch and does not reinterpret the consumed
+Test 2 authorization.
+
+Observed research status after closeout:
+
+- Test 1/Sprint 1 is closed with LR001 and TREE001 both failing continuation;
+- Test 2 is closed `NOT_INTERESTING_ENOUGH` at run
+  `MES_T2_G3F_D36A9AC8BA9CFB07`;
+- Validation remains unopened and Final Test remains sealed;
+- Test 3 is a protocol decision only, with no implementation/data/training authority;
+- LangGraph remains retired.
+
+Integration record:
+
+`../research/TEST2_REPOSITORY_CLOSEOUT_V1.md`
