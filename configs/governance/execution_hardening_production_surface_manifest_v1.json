@@ -1,0 +1,39 @@
+{
+  "schema_version": "MES_EXECUTION_HARDENING_PRODUCTION_SURFACE_MANIFEST_V1",
+  "manifest_id": "EXECUTION_HARDENING_PRODUCTION_SURFACE_MANIFEST_V1",
+  "status": "PROPOSED_ADDITIVE_COMPANION_PENDING_OWNER_RATIFICATION",
+  "authority": "NO_IMPLEMENTATION_OR_EXECUTION_AUTHORITY",
+  "discovery_source": "exact Phase B activation Git commit tree",
+  "tracked_path_patterns": [
+    "artifacts/governance/**",
+    "configs/governance/**",
+    "docs/governance/**",
+    "src/mes_quant/governance/**",
+    "docs/research/*AUTHORIZATION*.md",
+    "docs/research/*BUDGET*.md",
+    "docs/research/*RATIFICATION*.md"
+  ],
+  "excluded_rehearsal_namespace": "artifacts/rehearsal/**",
+  "discovery_algorithm": [
+    "enumerate every Git-tracked file matching tracked_path_patterns at the exact activation tree",
+    "reject a missing tracked file or an untracked file below a protected pattern",
+    "sort paths by raw UTF-8 byte order",
+    "compute SHA-256 of each actual working-tree file before Tier 2",
+    "repeat enumeration and SHA-256 after Tier 2",
+    "require identical ordered path and digest lists",
+    "require git diff and git status firewalls to show no protected or rehearsal artifact staged"
+  ],
+  "runtime_handle_guard": {
+    "allowed_constructor_handle_class": "REHEARSAL_ONLY_HANDLE_SET_V1",
+    "forbidden_handle_classes": [
+      "PRODUCTION_TARGET_SLOT_LEDGER",
+      "PRODUCTION_AUTHORIZATION_LEDGER",
+      "PRODUCTION_ATTEMPT_LEDGER",
+      "PRODUCTION_REPAIR_LEDGER",
+      "PRODUCTION_EVIDENCE_REGISTRY",
+      "PRODUCTION_SIGNING_HANDLE"
+    ],
+    "outcome": "PRODUCTION_HANDLE_INJECTION_STOP_BEFORE_RESERVATION"
+  },
+  "proof_output": "ordered before/after path-digest manifests plus constructor-handle audit"
+}

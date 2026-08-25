@@ -1,0 +1,79 @@
+{
+  "schema_version": "MES_EXECUTION_TRANSITION_ROW_ENUM_V2",
+  "status": "PROPOSED_ADDITIVE_COMPANION_PENDING_OWNER_RATIFICATION",
+  "authority": "NO_IMPLEMENTATION_OR_EXECUTION_AUTHORITY",
+  "governing_protocol_id": "MES_EXECUTION_HARDENING_PROTOCOL_V1",
+  "governing_protocol_path": "docs/governance/EXECUTION_HARDENING_PROTOCOL_V1.md",
+  "governing_protocol_sha256": "697358653fd8958c87bbec2e29f83946fd814293f271ba64620fef90afbcfdf7",
+  "equivalence_rule": "Each event identifier maps one-to-one to one Markdown table row; allowed triples are the mechanical expansion of that row's From and To cells.",
+  "unknown_event_policy": "REJECT_INVALID_TRANSITION",
+  "target_access": {
+    "states": [
+      "LOCKED_UNRESERVED",
+      "LOCKED_RESERVED_NOT_CONSUMED",
+      "CONSUMED",
+      "CLOSED_UNCONSUMED",
+      "ACCESS_NOT_ATTESTED_FAIL_CLOSED"
+    ],
+    "protocol_rows": [
+      {"event_id":"TARGET_ROW_123","source_line":123,"event_text":"governing target-space budget or authenticated Owner decision reserves the scientific slot","from":["LOCKED_UNRESERVED"],"to_by_from":{"LOCKED_UNRESERVED":"LOCKED_RESERVED_NOT_CONSUMED"}},
+      {"event_id":"TARGET_ROW_124","source_line":124,"event_text":"terminal closure before target-slot reservation","from":["LOCKED_UNRESERVED"],"to_by_from":{"LOCKED_UNRESERVED":"CLOSED_UNCONSUMED"}},
+      {"event_id":"TARGET_ROW_125","source_line":125,"event_text":"first numeric target/path value read or target constructed, whether authorized or unauthorized","from":["LOCKED_RESERVED_NOT_CONSUMED"],"to_by_from":{"LOCKED_RESERVED_NOT_CONSUMED":"CONSUMED"}},
+      {"event_id":"TARGET_ROW_126","source_line":126,"event_text":"numeric target/path value read or target constructed with no target-slot reservation","from":["LOCKED_UNRESERVED"],"to_by_from":{"LOCKED_UNRESERVED":"CONSUMED"}},
+      {"event_id":"TARGET_ROW_127","source_line":127,"event_text":"numeric target/path value read or target constructed after closure or non-attestation","from":["CLOSED_UNCONSUMED","ACCESS_NOT_ATTESTED_FAIL_CLOSED"],"to_by_from":{"CLOSED_UNCONSUMED":"CONSUMED","ACCESS_NOT_ATTESTED_FAIL_CLOSED":"CONSUMED"}},
+      {"event_id":"TARGET_ROW_128","source_line":128,"event_text":"terminal closure without access, while slot remains reserved","from":["LOCKED_RESERVED_NOT_CONSUMED"],"to_by_from":{"LOCKED_RESERVED_NOT_CONSUMED":"LOCKED_RESERVED_NOT_CONSUMED"}},
+      {"event_id":"TARGET_ROW_129","source_line":129,"event_text":"governing budget or authenticated Owner decision closes the target slot unconsumed","from":["LOCKED_RESERVED_NOT_CONSUMED"],"to_by_from":{"LOCKED_RESERVED_NOT_CONSUMED":"CLOSED_UNCONSUMED"}},
+      {"event_id":"TARGET_ROW_130","source_line":130,"event_text":"required access evidence is unavailable","from":["LOCKED_UNRESERVED","LOCKED_RESERVED_NOT_CONSUMED","ACCESS_NOT_ATTESTED_FAIL_CLOSED"],"to_by_from":{"LOCKED_UNRESERVED":"ACCESS_NOT_ATTESTED_FAIL_CLOSED","LOCKED_RESERVED_NOT_CONSUMED":"ACCESS_NOT_ATTESTED_FAIL_CLOSED","ACCESS_NOT_ATTESTED_FAIL_CLOSED":"ACCESS_NOT_ATTESTED_FAIL_CLOSED"}},
+      {"event_id":"TARGET_ROW_131","source_line":131,"event_text":"required access evidence is unavailable; unchanged and record missing evidence in the reason code","from":["CONSUMED","CLOSED_UNCONSUMED"],"to_by_from":{"CONSUMED":"CONSUMED","CLOSED_UNCONSUMED":"CLOSED_UNCONSUMED"}},
+      {"event_id":"TARGET_ROW_132","source_line":132,"event_text":"later record in the same lineage with no target-slot reservation or access","from":["LOCKED_UNRESERVED"],"to_by_from":{"LOCKED_UNRESERVED":"LOCKED_UNRESERVED"}},
+      {"event_id":"TARGET_ROW_133","source_line":133,"event_text":"later record in the same lineage with no access","from":["LOCKED_RESERVED_NOT_CONSUMED"],"to_by_from":{"LOCKED_RESERVED_NOT_CONSUMED":"LOCKED_RESERVED_NOT_CONSUMED"}},
+      {"event_id":"TARGET_ROW_134","source_line":134,"event_text":"later record with no new access evidence","from":["ACCESS_NOT_ATTESTED_FAIL_CLOSED"],"to_by_from":{"ACCESS_NOT_ATTESTED_FAIL_CLOSED":"ACCESS_NOT_ATTESTED_FAIL_CLOSED"}},
+      {"event_id":"TARGET_ROW_135","source_line":135,"event_text":"later record in the same lineage","from":["CONSUMED"],"to_by_from":{"CONSUMED":"CONSUMED"}},
+      {"event_id":"TARGET_ROW_136","source_line":136,"event_text":"later record in the same closed lineage","from":["CLOSED_UNCONSUMED"],"to_by_from":{"CLOSED_UNCONSUMED":"CLOSED_UNCONSUMED"}}
+    ]
+  },
+  "execution_authority": {
+    "states": [
+      "NOT_AUTHORIZED",
+      "REVIEW_PENDING",
+      "AUTHORIZED_UNUSED",
+      "RESERVATION_CONSUMED",
+      "COMPLETED_SEALED",
+      "TERMINAL_NO_RETRY",
+      "NOT_ATTESTED_FAIL_CLOSED"
+    ],
+    "protocol_rows": [
+      {"event_id":"AUTH_ROW_142","source_line":142,"event_text":"later record in the same lineage with no review request","from":["NOT_AUTHORIZED"],"to_by_from":{"NOT_AUTHORIZED":"NOT_AUTHORIZED"}},
+      {"event_id":"AUTH_ROW_143","source_line":143,"event_text":"exact review requested","from":["NOT_AUTHORIZED"],"to_by_from":{"NOT_AUTHORIZED":"REVIEW_PENDING"}},
+      {"event_id":"AUTH_ROW_144","source_line":144,"event_text":"valid, unexpired, exact-package PASS with BLOCKER/HIGH = 0 and authenticated Owner authorization","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"AUTHORIZED_UNUSED"}},
+      {"event_id":"AUTH_ROW_145","source_line":145,"event_text":"valid, unexpired, exact-package PASS with BLOCKER/HIGH = 0, but no authenticated Owner authorization yet and no execution-authorization reservation/source access","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"REVIEW_PENDING"}},
+      {"event_id":"AUTH_ROW_146","source_line":146,"event_text":"invalid attestation, or attestation absent, timeout, NO_VERDICT, or expiry of an otherwise valid PASS, with no explicitly authorized review attempt and no explicitly authorized new review lineage remaining","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"NOT_ATTESTED_FAIL_CLOSED"}},
+      {"event_id":"AUTH_ROW_147","source_line":147,"event_text":"an otherwise valid PASS expires while an explicitly authorized new packet/attempt-ledger/review lineage is open or remaining and no execution-authorization reservation/source access occurred","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"REVIEW_PENDING"}},
+      {"event_id":"AUTH_ROW_148","source_line":148,"event_text":"attestation absent, timeout, or NO_VERDICT with an explicitly authorized review attempt open or remaining and no execution-authorization reservation/source access","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"REVIEW_PENDING"}},
+      {"event_id":"AUTH_ROW_149","source_line":149,"event_text":"package/packet-mode/signature/signer/reviewer/report/replay-invalid attempt with an explicitly authorized review attempt remaining and no execution-authorization reservation/source access","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"REVIEW_PENDING"}},
+      {"event_id":"AUTH_ROW_150","source_line":150,"event_text":"valid attested verdict with BLOCKER/HIGH > 0","from":["REVIEW_PENDING"],"to_by_from":{"REVIEW_PENDING":"TERMINAL_NO_RETRY"}},
+      {"event_id":"AUTH_ROW_151","source_line":151,"event_text":"execution-authorization reservation consumed without valid authority","from":["NOT_AUTHORIZED","REVIEW_PENDING","NOT_ATTESTED_FAIL_CLOSED"],"to_by_from":{"NOT_AUTHORIZED":"TERMINAL_NO_RETRY","REVIEW_PENDING":"TERMINAL_NO_RETRY","NOT_ATTESTED_FAIL_CLOSED":"TERMINAL_NO_RETRY"}},
+      {"event_id":"AUTH_ROW_152","source_line":152,"event_text":"later unauthorized execution-authorization reservation consumption in the same lineage","from":["TERMINAL_NO_RETRY"],"to_by_from":{"TERMINAL_NO_RETRY":"TERMINAL_NO_RETRY"}},
+      {"event_id":"AUTH_ROW_153","source_line":153,"event_text":"later record in the same lineage before execution-authorization reservation, within validity","from":["AUTHORIZED_UNUSED"],"to_by_from":{"AUTHORIZED_UNUSED":"AUTHORIZED_UNUSED"}},
+      {"event_id":"AUTH_ROW_154","source_line":154,"event_text":"create-once execution-authorization reservation consumed","from":["AUTHORIZED_UNUSED"],"to_by_from":{"AUTHORIZED_UNUSED":"RESERVATION_CONSUMED"}},
+      {"event_id":"AUTH_ROW_155","source_line":155,"event_text":"authority expires or is revoked unused","from":["AUTHORIZED_UNUSED"],"to_by_from":{"AUTHORIZED_UNUSED":"TERMINAL_NO_RETRY"}},
+      {"event_id":"AUTH_ROW_156","source_line":156,"event_text":"later STAGE_SUCCESS or PRECONDITION_STOP record before sealing or terminal stop","from":["RESERVATION_CONSUMED"],"to_by_from":{"RESERVATION_CONSUMED":"RESERVATION_CONSUMED"}},
+      {"event_id":"AUTH_ROW_157","source_line":157,"event_text":"complete valid evidence sealed","from":["RESERVATION_CONSUMED"],"to_by_from":{"RESERVATION_CONSUMED":"COMPLETED_SEALED"}},
+      {"event_id":"AUTH_ROW_158","source_line":158,"event_text":"terminal stop without retry authority","from":["RESERVATION_CONSUMED"],"to_by_from":{"RESERVATION_CONSUMED":"TERMINAL_NO_RETRY"}},
+      {"event_id":"AUTH_ROW_159","source_line":159,"event_text":"later record in the same lineage","from":["COMPLETED_SEALED"],"to_by_from":{"COMPLETED_SEALED":"COMPLETED_SEALED"}},
+      {"event_id":"AUTH_ROW_160","source_line":160,"event_text":"later record in the same lineage","from":["TERMINAL_NO_RETRY"],"to_by_from":{"TERMINAL_NO_RETRY":"TERMINAL_NO_RETRY"}},
+      {"event_id":"AUTH_ROW_161","source_line":161,"event_text":"same commit/package lineage","from":["NOT_ATTESTED_FAIL_CLOSED"],"to_by_from":{"NOT_ATTESTED_FAIL_CLOSED":"NOT_ATTESTED_FAIL_CLOSED"}}
+    ],
+    "reservation_boolean_rule": "false changes to true on any actual execution-authorization reservation consumption and never returns to false"
+  },
+  "required_equivalence_test": {
+    "input": "the exact Markdown tables at governing protocol lines 121-161",
+    "assertions": [
+      "state sets equal",
+      "one companion row per Markdown data row",
+      "source_line and event_text equal",
+      "mechanically expanded From/To triples equal",
+      "unknown event and every complement tuple reject"
+    ]
+  }
+}

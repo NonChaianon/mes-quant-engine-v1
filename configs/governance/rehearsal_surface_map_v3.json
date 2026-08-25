@@ -1,0 +1,367 @@
+{
+  "schema_version": "MES_REHEARSAL_SURFACE_MAP_SCHEMA_V1",
+  "surface_map_id": "REHEARSAL_SURFACE_MAP_V3",
+  "status": "PROPOSED_FROZEN_FOR_STEP3_AUTHORIZATION",
+  "authority": "NO_IMPLEMENTATION_OR_EXECUTION_AUTHORITY",
+  "supersedes_for_future_authorization_only": {
+    "surface_map_id": "REHEARSAL_SURFACE_MAP_V2",
+    "sha256": "c459744e4c8c27ecfb4bdd08164671146ef59d468beb7a90a46a8b47d97670da",
+    "reason": "Attempt 002 completed NO_GO with two BLOCKER, seven HIGH, and seven LOW findings"
+  },
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "preparation_base_commit": "ad6b7f1a4427f720cfadba71f74f0d025f306add",
+  "preparation_base_tree": "4f8e674dea4e70cf93e80c4d392f4ac505da377b",
+  "governing_protocol": {
+    "id": "MES_EXECUTION_HARDENING_PROTOCOL_V1",
+    "path": "docs/governance/EXECUTION_HARDENING_PROTOCOL_V1.md",
+    "sha256": "697358653fd8958c87bbec2e29f83946fd814293f271ba64620fef90afbcfdf7"
+  },
+  "closed_transition_companion": {
+    "id": "MES_EXECUTION_TRANSITION_ROW_ENUM_V2",
+    "path": "configs/governance/execution_hardening_transition_rows_v2.json",
+    "sha256": "56b1b66e653f5d883129a299c730b9f5d2f268c8567af9e9d7751027db7b8f8d",
+    "effect": "one row ID per ratified Section 3.4 Markdown data row with mechanical From/To expansion; pending exact Owner co-ratification before Phase A"
+  },
+  "rehearsal_protocol_id": "REHEARSAL_EXECUTION_HARDENING_V1",
+  "implementation_namespace": "mes_quant.governance.execution_hardening",
+  "artifact_namespace": "artifacts/rehearsal/REHEARSAL_EXECUTION_HARDENING_V1/<run-id>/",
+  "artifact_root_semantics": {
+    "local": "the relative artifact namespace is materialized below one isolated temporary root",
+    "github_actions": "the same relative namespace is uploaded as an immutable workflow artifact and bound by the attestation",
+    "repository_commit": "forbidden unless separately authorized after rehearsal",
+    "retention": "the attested GitHub Actions artifact is the durable Owner-facing Tier 2 evidence; a local rehearsal is preflight evidence only"
+  },
+  "sealing_trust_roots": {
+    "rehearsal": {
+      "identity": "MES_REHEARSAL_EPHEMERAL_SHA256_SEAL_ROOT_V1",
+      "acceptance": "REHEARSAL_ONLY",
+      "policy": "exclusive-create file seal, reread, SHA-256, surface-map binding, and isolated rehearsal registry"
+    },
+    "production": {
+      "identity": "NOT_YET_RATIFIED_PRODUCTION_TRUST_ROOT",
+      "acceptance": "REJECT_ALWAYS",
+      "consequence": "no production record may seal or register under this Step 3 authorization"
+    },
+    "production_fixture_only": {
+      "identity": "MES_TEST_FIXTURE_PRODUCTION_TRUST_ROOT_V1",
+      "acceptance": "IN_MEMORY_TEST_POLICY_ONLY",
+      "consequence": "may prove the canonical own-class schema fixture but cannot be emitted, sealed, persisted, or accepted by the runtime production policy"
+    }
+  },
+  "implementation_source_paths": [
+    ".github/workflows/quant-ci-v1.yml",
+    ".github/workflows/execution-hardening-attestation-v1.yml",
+    "configs/governance/executed_frozen_registry_v1.json",
+    "configs/governance/execution_hardening_attestation_ready_v1.json",
+    "configs/governance/sigstore_trusted_root_v1.jsonl",
+    "configs/governance/execution_hardening_attempt_ledger_schema_v1.json",
+    "src/mes_quant/governance/execution_hardening/__init__.py",
+    "src/mes_quant/governance/execution_hardening/boundary.py",
+    "src/mes_quant/governance/execution_hardening/records.py",
+    "src/mes_quant/governance/execution_hardening/attestation.py",
+    "src/mes_quant/governance/execution_hardening/registry.py",
+    "src/mes_quant/governance/execution_hardening/executed_frozen.py",
+    "src/mes_quant/governance/execution_hardening/rehearsal.py",
+    "tools/build_execution_hardening_review_report.py",
+    "tools/run_execution_hardening_rehearsal.py",
+    "tools/verify_execution_hardening_attestation.py",
+    "tests/governance/test_execution_hardening_boundary.py",
+    "tests/governance/test_execution_hardening_records.py",
+    "tests/governance/test_execution_hardening_attestation.py",
+    "tests/governance/test_execution_hardening_registry.py",
+    "tests/governance/test_execution_hardening_executed_frozen.py",
+    "tests/governance/test_execution_hardening_rehearsal.py",
+    "tests/governance/test_execution_hardening_ci_spec.py",
+    "docs/governance/EXECUTION_HARDENING_STEP3_PHASE_A_OWNER_AUTHORIZATION_V1.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_PHASE_B_OWNER_ACTIVATION_V1.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_RESPONSE.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_OWNER_CLOSEOUT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_CLOSEOUT_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_RESPONSE.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_OWNER_CLOSEOUT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_CLOSEOUT_RECEIPT.md"
+  ],
+  "stages": [
+    {
+      "stage": "CONTRACT",
+      "surface_ids": [
+        "PACKAGE_NAMESPACE_V1",
+        "BOUNDARY_VALIDATOR_V1",
+        "TWO_LEDGER_RECORD_SCHEMA_V1",
+        "FINITE_TRANSITION_EVENT_ENUM_V1",
+        "CLOSED_TRANSITION_VALIDATOR_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/__init__.py",
+        "src/mes_quant/governance/execution_hardening/boundary.py",
+        "src/mes_quant/governance/execution_hardening/records.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_boundary.py",
+        "tests/governance/test_execution_hardening_records.py"
+      ],
+      "required_properties": [
+        "pipe-bearing UTF-8 identity preserved",
+        "CR/LF identity rejected",
+        "finite scalar classification",
+        "integral boolean domain exactly 0 or 1",
+        "closed two-ledger values",
+        "finite event alphabet and exact allowed-transition triples",
+        "every tuple outside the finite allowed set rejected",
+        "execution-authorization reservation boolean monotone false-to-true"
+      ]
+    },
+    {
+      "stage": "METADATA",
+      "surface_ids": [
+        "ORDERED_ARROW_SCHEMA_CONTRACT_V1",
+        "TYPE_CORRECT_CONSUMER_REHEARSAL_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/boundary.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_boundary.py"
+      ],
+      "required_properties": [
+        "ordered projected field names pinned",
+        "logical Arrow types pinned",
+        "nullability pinned",
+        "producer contract identity pinned",
+        "Arrow int8 early_close_session 0 and 1 normalized",
+        "Arrow integral flag -1 and 2 rejected",
+        "zero-row-only rehearsal forbidden"
+      ]
+    },
+    {
+      "stage": "PRE_TARGET",
+      "surface_ids": [
+        "IDENTITY_LEDGER_V1",
+        "PREDICTOR_DOMAIN_GATE_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/rehearsal.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_rehearsal.py"
+      ],
+      "required_properties": [
+        "positive predictor passes",
+        "predictor equal to zero stops PREDICTOR_NONPOSITIVE",
+        "negative predictor stops PREDICTOR_NONPOSITIVE",
+        "nonfinite predictor stops PREDICTOR_NONFINITE",
+        "all pre-target stops preserve zero target-access counters"
+      ]
+    },
+    {
+      "stage": "TARGET_PREFIT",
+      "surface_ids": [
+        "SYNTHETIC_REQUEST_SET_WITNESS_V1",
+        "SYNTHETIC_TARGET_LEDGER_V1",
+        "COMMON_MASK_GATE_V1",
+        "FOLD_CONSTRUCTION_V1",
+        "HARMONIC_CONSTRUCTION_V1",
+        "RANK_AND_SUPPORT_GATE_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/rehearsal.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_rehearsal.py"
+      ],
+      "required_properties": [
+        "synthetic request identity and ordering sealed before target construction",
+        "complete synthetic target ledger sealed before target disposition",
+        "zero-variance target stops TARGET_ZERO_VARIANCE",
+        "zero-variance stop occurs before common mask and fit",
+        "nullable Cell 12 combinations preserve declared reason codes",
+        "common-mask rows are deterministic",
+        "exactly two non-overlapping synthetic folds are constructed",
+        "one deterministic harmonic basis is constructed from synthetic session coordinates",
+        "rank and support checks use synthetic values only"
+      ]
+    },
+    {
+      "stage": "FIT",
+      "surface_ids": [
+        "BOUNDED_SYNTHETIC_FIT_V1",
+        "SYNTHETIC_LOSS_BOOTSTRAP_ECONOMIC_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/rehearsal.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_rehearsal.py"
+      ],
+      "required_properties": [
+        "exactly two synthetic models",
+        "exactly two synthetic folds",
+        "at most four synthetic fold-fit calls per rehearsal",
+        "at most three bootstrap blocks",
+        "exactly sixty-four repetitions per bootstrap block",
+        "at most one economic diagnostic call",
+        "at most two economic policy evaluations",
+        "all real fit and real bootstrap counters remain zero"
+      ]
+    },
+    {
+      "stage": "SEALED",
+      "surface_ids": [
+        "PHASED_OWNER_AUTHORITY_V1",
+        "LIVE_CI_EXECUTED_FROZEN_GATE_V1",
+        "TRUSTED_ATTESTATION_WORKFLOW_V1",
+        "ATTESTATION_READY_SENTINEL_V1",
+        "PINNED_SIGSTORE_TRUST_ROOT_V1",
+        "APPEND_ONLY_ATTEMPT_LEDGER_V1",
+        "REHEARSAL_RESERVATION_LEDGER_V1",
+        "SYNTHETIC_EVIDENCE_SCHEMA_AND_REGISTRY_V1",
+        "CREATE_ONCE_SEAL_REREAD_HASH_V1",
+        "TRUSTED_ATTESTATION_POLICY_V1",
+        "EXECUTED_FROZEN_REGISTRY_V1",
+        "FULL_GOVERNED_PHASE_A_REVIEW_CHAIN_V1",
+        "FULL_GOVERNED_PHASE_B_REVIEW_CHAIN_V1",
+        "PRODUCTION_SURFACE_DISCOVERY_AND_HASH_GUARD_V1",
+        "REQUIRED_WORKFLOW_RULESET_V1"
+      ],
+      "implementation_paths": [
+        ".github/workflows/quant-ci-v1.yml",
+        ".github/workflows/execution-hardening-attestation-v1.yml",
+        "configs/governance/executed_frozen_registry_v1.json",
+        "configs/governance/execution_hardening_attestation_ready_v1.json",
+        "configs/governance/sigstore_trusted_root_v1.jsonl",
+        "configs/governance/execution_hardening_attempt_ledger_schema_v1.json",
+        "src/mes_quant/governance/execution_hardening/attestation.py",
+        "src/mes_quant/governance/execution_hardening/registry.py",
+        "src/mes_quant/governance/execution_hardening/executed_frozen.py",
+        "src/mes_quant/governance/execution_hardening/rehearsal.py",
+        "tools/build_execution_hardening_review_report.py",
+        "tools/run_execution_hardening_rehearsal.py",
+        "tools/verify_execution_hardening_attestation.py",
+        "docs/governance/EXECUTION_HARDENING_STEP3_PHASE_A_OWNER_AUTHORIZATION_V1.md",
+        "docs/governance/EXECUTION_HARDENING_STEP3_PHASE_B_OWNER_ACTIVATION_V1.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_DISPATCH_RECEIPT.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_RESPONSE.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_OWNER_CLOSEOUT.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_CLOSEOUT_RECEIPT.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_DISPATCH_RECEIPT.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_RESPONSE.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_OWNER_CLOSEOUT.md",
+        "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_B_FINAL_V1_CLOSEOUT_RECEIPT.md"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_attestation.py",
+        "tests/governance/test_execution_hardening_registry.py",
+        "tests/governance/test_execution_hardening_executed_frozen.py",
+        "tests/governance/test_execution_hardening_rehearsal.py",
+        "tests/governance/test_execution_hardening_ci_spec.py"
+      ],
+      "required_properties": [
+        "all thirty-five proposed change paths map to at least one stage, review-chain, or explicit authority surface",
+        "rehearsal sealing root accepted only by rehearsal policy",
+        "production runtime sealing root is NOT_YET_RATIFIED and rejects every record",
+        "test-only production root cannot be emitted or accepted by runtime policy",
+        "production and rehearsal registries reject opposite classes",
+        "marker removal cannot create production evidence",
+        "production positive bindings are non-defaultable",
+        "NO_SOURCE_ARTIFACT_ACCESSED sentinel is closed and guarded",
+        "attempt ledger path is inside the rehearsal artifact namespace",
+        "rehearsal reservation ledger is isolated and monotone",
+        "create-once record seal is reread and hash-verified",
+        "activation-tree production surfaces are discovered and every actual file hash is identical before and after",
+        "trusted attestation package mode must equal FULL_GOVERNED",
+        "receipt and attempt replay rejected",
+        "executed-frozen registry detects any registered byte drift",
+        "mutable Quant CI baseline binds separate pre-change and exact post-change digests",
+        "the same production registry core accepts its own-class fixture under the exact in-memory fixture policy and rejects it under the runtime reject-always policy",
+        "Phase A and Phase B review chains are committed only at their ten exact paths",
+        "active required-workflow ruleset has no bypass actors and pins repository, main ref, workflow path, and exact workflow SHA"
+      ]
+    }
+  ],
+  "historical_regression_sources": [
+    {
+      "path": "src/mes_quant/exploration/test3_design.py",
+      "sha256": "44e398497c57559fd8700daa33f087ce290aa5264cbd143d7ea4cd2311581ae9",
+      "mapped_defect": "pipe-bearing identity accepted by frozen L0"
+    },
+    {
+      "path": "src/mes_quant/exploration/test3_g2p_preflight.py",
+      "sha256": "ca1e63893e1969ae1c1ac02118a7cd2d283f3a28015442daeaca7594b79b0c21",
+      "mapped_defect": "historical downstream identity-validation drift"
+    },
+    {
+      "path": "src/mes_quant/exploration/test3_g3p_pre_fit.py",
+      "sha256": "0f7d3a5e2367cc7b64c500b2e8161cbdec55eb452732c6a8330fbc13b3a37589",
+      "mapped_defect": "historical Arrow int8 versus strict boolean consumer mismatch"
+    },
+    {
+      "path": "docs/research/TEST2_PATH_AWARE_PROTOCOL_V1.md",
+      "sha256": "7048b848770304fa67ff75e7b4baa9e836bf83e5bbb17d08b2b92a61cc0ba105",
+      "mapped_defect": "executed-frozen document integrity regression",
+      "authority_chain": [
+        "docs/research/TEST2_G3F_REAL_EXECUTION_AUTHORIZATION_V1.md@ef93a00bd6d7619db6193bcad7cc1ed8241159032fd6528bbf4979d72e4d6a1c",
+        "artifacts/exploration/test2/g3f/MES_T2_G3F_D36A9AC8BA9CFB07/conditional_fit_record.json@34d7ae2e8275038ff46581fc8972b177bc247b74435cddfcdbf77249db741450",
+        "artifacts/exploration/test2/g3f/MES_T2_G3F_D36A9AC8BA9CFB07/execution_success_witness.txt@bdef399901600d82723f0126171671d10a5fd1e56c30c764a26cd4471dae4956",
+        "docs/research/TEST2_PATH_AWARE_PROTOCOL_V1_ERRATUM_001.md@3768c6ae2d8983ad130db6b9dfd6d1bccc5fbc958e98c4ae2422e8d69c337073"
+      ]
+    }
+  ],
+  "authorized_mutable_baselines": [
+    {
+      "path": ".github/workflows/quant-ci-v1.yml",
+      "pre_change_sha256": "ad685ad05c0da20b0f93f8477ee1e5939aea7f985ecf21bfc5b1abd9e136e071",
+      "pre_change_git_blob": "59bd74733e3202d3b9d7db28a6a82200f91c4e1c",
+      "authorized_change": "add only the Issue #48 executed-frozen integrity test",
+      "post_change_binding": "the deterministic report and Phase B Owner activation must pin the exact post-change SHA-256 and Git blob"
+    }
+  ],
+  "production_exclusions": [
+    "no modification or rerun of historical Test 3 code paths",
+    "no real DBN, Parquet, artifact metadata, row group, statistics, target, or path access",
+    "no production target-slot, authorization, attempt, repair, or evidence ledger handle",
+    "no production trust-root or signing material",
+    "no Validation or Final Test access",
+    "no Test 3b, Test 4, live, database, broker, or release path",
+    "no merge, main mutation, or ruleset mutation before separate Phase B Owner authority"
+  ],
+  "trusted_time_policy": {
+    "id": "MES_GITHUB_OIDC_SIGSTORE_TIME_POLICY_V1",
+    "path": "configs/governance/execution_hardening_time_policy_v1.json",
+    "sha256": "e27e38123e35d4aece86ef3299708cec976ff48c25cad8ee38459f0e6eb48b0e",
+    "authority": "pending exact Owner co-ratification before Phase A"
+  },
+  "production_surface_manifest": {
+    "id": "EXECUTION_HARDENING_PRODUCTION_SURFACE_MANIFEST_V1",
+    "path": "configs/governance/execution_hardening_production_surface_manifest_v1.json",
+    "sha256": "5fafa2312f0275713ae69fec843910cb887d41b161dbaeeb070e362176d5695f",
+    "proof": "activation-tree discovery plus before/after actual-file hashes and constructor-handle audit"
+  },
+  "external_governed_surfaces": [
+    {
+      "surface_id": "MES_EXECUTION_HARDENING_REQUIRED_WORKFLOW_RULESET_V1",
+      "phase": "PHASE_B_ONLY_SEPARATE_OWNER_AUTHORITY",
+      "repository_id": 1329447686,
+      "repository": "NonChaianon/mes-quant-engine-v1",
+      "target": "branch",
+      "target_ref": "~DEFAULT_BRANCH",
+      "rule_type": "workflows",
+      "workflow": {
+        "repository_id": 1329447686,
+        "path": ".github/workflows/quant-ci-v1.yml",
+        "ref": "refs/heads/main",
+        "sha": "MUST_EQUAL_EXACT_PHASE_B_ACTIVATION_MAIN_SHA"
+      },
+      "enforcement": "active",
+      "bypass_actors": [],
+      "do_not_enforce_on_create": false,
+      "verification": "GET ruleset and rule-suite evidence must match every field; any mismatch stops before Step 3 completion"
+    }
+  ]
+}
+

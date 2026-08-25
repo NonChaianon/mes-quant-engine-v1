@@ -1,0 +1,202 @@
+{
+  "schema_version": "MES_REHEARSAL_SURFACE_MAP_SCHEMA_V1",
+  "surface_map_id": "REHEARSAL_SURFACE_MAP_V1",
+  "status": "PROPOSED_FROZEN_FOR_STEP3_AUTHORIZATION",
+  "authority": "NO_IMPLEMENTATION_OR_EXECUTION_AUTHORITY",
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "base_commit": "ad6b7f1a4427f720cfadba71f74f0d025f306add",
+  "base_tree": "4f8e674dea4e70cf93e80c4d392f4ac505da377b",
+  "governing_protocol": {
+    "id": "MES_EXECUTION_HARDENING_PROTOCOL_V1",
+    "path": "docs/governance/EXECUTION_HARDENING_PROTOCOL_V1.md",
+    "sha256": "697358653fd8958c87bbec2e29f83946fd814293f271ba64620fef90afbcfdf7"
+  },
+  "rehearsal_protocol_id": "REHEARSAL_EXECUTION_HARDENING_V1",
+  "implementation_namespace": "mes_quant.governance.execution_hardening",
+  "artifact_namespace": "artifacts/rehearsal/REHEARSAL_EXECUTION_HARDENING_V1/<run-id>/",
+  "stages": [
+    {
+      "stage": "CONTRACT",
+      "surface_ids": [
+        "BOUNDARY_VALIDATOR_V1",
+        "TWO_LEDGER_RECORD_SCHEMA_V1",
+        "CLOSED_TRANSITION_VALIDATOR_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/boundary.py",
+        "src/mes_quant/governance/execution_hardening/records.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_boundary.py",
+        "tests/governance/test_execution_hardening_records.py"
+      ],
+      "required_properties": [
+        "pipe-bearing UTF-8 identity preserved",
+        "CR/LF identity rejected",
+        "finite scalar classification",
+        "integral boolean domain exactly 0 or 1",
+        "closed two-ledger values and transitions",
+        "execution-authorization reservation boolean monotone false-to-true"
+      ]
+    },
+    {
+      "stage": "METADATA",
+      "surface_ids": [
+        "ORDERED_ARROW_SCHEMA_CONTRACT_V1",
+        "TYPE_CORRECT_CONSUMER_REHEARSAL_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/boundary.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_boundary.py"
+      ],
+      "required_properties": [
+        "ordered projected field names pinned",
+        "logical Arrow types pinned",
+        "nullability pinned",
+        "producer contract identity pinned",
+        "Arrow int8 early_close_session 0 and 1 normalized",
+        "Arrow integral flag -1 and 2 rejected",
+        "zero-row-only rehearsal forbidden"
+      ]
+    },
+    {
+      "stage": "PRE_TARGET",
+      "surface_ids": [
+        "IDENTITY_LEDGER_V1",
+        "PREDICTOR_DOMAIN_GATE_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/rehearsal.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_rehearsal.py"
+      ],
+      "required_properties": [
+        "positive predictor passes",
+        "predictor equal to zero stops PREDICTOR_NONPOSITIVE",
+        "negative predictor stops PREDICTOR_NONPOSITIVE",
+        "nonfinite predictor stops PREDICTOR_NONFINITE",
+        "all pre-target stops preserve zero target-access counters"
+      ]
+    },
+    {
+      "stage": "TARGET_PREFIT",
+      "surface_ids": [
+        "SYNTHETIC_TARGET_LEDGER_V1",
+        "COMMON_MASK_AND_SUPPORT_GATE_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/rehearsal.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_rehearsal.py"
+      ],
+      "required_properties": [
+        "complete synthetic target ledger sealed before target disposition",
+        "zero-variance target stops TARGET_ZERO_VARIANCE",
+        "zero-variance stop occurs before common mask and fit",
+        "nullable Cell 12 combinations preserve declared reason codes",
+        "rank and support checks use synthetic values only"
+      ]
+    },
+    {
+      "stage": "FIT",
+      "surface_ids": [
+        "BOUNDED_SYNTHETIC_FIT_V1",
+        "SYNTHETIC_LOSS_BOOTSTRAP_ECONOMIC_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/rehearsal.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_rehearsal.py"
+      ],
+      "required_properties": [
+        "exactly two synthetic models",
+        "exactly two synthetic folds",
+        "at most four synthetic fold-fit calls per rehearsal",
+        "at most three bootstrap blocks",
+        "exactly sixty-four repetitions per bootstrap block",
+        "at most one economic diagnostic call",
+        "at most two economic policy evaluations",
+        "all real fit and real bootstrap counters remain zero"
+      ]
+    },
+    {
+      "stage": "SEALED",
+      "surface_ids": [
+        "REHEARSAL_RESERVATION_LEDGER_V1",
+        "SYNTHETIC_EVIDENCE_SCHEMA_AND_REGISTRY_V1",
+        "CREATE_ONCE_SEAL_REREAD_HASH_V1",
+        "TRUSTED_ATTESTATION_POLICY_V1",
+        "EXECUTED_FROZEN_REGISTRY_V1"
+      ],
+      "implementation_paths": [
+        "src/mes_quant/governance/execution_hardening/attestation.py",
+        "src/mes_quant/governance/execution_hardening/registry.py",
+        "src/mes_quant/governance/execution_hardening/executed_frozen.py",
+        "src/mes_quant/governance/execution_hardening/rehearsal.py",
+        "tools/build_execution_hardening_review_report.py",
+        "tools/run_execution_hardening_rehearsal.py",
+        "tools/verify_execution_hardening_attestation.py"
+      ],
+      "test_paths": [
+        "tests/governance/test_execution_hardening_attestation.py",
+        "tests/governance/test_execution_hardening_registry.py",
+        "tests/governance/test_execution_hardening_executed_frozen.py",
+        "tests/governance/test_execution_hardening_rehearsal.py",
+        "tests/governance/test_execution_hardening_ci_spec.py"
+      ],
+      "required_properties": [
+        "rehearsal and production trust roots isolated",
+        "production and rehearsal registries reject opposite classes",
+        "marker removal cannot create production evidence",
+        "production positive bindings are non-defaultable",
+        "NO_SOURCE_ARTIFACT_ACCESSED sentinel is closed and guarded",
+        "rehearsal reservation ledger is isolated and monotone",
+        "create-once record seal is reread and hash-verified",
+        "production governance ledger hashes unchanged before and after",
+        "trusted attestation package mode must equal FULL_GOVERNED",
+        "receipt and attempt replay rejected",
+        "executed-frozen registry detects any registered byte drift"
+      ]
+    }
+  ],
+  "historical_regression_sources": [
+    {
+      "path": "src/mes_quant/exploration/test3_design.py",
+      "sha256": "44e398497c57559fd8700daa33f087ce290aa5264cbd143d7ea4cd2311581ae9",
+      "mapped_defect": "pipe-bearing identity accepted by frozen L0"
+    },
+    {
+      "path": "src/mes_quant/exploration/test3_g2p_preflight.py",
+      "sha256": "ca1e63893e1969ae1c1ac02118a7cd2d283f3a28015442daeaca7594b79b0c21",
+      "mapped_defect": "historical downstream identity-validation drift"
+    },
+    {
+      "path": "src/mes_quant/exploration/test3_g3p_pre_fit.py",
+      "sha256": "0f7d3a5e2367cc7b64c500b2e8161cbdec55eb452732c6a8330fbc13b3a37589",
+      "mapped_defect": "historical Arrow int8 versus strict boolean consumer mismatch"
+    },
+    {
+      "path": "docs/research/TEST2_PATH_AWARE_PROTOCOL_V1.md",
+      "sha256": "7048b848770304fa67ff75e7b4baa9e836bf83e5bbb17d08b2b92a61cc0ba105",
+      "mapped_defect": "first executed-frozen CI integrity regression"
+    },
+    {
+      "path": ".github/workflows/quant-ci-v1.yml",
+      "sha256": "ad685ad05c0da20b0f93f8477ee1e5939aea7f985ecf21bfc5b1abd9e136e071",
+      "mapped_defect": "enumerated CI coverage omitted executed-frozen integrity test"
+    }
+  ],
+  "production_exclusions": [
+    "no modification or rerun of historical Test 3 code paths",
+    "no real DBN, Parquet, artifact metadata, row group, statistics, target, or path access",
+    "no production target-slot, authorization, attempt, repair, or evidence ledger handle",
+    "no production trust-root or signing material",
+    "no Validation or Final Test access",
+    "no Test 3b, Test 4, live, database, broker, merge, or release path"
+  ]
+}
