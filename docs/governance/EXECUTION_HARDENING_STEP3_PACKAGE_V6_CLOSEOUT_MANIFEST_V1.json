@@ -1,0 +1,164 @@
+{
+  "schema_version": "MES_EXECUTION_HARDENING_PACKAGE_CLOSEOUT_MANIFEST_SCHEMA_V1",
+  "manifest_id": "MES_EXECUTION_HARDENING_STEP3_PACKAGE_V6_CLOSEOUT_MANIFEST_V1",
+  "status": "CREATE_ONCE_EXTERNAL_EVIDENCE_MANIFEST",
+  "authority": "DECISION_A_PACKAGE_ANCHORING_ONLY_NO_IMPLEMENTATION_AUTHORITY",
+  "created_utc": "2026-08-26T06:04:29Z",
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "exact_ref": "refs/heads/governance/execution-hardening-step3-package-v6",
+  "parent_commit": "ae3048cc8a58d8eec7cc42f99146c91e579d6582",
+  "parent_tree": "4f7aa3a719dcd781411d91166de82a4d4ffa573f",
+  "required_commit_parent_count": 1,
+  "owner_authorization": {
+    "id": "DECISION_A_EXECUTION_HARDENING_STEP3_PACKAGE_V6_ANCHORING_V1",
+    "decision": "APPROVED",
+    "scope": "one docs/config-only commit and one non-force push"
+  },
+  "reviewed_package": {
+    "id": "MES_EXECUTION_HARDENING_STEP3_PACKAGE_V6",
+    "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V6.md",
+    "sha256": "109dd22a63c0fd36a02acfc6652245e11188005e44aacf3d8d3b2780d7ee377e"
+  },
+  "forward_chain": {
+    "packet": {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006.md",
+      "sha256": "8527385010fa8b544f6384ac7a88b9bcdd0ac9b3b5cea168242b9b554e4bd56e"
+    },
+    "dispatch_receipt": {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_DISPATCH_RECEIPT.md",
+      "sha256": "c851cbbbca8d189c4cf7f9e04ea9b6932f11cc5da3630645315ac973323eb9ac"
+    },
+    "terminal_response": {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_RESPONSE.md",
+      "sha256": "00641b38145993e8d3e1890bf60398358e6caa120f73b62faaba410314f007eb",
+      "verdict": "GO",
+      "blocker_count": 0,
+      "high_count": 0,
+      "low_count": 2,
+      "trust_class": "UNTRUSTED_CONTEXT_ONLY"
+    },
+    "owner_closeout": {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_OWNER_CLOSEOUT.md",
+      "sha256": "c51f5e1cf681e7da9cdc67c71e276eba060ada83183b2ee089c2bec4add56f58"
+    },
+    "closeout_receipt": {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_CLOSEOUT_RECEIPT.md",
+      "sha256": "a1f12ba54a46f52bc69889ab7129e49169be41d4ba2829e7d1416a2ab6426c42"
+    }
+  },
+  "terminal_anchor": {
+    "anchored_field": "forward_chain.closeout_receipt.sha256",
+    "value": "a1f12ba54a46f52bc69889ab7129e49169be41d4ba2829e7d1416a2ab6426c42",
+    "relation": "this external manifest records the terminal closeout-receipt SHA-256 outside the Clause-Packet artifact set"
+  },
+  "anchored_artifact_count_excluding_manifest": 13,
+  "expected_single_commit_path_count_including_manifest": 14,
+  "ordered_anchored_artifacts_excluding_manifest": [
+    {
+      "path": "configs/governance/rehearsal_surface_map_v5.json",
+      "sha256": "87530dac557952256305591f45edf49a5776346af636b5ff4501604136b7162a"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V5.md",
+      "sha256": "3c63a4b3e18aeaee29512954d7d04d99020fe9190d47d539ade67ab06ff28916"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V6.md",
+      "sha256": "109dd22a63c0fd36a02acfc6652245e11188005e44aacf3d8d3b2780d7ee377e"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V5.md",
+      "sha256": "7d1693a8e7882e6cd411f56be076617a11072733dc49587f20dbdb0d210bfbed"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V6.md",
+      "sha256": "c5313435c2301ef35a431baf2ec3f2f52d361b15e44b3f2f27e5d3f16fee166a"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005.md",
+      "sha256": "808f4b21dcd09200f29fb3434b4948d7eec94474f29a89bfb60575cdd1c7bd98"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005_DISPATCH_RECEIPT.md",
+      "sha256": "5d1bf9802be5a6b66dc0e330661ecf1d8d783443ae94d60a63966f277f0cf7c4"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005_RESPONSE.md",
+      "sha256": "6cf62c251c6a4a78f66717e705988e98275b9e1f6ace6d2e84cc117eb24c6471"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006.md",
+      "sha256": "8527385010fa8b544f6384ac7a88b9bcdd0ac9b3b5cea168242b9b554e4bd56e"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_DISPATCH_RECEIPT.md",
+      "sha256": "c851cbbbca8d189c4cf7f9e04ea9b6932f11cc5da3630645315ac973323eb9ac"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_RESPONSE.md",
+      "sha256": "00641b38145993e8d3e1890bf60398358e6caa120f73b62faaba410314f007eb"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_OWNER_CLOSEOUT.md",
+      "sha256": "c51f5e1cf681e7da9cdc67c71e276eba060ada83183b2ee089c2bec4add56f58"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_CLOSEOUT_RECEIPT.md",
+      "sha256": "a1f12ba54a46f52bc69889ab7129e49169be41d4ba2829e7d1416a2ab6426c42"
+    }
+  ],
+  "commit_policy": {
+    "commit_count": 1,
+    "push_count": 1,
+    "push_mode": "NON_FORCE_HEAD_TO_EXACT_V6_REF",
+    "allowed_roots": [
+      "configs/governance/",
+      "docs/governance/"
+    ],
+    "addition_count": 14,
+    "tracked_modification_count": 0,
+    "deletion_count": 0,
+    "preserve_ref": {
+      "ref": "refs/heads/governance/execution-hardening-step3-package-v1",
+      "sha": "ae3048cc8a58d8eec7cc42f99146c91e579d6582"
+    },
+    "forbidden": [
+      "amend",
+      "rebase",
+      "squash",
+      "force-push",
+      "tag",
+      "release",
+      "additional commit",
+      "additional push",
+      "code",
+      "implementation",
+      "CI",
+      "PR",
+      "Issue #48",
+      "PR #47",
+      "merge",
+      "ruleset",
+      "main mutation",
+      "Decision B",
+      "Decision C",
+      "Phase A",
+      "Phase B",
+      "Tier 2",
+      "OIDC/signing activation",
+      "network",
+      "dependency",
+      "database",
+      "broker",
+      "data",
+      "target/path access",
+      "fit",
+      "Validation",
+      "Final Test",
+      "Test 3 retry/repair",
+      "Test 3b",
+      "Test 4",
+      "scientific execution"
+    ]
+  }
+}
