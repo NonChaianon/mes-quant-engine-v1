@@ -1,0 +1,151 @@
+name: MES Execution Hardening V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      activation_commit:
+        description: Exact separately authorized Phase B activation commit
+        required: true
+        type: string
+      activation_tree:
+        description: Exact separately authorized Phase B activation tree
+        required: true
+        type: string
+      trusted_root_sha256:
+        description: Exact separately authorized custom trusted-root SHA-256
+        required: true
+        type: string
+      report_path:
+        description: Deterministic report path created by the authorized Phase B run
+        required: true
+        type: string
+      subject_path:
+        description: Subject path created by the authorized Phase B run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mes-execution-hardening-v1-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  tier1:
+    name: Non-authoritative Tier 1
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONHASHSEED: "0"
+      MES_EXECUTION_HARDENING_MODE: TIER1_ONLY_NON_AUTHORITATIVE
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project and development checks
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run Execution Hardening Tier 1
+        run: >-
+          python -m pytest -p no:cacheprovider
+          tests/governance/test_execution_hardening_boundary.py
+          tests/governance/test_execution_hardening_records.py
+          tests/governance/test_execution_hardening_attestation.py
+          tests/governance/test_execution_hardening_registry.py
+          tests/governance/test_execution_hardening_executed_frozen.py
+          tests/governance/test_execution_hardening_rehearsal.py
+          tests/governance/test_execution_hardening_ci_spec.py
+
+      - name: Run changed-source Ruff checks
+        run: >-
+          python -m ruff check
+          src/mes_quant/governance/execution_hardening
+          tests/governance/test_execution_hardening_boundary.py
+          tests/governance/test_execution_hardening_records.py
+          tests/governance/test_execution_hardening_attestation.py
+          tests/governance/test_execution_hardening_registry.py
+          tests/governance/test_execution_hardening_executed_frozen.py
+          tests/governance/test_execution_hardening_rehearsal.py
+          tests/governance/test_execution_hardening_ci_spec.py
+          tools/build_execution_hardening_review_report.py
+          tools/run_execution_hardening_rehearsal.py
+          tools/verify_execution_hardening_attestation.py
+
+  phase-b-readiness:
+    name: Phase B readiness gate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      ready: ${{ steps.verify.outputs.ready }}
+    steps:
+      - name: Checkout protected main
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify separately authorized activation inputs
+        id: verify
+        shell: bash
+        env:
+          ACTIVATION_COMMIT: ${{ inputs.activation_commit }}
+          ACTIVATION_TREE: ${{ inputs.activation_tree }}
+          TRUSTED_ROOT_SHA256: ${{ inputs.trusted_root_sha256 }}
+        run: |
+          readiness_json="$(mktemp)"
+          python tools/verify_execution_hardening_attestation.py \
+            --ready-sentinel configs/governance/execution_hardening_attestation_ready_v1.json \
+            --trusted-root configs/governance/sigstore_trusted_root_v1.jsonl \
+            --trusted-root-sha256 "$TRUSTED_ROOT_SHA256" \
+            --activation-commit "$ACTIVATION_COMMIT" \
+            --activation-tree "$ACTIVATION_TREE" \
+            --source-ref refs/heads/main > "$readiness_json"
+          python - "$readiness_json" >> "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(f"ready={'true' if payload.get('ready') is True else 'false'}")
+          PY
+
+  phase-b-signer:
+    name: Phase B signer
+    needs: phase-b-readiness
+    if: needs.phase-b-readiness.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout exact activation source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.activation_commit }}
+
+      - name: Attest deterministic report
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: ${{ inputs.subject_path }}
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: ${{ inputs.report_path }}

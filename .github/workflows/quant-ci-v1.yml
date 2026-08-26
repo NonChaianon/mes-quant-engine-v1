@@ -59,6 +59,11 @@ jobs:
           --select E9,F401,F63,F7,F82
           src tests tools
 
+      - name: Enforce executed-frozen byte integrity
+        run: >-
+          python -m pytest -p no:cacheprovider
+          tests/governance/test_execution_hardening_executed_frozen.py
+
       - name: Run direct constitutional gate tests
         run: >-
           python -m pytest -p no:cacheprovider
