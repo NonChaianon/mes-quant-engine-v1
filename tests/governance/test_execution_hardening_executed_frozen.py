@@ -227,6 +227,32 @@ def test_protected_surface_actual_file_snapshot_is_stable(tmp_path: Path) -> Non
     assert executed_frozen.compare_protected_surface_snapshots(before, after) is None
 
 
+def test_protected_surface_snapshot_rejects_duplicate_paths(tmp_path: Path) -> None:
+    _base, activation_tree = _init_git_fixture(tmp_path)
+    valid = executed_frozen.capture_protected_surface_snapshot(
+        tmp_path,
+        activation_tree=activation_tree,
+    )
+    duplicate_path = valid.paths[0]
+    duplicate_hash = valid.observed_sha256[0]
+    duplicate_rows = (
+        f"{duplicate_path}\t{duplicate_hash}\n"
+        f"{duplicate_path}\t{duplicate_hash}\n"
+    ).encode()
+    duplicate = replace(
+        valid,
+        paths=(duplicate_path, duplicate_path),
+        observed_sha256=(duplicate_hash, duplicate_hash),
+        canonical_sha256=hashlib.sha256(duplicate_rows).hexdigest(),
+    )
+
+    with pytest.raises(
+        executed_frozen.ExecutedFrozenIntegrityError,
+        match=r"^PROTECTED_SURFACE_SNAPSHOT_INVALID$",
+    ):
+        executed_frozen.compare_protected_surface_snapshots(duplicate, valid)
+
+
 def test_protected_surface_committed_byte_delta_stops_comparison(tmp_path: Path) -> None:
     _base, activation_tree = _init_git_fixture(tmp_path)
     before = executed_frozen.capture_protected_surface_snapshot(
