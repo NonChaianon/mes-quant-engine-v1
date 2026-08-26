@@ -7,7 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 QUANT_CI = ROOT / ".github/workflows/quant-ci-v1.yml"
 HARDENING_CI = ROOT / ".github/workflows/execution-hardening-attestation-v1.yml"
+READINESS_TOOL = ROOT / "tools/verify_execution_hardening_attestation.py"
 SURFACE_MAP = ROOT / "configs/governance/rehearsal_surface_map_v5.json"
+DECISION_C_PATH = "docs/governance/EXECUTION_HARDENING_STEP3_PHASE_B_OWNER_ACTIVATION_V1.md"
 
 QUANT_CI_PRE_CHANGE_SHA256 = (
     "ad685ad05c0da20b0f93f8477ee1e5939aea7f985ecf21bfc5b1abd9e136e071"
@@ -94,6 +96,7 @@ def test_hardening_workflow_is_non_authoritative_on_pull_requests() -> None:
 
 def test_signer_is_unreachable_without_separate_phase_b_readiness() -> None:
     workflow = _read(HARDENING_CI)
+    readiness_tool = _read(READINESS_TOOL)
     assert "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'" in workflow
     assert "needs: phase-b-readiness" in workflow
     assert "if: needs.phase-b-readiness.outputs.ready == 'true'" in workflow
@@ -103,6 +106,22 @@ def test_signer_is_unreachable_without_separate_phase_b_readiness() -> None:
     assert "attestations: write" in workflow
     assert "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" in workflow
     assert "predicate-type: https://slsa.dev/provenance/v1" in workflow
+    assert workflow.count("decision_c_authorization_sha256:") == 1
+    assert "DECISION_C_AUTHORIZATION_SHA256: ${{ inputs.decision_c_authorization_sha256 }}" in workflow
+    assert "--repository-root ." in workflow
+    assert (
+        '--decision-c-authorization-sha256 "$DECISION_C_AUTHORIZATION_SHA256"' in workflow
+    )
+    assert "--decision-c-authorization-path" not in workflow
+    assert DECISION_C_PATH in readiness_tool
+    assert '("rev-parse", "HEAD")' in readiness_tool
+    assert '("rev-parse", "HEAD^{tree}")' in readiness_tool
+    assert '("symbolic-ref", "--quiet", "HEAD")' not in readiness_tool
+    assert 'sentinel.get("source_ref") == source_ref' in readiness_tool
+    assert "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'" in workflow
+    assert 'sentinel.get("activation_commit")' not in readiness_tool
+    assert 'sentinel.get("activation_tree")' not in readiness_tool
+    assert "ATTESTATION_CHECKOUT_BINDING_MISMATCH" in readiness_tool
 
 
 def test_hardening_workflow_runs_only_the_exact_tier1_test_set() -> None:

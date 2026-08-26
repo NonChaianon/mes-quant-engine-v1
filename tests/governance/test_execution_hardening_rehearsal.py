@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from mes_quant.governance.execution_hardening.rehearsal import (
     TIER1_PASS,
     Cell12State,
     Tier1Fixture,
+    canonical_sha256,
     default_tier1_fixture,
     evaluate_tier1_fixture,
     phase_a_runtime_rehearsal_stop,
@@ -22,6 +24,7 @@ from tools.build_execution_hardening_review_report import (
 )
 from tools.run_execution_hardening_rehearsal import main as rehearsal_runner_main
 from tools.verify_execution_hardening_attestation import (
+    DECISION_C_AUTHORIZATION_RELATIVE_PATH,
     READY_SCHEMA,
     READY_STATUS,
     evaluate_activation_readiness,
@@ -42,6 +45,109 @@ def _fixture_with_predictor(value: float) -> Tier1Fixture:
     predictors = list(fixture.predictors)
     predictors[3] = value
     return replace(fixture, predictors=tuple(predictors))
+
+
+def _target_token(value: float | None) -> dict[str, object]:
+    if value is None:
+        return {"kind": "NULL"}
+    return {"kind": "FINITE", "value": float(value)}
+
+
+def _expected_target_ledger_sha256(fixture: Tier1Fixture) -> str:
+    return canonical_sha256(
+        [
+            {
+                "ordinal": index,
+                "request_id": f"SYNTHETIC_REQUEST_{index:04d}",
+                "target": _target_token(fixture.target_values[index]),
+                "cell12": {
+                    "label_reason": state.label_reason,
+                    "path_instrument_changed": state.path_instrument_changed,
+                    "path_count": state.path_count,
+                    "path_metric": state.path_metric,
+                },
+            }
+            for index, state in enumerate(fixture.cell12_states)
+        ]
+    )
+
+
+def _write_decision_c_authorization(repository_root: Path) -> str:
+    path = repository_root / DECISION_C_AUTHORIZATION_RELATIVE_PATH
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"MES_PHASE_B_DECISION_C_OWNER_AUTHORIZATION_TEST_FIXTURE\n")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_ready_sentinel(
+    path: Path,
+    *,
+    trusted_root_path: Path,
+    trusted_root_sha256: str,
+    decision_c_authorization_sha256: str,
+    source_ref: str,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": READY_SCHEMA,
+                "status": READY_STATUS,
+                "phase": "PHASE_B",
+                "ready": True,
+                "trusted_root_path": trusted_root_path.as_posix(),
+                "trusted_root_sha256": trusted_root_sha256,
+                "decision_c_authorization_path": (
+                    DECISION_C_AUTHORIZATION_RELATIVE_PATH.as_posix()
+                ),
+                "decision_c_authorization_sha256": decision_c_authorization_sha256,
+                "source_ref": source_ref,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _commit_test_repository(repository_root: Path) -> tuple[str, str]:
+    subprocess.run(
+        ("git", "init", "--initial-branch", "main"),
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ("git", "config", "user.name", "MES Test"),
+        cwd=repository_root,
+        check=True,
+    )
+    subprocess.run(
+        ("git", "config", "user.email", "mes-test@example.invalid"),
+        cwd=repository_root,
+        check=True,
+    )
+    subprocess.run(("git", "add", "."), cwd=repository_root, check=True)
+    subprocess.run(
+        ("git", "commit", "-m", "synthetic decision-c fixture"),
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+    )
+    commit = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    tree = subprocess.run(
+        ("git", "rev-parse", "HEAD^{tree}"),
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return commit, tree
 
 
 def test_clean_tier1_happy_path_is_prefit_only_and_non_evidentiary() -> None:
@@ -112,23 +218,54 @@ def test_zero_variance_target_stops_after_target_ledger_before_mask() -> None:
     _assert_protected(outcome)
 
 
-def test_nullable_cell12_combinations_and_reason_codes_are_preserved() -> None:
+@pytest.mark.parametrize(
+    ("path_instrument_changed", "path_count", "path_metric"),
+    [
+        (None, None, None),
+        (None, None, 0.125),
+        (None, 2, None),
+        (None, 2, 0.125),
+        (False, None, None),
+        (False, None, 0.125),
+        (False, 2, None),
+        (False, 2, 0.125),
+    ],
+)
+def test_all_cell12_nullable_field_combinations_are_preserved_in_target_ledger(
+    path_instrument_changed: bool | None,
+    path_count: int | None,
+    path_metric: float | None,
+) -> None:
     fixture = default_tier1_fixture()
-    states = (
-        Cell12State("LABEL_USABLE", None, None, None),
-        Cell12State("LABEL_USABLE", None, 2, 0.1),
-        Cell12State("LABEL_USABLE", False, None, 0.2),
-        Cell12State("LABEL_USABLE", False, 3, None),
-        Cell12State("LABEL_USABLE", True, 4, 0.3),
-        Cell12State("LABEL_UNUSABLE", None, None, None),
-        Cell12State("PATH_REFERENCE_MISSING", None, 0, None),
-        Cell12State("LABEL_USABLE", False, 1, 0.4),
+    states = list(fixture.cell12_states)
+    states[0] = Cell12State(
+        "LABEL_USABLE",
+        path_instrument_changed,
+        path_count,
+        path_metric,
     )
+    fixture = replace(fixture, cell12_states=tuple(states))
 
-    outcome = evaluate_tier1_fixture(replace(fixture, cell12_states=states))
+    outcome = evaluate_tier1_fixture(fixture)
 
     assert outcome.status == "PASS"
     assert outcome.cell12_reason_codes == tuple(state.label_reason for state in states)
+    assert outcome.target_ledger_sha256 == _expected_target_ledger_sha256(fixture)
+    assert 0 in outcome.common_mask_rows
+    _assert_protected(outcome)
+
+
+def test_cell12_label_unusable_is_preserved_and_excluded_from_common_mask() -> None:
+    fixture = default_tier1_fixture()
+    states = list(fixture.cell12_states)
+    states[5] = Cell12State("LABEL_UNUSABLE", None, None, None)
+    fixture = replace(fixture, cell12_states=tuple(states))
+
+    outcome = evaluate_tier1_fixture(fixture)
+
+    assert outcome.status == "PASS"
+    assert outcome.cell12_reason_codes[5] == "LABEL_UNUSABLE"
+    assert outcome.target_ledger_sha256 == _expected_target_ledger_sha256(fixture)
     assert 5 not in outcome.common_mask_rows
     _assert_protected(outcome)
 
@@ -241,10 +378,13 @@ def test_non_authoritative_report_rejects_output_and_reservation() -> None:
 
 
 def test_activation_readiness_missing_sentinel_is_machine_readable(tmp_path: Path) -> None:
+    decision_c_sha256 = _write_decision_c_authorization(tmp_path)
     result = evaluate_activation_readiness(
+        repository_root=tmp_path,
         sentinel_path=tmp_path / "missing.json",
         trusted_root_path=tmp_path / "missing-root.jsonl",
         trusted_root_sha256="0" * 64,
+        decision_c_authorization_sha256=decision_c_sha256,
         activation_commit="1" * 40,
         activation_tree="2" * 40,
         source_ref="refs/heads/main",
@@ -262,36 +402,27 @@ def test_activation_readiness_missing_sentinel_is_machine_readable(tmp_path: Pat
 def test_activation_readiness_checks_exact_local_bindings_without_granting_authority(
     tmp_path: Path,
 ) -> None:
+    decision_c_sha256 = _write_decision_c_authorization(tmp_path)
     trusted_root = tmp_path / "trusted-root.jsonl"
     trusted_root.write_bytes(b'{"root":"synthetic-test-only"}\n')
     trusted_root_sha256 = hashlib.sha256(trusted_root.read_bytes()).hexdigest()
-    activation_commit = "1" * 40
-    activation_tree = "2" * 40
     source_ref = "refs/heads/main"
     sentinel = tmp_path / "ready.json"
-    sentinel.write_text(
-        json.dumps(
-            {
-                "schema_version": READY_SCHEMA,
-                "status": READY_STATUS,
-                "phase": "PHASE_B",
-                "ready": True,
-                "trusted_root_path": trusted_root.as_posix(),
-                "trusted_root_sha256": trusted_root_sha256,
-                "activation_commit": activation_commit,
-                "activation_tree": activation_tree,
-                "source_ref": source_ref,
-            },
-            separators=(",", ":"),
-            sort_keys=True,
-        ),
-        encoding="utf-8",
+    _write_ready_sentinel(
+        sentinel,
+        trusted_root_path=trusted_root,
+        trusted_root_sha256=trusted_root_sha256,
+        decision_c_authorization_sha256=decision_c_sha256,
+        source_ref=source_ref,
     )
+    activation_commit, activation_tree = _commit_test_repository(tmp_path)
 
     result = evaluate_activation_readiness(
+        repository_root=tmp_path,
         sentinel_path=sentinel,
         trusted_root_path=trusted_root,
         trusted_root_sha256=trusted_root_sha256,
+        decision_c_authorization_sha256=decision_c_sha256,
         activation_commit=activation_commit,
         activation_tree=activation_tree,
         source_ref=source_ref,
@@ -299,6 +430,17 @@ def test_activation_readiness_checks_exact_local_bindings_without_granting_autho
 
     assert result.ready is True
     assert result.reason_code == "PHASE_B_ACTIVATION_PREREQUISITES_SATISFIED_NO_AUTHORITY_GRANTED"
+    assert result.decision_c_authorization_path == (
+        DECISION_C_AUTHORIZATION_RELATIVE_PATH.as_posix()
+    )
+    assert result.decision_c_authorization_present is True
+    assert result.decision_c_authorization_safe_regular_file is True
+    assert result.decision_c_authorization_hash_valid is True
+    assert result.decision_c_authorization_binding_valid is True
+    assert result.checkout_commit == activation_commit
+    assert result.checkout_tree == activation_tree
+    assert result.checkout_source_ref is None
+    assert result.checkout_binding_valid is True
     assert result.attestation_accepted is False
     assert result.authority_granted is False
     assert result.network_used is False
@@ -309,30 +451,24 @@ def test_activation_readiness_checks_exact_local_bindings_without_granting_autho
 def test_activation_readiness_fails_closed_on_trusted_root_hash_mismatch(
     tmp_path: Path,
 ) -> None:
+    decision_c_sha256 = _write_decision_c_authorization(tmp_path)
     trusted_root = tmp_path / "trusted-root.jsonl"
     trusted_root.write_text("root\n", encoding="utf-8")
     sentinel = tmp_path / "ready.json"
-    sentinel.write_text(
-        json.dumps(
-            {
-                "schema_version": READY_SCHEMA,
-                "status": READY_STATUS,
-                "phase": "PHASE_B",
-                "ready": True,
-                "trusted_root_path": trusted_root.as_posix(),
-                "trusted_root_sha256": "0" * 64,
-                "activation_commit": "1" * 40,
-                "activation_tree": "2" * 40,
-                "source_ref": "refs/heads/main",
-            }
-        ),
-        encoding="utf-8",
+    _write_ready_sentinel(
+        sentinel,
+        trusted_root_path=trusted_root,
+        trusted_root_sha256="0" * 64,
+        decision_c_authorization_sha256=decision_c_sha256,
+        source_ref="refs/heads/main",
     )
 
     result = evaluate_activation_readiness(
+        repository_root=tmp_path,
         sentinel_path=sentinel,
         trusted_root_path=trusted_root,
         trusted_root_sha256="0" * 64,
+        decision_c_authorization_sha256=decision_c_sha256,
         activation_commit="1" * 40,
         activation_tree="2" * 40,
         source_ref="refs/heads/main",
@@ -340,4 +476,142 @@ def test_activation_readiness_fails_closed_on_trusted_root_hash_mismatch(
 
     assert result.ready is False
     assert result.reason_code == "ATTESTATION_TRUSTED_ROOT_BINDING_MISMATCH"
+    assert result.authority_granted is False
+
+
+def test_activation_readiness_requires_fixed_decision_c_authorization(tmp_path: Path) -> None:
+    result = evaluate_activation_readiness(
+        repository_root=tmp_path,
+        sentinel_path=tmp_path / "missing.json",
+        trusted_root_path=tmp_path / "missing-root.jsonl",
+        trusted_root_sha256="0" * 64,
+        decision_c_authorization_sha256="0" * 64,
+        activation_commit="1" * 40,
+        activation_tree="2" * 40,
+        source_ref="refs/heads/main",
+    )
+
+    assert result.ready is False
+    assert result.reason_code == "DECISION_C_AUTHORIZATION_MISSING"
+    assert result.decision_c_authorization_path == (
+        DECISION_C_AUTHORIZATION_RELATIVE_PATH.as_posix()
+    )
+    assert result.decision_c_authorization_present is False
+    assert result.decision_c_authorization_hash_valid is False
+    assert result.decision_c_authorization_binding_valid is False
+    assert result.authority_granted is False
+
+
+def test_activation_readiness_rejects_unsafe_decision_c_authorization(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside\n", encoding="utf-8")
+    decision_c = tmp_path / DECISION_C_AUTHORIZATION_RELATIVE_PATH
+    decision_c.parent.mkdir(parents=True)
+    decision_c.symlink_to(outside)
+
+    result = evaluate_activation_readiness(
+        repository_root=tmp_path,
+        sentinel_path=tmp_path / "missing.json",
+        trusted_root_path=tmp_path / "missing-root.jsonl",
+        trusted_root_sha256="0" * 64,
+        decision_c_authorization_sha256=hashlib.sha256(outside.read_bytes()).hexdigest(),
+        activation_commit="1" * 40,
+        activation_tree="2" * 40,
+        source_ref="refs/heads/main",
+    )
+
+    assert result.ready is False
+    assert result.reason_code == "DECISION_C_AUTHORIZATION_UNSAFE"
+    assert result.decision_c_authorization_present is True
+    assert result.decision_c_authorization_safe_regular_file is False
+    assert result.authority_granted is False
+
+
+def test_activation_readiness_rejects_decision_c_hash_mismatch(tmp_path: Path) -> None:
+    _write_decision_c_authorization(tmp_path)
+
+    result = evaluate_activation_readiness(
+        repository_root=tmp_path,
+        sentinel_path=tmp_path / "missing.json",
+        trusted_root_path=tmp_path / "missing-root.jsonl",
+        trusted_root_sha256="0" * 64,
+        decision_c_authorization_sha256="0" * 64,
+        activation_commit="1" * 40,
+        activation_tree="2" * 40,
+        source_ref="refs/heads/main",
+    )
+
+    assert result.ready is False
+    assert result.reason_code == "DECISION_C_AUTHORIZATION_SHA256_MISMATCH"
+    assert result.decision_c_authorization_present is True
+    assert result.decision_c_authorization_safe_regular_file is True
+    assert result.decision_c_authorization_hash_valid is False
+    assert result.authority_granted is False
+
+
+def test_activation_readiness_rejects_decision_c_sentinel_binding_mismatch(
+    tmp_path: Path,
+) -> None:
+    decision_c_sha256 = _write_decision_c_authorization(tmp_path)
+    trusted_root = tmp_path / "trusted-root.jsonl"
+    trusted_root.write_text("root\n", encoding="utf-8")
+    trusted_root_sha256 = hashlib.sha256(trusted_root.read_bytes()).hexdigest()
+    sentinel = tmp_path / "ready.json"
+    _write_ready_sentinel(
+        sentinel,
+        trusted_root_path=trusted_root,
+        trusted_root_sha256=trusted_root_sha256,
+        decision_c_authorization_sha256="f" * 64,
+        source_ref="refs/heads/main",
+    )
+
+    result = evaluate_activation_readiness(
+        repository_root=tmp_path,
+        sentinel_path=sentinel,
+        trusted_root_path=trusted_root,
+        trusted_root_sha256=trusted_root_sha256,
+        decision_c_authorization_sha256=decision_c_sha256,
+        activation_commit="1" * 40,
+        activation_tree="2" * 40,
+        source_ref="refs/heads/main",
+    )
+
+    assert result.ready is False
+    assert result.reason_code == "DECISION_C_AUTHORIZATION_BINDING_MISMATCH"
+    assert result.decision_c_authorization_hash_valid is True
+    assert result.decision_c_authorization_binding_valid is False
+    assert result.authority_granted is False
+
+
+def test_activation_readiness_rejects_actual_checkout_binding_mismatch(tmp_path: Path) -> None:
+    decision_c_sha256 = _write_decision_c_authorization(tmp_path)
+    trusted_root = tmp_path / "trusted-root.jsonl"
+    trusted_root.write_text("root\n", encoding="utf-8")
+    trusted_root_sha256 = hashlib.sha256(trusted_root.read_bytes()).hexdigest()
+    sentinel = tmp_path / "ready.json"
+    _write_ready_sentinel(
+        sentinel,
+        trusted_root_path=trusted_root,
+        trusted_root_sha256=trusted_root_sha256,
+        decision_c_authorization_sha256=decision_c_sha256,
+        source_ref="refs/heads/main",
+    )
+    _, activation_tree = _commit_test_repository(tmp_path)
+
+    result = evaluate_activation_readiness(
+        repository_root=tmp_path,
+        sentinel_path=sentinel,
+        trusted_root_path=trusted_root,
+        trusted_root_sha256=trusted_root_sha256,
+        decision_c_authorization_sha256=decision_c_sha256,
+        activation_commit="f" * 40,
+        activation_tree=activation_tree,
+        source_ref="refs/heads/main",
+    )
+
+    assert result.ready is False
+    assert result.reason_code == "ATTESTATION_CHECKOUT_BINDING_MISMATCH"
+    assert result.activation_binding_valid is True
+    assert result.checkout_binding_valid is False
+    assert result.source_ref_valid is True
     assert result.authority_granted is False

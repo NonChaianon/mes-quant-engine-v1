@@ -16,6 +16,10 @@ on:
         description: Exact separately authorized custom trusted-root SHA-256
         required: true
         type: string
+      decision_c_authorization_sha256:
+        description: Exact separately authorized Decision C Owner activation SHA-256
+        required: true
+        type: string
       report_path:
         description: Deterministic report path created by the authorized Phase B run
         required: true
@@ -109,12 +113,15 @@ jobs:
           ACTIVATION_COMMIT: ${{ inputs.activation_commit }}
           ACTIVATION_TREE: ${{ inputs.activation_tree }}
           TRUSTED_ROOT_SHA256: ${{ inputs.trusted_root_sha256 }}
+          DECISION_C_AUTHORIZATION_SHA256: ${{ inputs.decision_c_authorization_sha256 }}
         run: |
           readiness_json="$(mktemp)"
           python tools/verify_execution_hardening_attestation.py \
+            --repository-root . \
             --ready-sentinel configs/governance/execution_hardening_attestation_ready_v1.json \
             --trusted-root configs/governance/sigstore_trusted_root_v1.jsonl \
             --trusted-root-sha256 "$TRUSTED_ROOT_SHA256" \
+            --decision-c-authorization-sha256 "$DECISION_C_AUTHORIZATION_SHA256" \
             --activation-commit "$ACTIVATION_COMMIT" \
             --activation-tree "$ACTIVATION_TREE" \
             --source-ref refs/heads/main > "$readiness_json"
