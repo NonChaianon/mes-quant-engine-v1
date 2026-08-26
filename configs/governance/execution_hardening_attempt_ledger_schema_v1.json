@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mes:governance:execution-hardening-attempt-ledger-schema-v1",
+  "title": "MES Execution Hardening Attempt Ledger Entry V1",
+  "description": "Closed append-only rehearsal attempt entry. It records target access and execution authority independently and grants no scientific authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_kind",
+    "evidence_class",
+    "synthetic",
+    "scientific_inference_authorized",
+    "attempt_id",
+    "attempt_ordinal",
+    "rehearsal_protocol_id",
+    "run_id",
+    "package_commit_sha1",
+    "package_tree_sha1",
+    "package_sha256",
+    "packet_sha256",
+    "report_sha256",
+    "reviewer_role",
+    "expected_signer",
+    "expected_model",
+    "issued_at_utc",
+    "expires_at_utc",
+    "timeout_seconds",
+    "target_access_state",
+    "execution_authority_state",
+    "execution_authorization_reservation_consumed",
+    "attempt_outcome",
+    "reason_code",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "MES_EXECUTION_ATTEMPT_LEDGER_SCHEMA_V1"
+    },
+    "record_kind": {
+      "const": "REHEARSAL"
+    },
+    "evidence_class": {
+      "const": "SYNTHETIC_REHEARSAL"
+    },
+    "synthetic": {
+      "const": true
+    },
+    "scientific_inference_authorized": {
+      "const": false
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^REHEARSAL_[A-Z0-9][A-Z0-9_-]{0,126}$"
+    },
+    "attempt_ordinal": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rehearsal_protocol_id": {
+      "const": "REHEARSAL_EXECUTION_HARDENING_V1"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^REHEARSAL_[A-Z0-9][A-Z0-9_-]{0,126}$"
+    },
+    "package_commit_sha1": {
+      "$ref": "#/$defs/sha1"
+    },
+    "package_tree_sha1": {
+      "$ref": "#/$defs/sha1"
+    },
+    "package_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "packet_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "report_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "const": "NOT_AVAILABLE"
+        }
+      ]
+    },
+    "reviewer_role": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "expected_signer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expected_model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "issued_at_utc": {
+      "$ref": "#/$defs/utc_timestamp"
+    },
+    "expires_at_utc": {
+      "$ref": "#/$defs/utc_timestamp"
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1800
+    },
+    "target_access_state": {
+      "const": "NOT_APPLICABLE_SYNTHETIC_REHEARSAL"
+    },
+    "execution_authority_state": {
+      "const": "REHEARSAL_ONLY_NO_SCIENTIFIC_AUTHORITY"
+    },
+    "execution_authorization_reservation_consumed": {
+      "type": "boolean"
+    },
+    "attempt_outcome": {
+      "enum": [
+        "OPEN",
+        "STOPPED_BEFORE_RESERVATION",
+        "RESERVATION_CONSUMED",
+        "COMPLETED_SEALED",
+        "TERMINAL_NO_RETRY"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,159}$"
+    },
+    "receipt_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "const": "NOT_AVAILABLE"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "utc_timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution_authorization_reservation_consumed": {
+            "const": false
+          }
+        },
+        "required": [
+          "execution_authorization_reservation_consumed"
+        ]
+      },
+      "then": {
+        "properties": {
+          "attempt_outcome": {
+            "enum": [
+              "OPEN",
+              "STOPPED_BEFORE_RESERVATION",
+              "TERMINAL_NO_RETRY"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_authorization_reservation_consumed": {
+            "const": true
+          }
+        },
+        "required": [
+          "execution_authorization_reservation_consumed"
+        ]
+      },
+      "then": {
+        "properties": {
+          "attempt_outcome": {
+            "enum": [
+              "RESERVATION_CONSUMED",
+              "COMPLETED_SEALED",
+              "TERMINAL_NO_RETRY"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "attempt_outcome": {
+            "enum": [
+              "RESERVATION_CONSUMED",
+              "COMPLETED_SEALED"
+            ]
+          }
+        },
+        "required": [
+          "attempt_outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "execution_authorization_reservation_consumed": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}
