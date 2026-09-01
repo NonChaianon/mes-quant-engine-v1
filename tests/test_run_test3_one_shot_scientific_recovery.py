@@ -109,7 +109,7 @@ def test_runner_reports_the_pre_activation_stop_and_creates_nothing(
     assert list(tmp_path.rglob("*")) == []
 
 
-def test_runner_has_no_execution_or_activation_switch(
+def test_runner_has_no_unknown_gate_or_hidden_execution_switch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -122,10 +122,71 @@ def test_runner_has_no_execution_or_activation_switch(
         ["--gate", module.GATE_LITERAL, "--execute"],
         ["--gate", module.GATE_LITERAL, "--activate"],
         ["--gate", module.GATE_LITERAL, "--fit"],
+        ["--gate", module.EXECUTION_GATE_LITERAL, "--force"],
     ):
         with pytest.raises(SystemExit) as exit_state:
             module.main(argv)
         assert exit_state.value.code == 2
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_execution_gate_requires_every_bound_input_and_creates_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The execution gate is unusable today: no activation file exists and none may be made."""
+
+    monkeypatch.chdir(tmp_path)
+    module = _load_runner()
+
+    with pytest.raises(SystemExit) as exit_state:
+        module.main(["--gate", module.EXECUTION_GATE_LITERAL])
+    assert "repository-root" in str(exit_state.value)
+    assert list(tmp_path.rglob("*")) == []
+
+    # A complete argument set still cannot execute, because the activation file is absent and
+    # this runner may never create one.
+    absent = tmp_path / "no-such-activation-file"
+    arguments = [
+        "--gate",
+        module.EXECUTION_GATE_LITERAL,
+        "--activation-file",
+        str(absent),
+        "--repository-root",
+        str(tmp_path),
+    ]
+    for name in module.ARTIFACT_ARGUMENTS:
+        arguments.extend((f"--{name.replace('_', '-')}", str(tmp_path / name)))
+
+    from mes_quant.exploration.test3_g3f_one_shot import Test3G3FOneShotError
+
+    with pytest.raises(Test3G3FOneShotError, match="activation file"):
+        module.main(arguments)
+    assert not absent.exists()
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_execution_gate_refuses_relative_paths_before_any_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    module = _load_runner()
+
+    arguments = [
+        "--gate",
+        module.EXECUTION_GATE_LITERAL,
+        "--activation-file",
+        "relative-activation",
+        "--repository-root",
+        str(tmp_path),
+    ]
+    for name in module.ARTIFACT_ARGUMENTS:
+        arguments.extend((f"--{name.replace('_', '-')}", str(tmp_path / name)))
+
+    with pytest.raises(SystemExit) as exit_state:
+        module.main(arguments)
+    assert "absolute" in str(exit_state.value)
     assert list(tmp_path.rglob("*")) == []
 
 
@@ -145,6 +206,9 @@ def test_runner_source_names_no_evidence_path_and_imports_no_data_surface() -> N
         "pyarrow",
         "requests",
         "socket",
+        "lstsq",
+        "rcond",
+        "bootstrap(",
     ):
         assert forbidden not in source
 
@@ -159,6 +223,32 @@ def test_runner_source_names_no_evidence_path_and_imports_no_data_surface() -> N
     assert imported == {
         "__future__",
         "argparse",
+        "pathlib",
         "sys",
         "mes_quant.exploration.test3_g3f_one_shot",
+        "mes_quant.exploration.test3_g3p_pre_fit",
     }
+
+
+def test_runner_never_names_evidence_and_never_chooses_the_estimator() -> None:
+    """Evidence naming and the estimator both belong to the activation and to G3-F."""
+
+    source = _RUNNER_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    calls = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+
+    # The runner only sequences the reviewed stages; it performs no scientific work itself.
+    assert {
+        "load_owner_activation_capability",
+        "open_execution_authority",
+        "run_g3p_recovery",
+        "record_terminal_stop",
+        "execution_authority_report",
+        "close_execution_authority",
+    } <= calls
+    for forbidden in ("consume", "seal", "fit", "lstsq", "reserve", "deliver"):
+        assert forbidden not in {call.lower() for call in calls}

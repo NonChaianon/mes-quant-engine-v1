@@ -40,12 +40,37 @@ Those bounded reads and that single exclusive claim are the entire filesystem su
 module.  It opens no data artifact, reaches no provider, reads or constructs no target, makes
 no target-space reservation and performs no fit.
 
+Real execution completion.  After the activation capability exists, one execution-authority
+reservation is created atomically and durably under the activation-named runtime evidence, and
+nothing scientific may happen before that reservation is published.  The reservation is the only
+route to the four ordered durable fit permits and to the single terminal record.  Real fits are
+performed by this module with internal ``numpy.linalg.lstsq(..., rcond=None)`` on float64
+matrices: real mode accepts no fit callback at all, and the legacy injectable callback survives
+only in the explicitly inert synthetic rehearsal.  Coefficients, fold/model-local Duan smearing,
+positive unclipped out-of-sample forecasts, QLIKE, the three frozen paired session-block
+bootstraps and the frozen continuation gate all run in this process, and only closed, row-free
+summaries ever leave it.  The semantic elementwise regions -- Duan smearing, the back-transform,
+QLIKE, the relative reduction and the bootstrap arithmetic -- run with NumPy overflow, divide and
+invalid errors raised rather than warned about, so no ``RuntimeWarning`` escapes them.  The
+BLAS/LAPACK-backed least-squares call deliberately carries no such error policy, because a
+floating-point status flag set by a blocked and vectorized backend kernel describes that kernel
+rather than the correctness of the returned coefficients; its result is instead validated
+immediately for exact expected shape, float64 conversion and finiteness.  The two prediction
+products are not BLAS-backed at all: they are computed by one explicit checked float64
+matrix-vector kernel that validates operand compatibility first, evaluates a deterministic
+``numpy.einsum`` contraction with overflow and invalid operations raised, and then proves the
+exact dimension, shape and finiteness of the product.  Both routes fail identically: the raised
+error follows the ordinary failure route
+into the single ``INVALID_EVIDENCE`` terminal, and a permit that was already spent stays
+consumed, poisoned and unreplaced.  Nothing suppresses a warning, clips a value or floors a
+forecast.
+
 Honest limits.  This is local capability discipline; it is neither cryptographic secrecy nor
 Owner authentication, which remains with the separate exact Owner activation.  A Python closure
 is not secret: arbitrary in-process code can still reach cell contents by reflection.  What
 these controls do give is that no ordinary module-surface call, wrapper, copy, mapping, duck
 type, serial reuse or replay can obtain rows or real-mode authority, and that persistent replay
-protection depends on the exclusive activation claim being retained on disk.
+protection depends on the exclusive activation claim and the reservation being retained on disk.
 """
 
 from __future__ import annotations
@@ -57,7 +82,7 @@ import os
 import stat
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from numbers import Real
 from typing import Final, NoReturn
@@ -65,17 +90,39 @@ from typing import Final, NoReturn
 import numpy as np
 
 from mes_quant.exploration.test3_contract import (
+    BOOTSTRAP_REPETITIONS,
     FOLD_ORDER,
+    MASTER_SEED,
     MODEL_COLUMNS,
     MODEL_ORDER,
+    PRIMARY_BLOCK_LENGTH,
+    PROTOCOL_ID,
+    PROTOCOL_SHA256,
     REAL_FOLD_FIT_BUDGET,
+    RELATIVE_QLIKE_REDUCTION_FLOOR,
+    REQUIRED_BLOCK_LENGTHS,
     TARGET_HORIZON_MINUTES,
+    TARGET_SPACE_ID,
+    TerminalDisposition,
 )
 from mes_quant.exploration.test3_design import (
     Harmonic,
     Test3DesignContractError,
     common_eligibility,
     design_values,
+)
+from mes_quant.exploration.test3_stats import (
+    ContinuationInputs,
+    DependenceRow,
+    SessionImprovementAggregate,
+    Test3StatsContractError,
+    back_transform_log_variance,
+    decide_continuation,
+    dependence_summary,
+    duan_smearing_factor,
+    paired_session_block_bootstrap,
+    qlike,
+    relative_qlike_reduction,
 )
 
 ONE_SHOT_MODULE_ID: Final[str] = "MES_TEST3_G3F_ONE_SHOT_REAL_TRAIN_V1"
@@ -103,6 +150,17 @@ ROLE_HOLDOUT: Final[str] = "VALIDATION"
 ROLE_UNUSED: Final[str] = "UNUSED"
 FOLD_ROLES: Final[frozenset[str]] = frozenset({ROLE_TRAIN, ROLE_HOLDOUT, ROLE_UNUSED})
 MIN_BOUNDARY_GAP_MINUTES: Final[int] = 60
+
+#: Frozen holdout calendar year per fold; a holdout row from another year is structural.
+FOLD_HOLDOUT_YEARS: Final[Mapping[str, int]] = {"WF_2022": 2022, "WF_2023": 2023}
+
+#: Frozen structural prefit minima; failing any of these is ``UNDERPOWERED_STOP`` before a fit.
+MIN_HOLDOUT_SESSIONS: Final[int] = 20
+REQUIRED_ACF_LAGS: Final[tuple[int, ...]] = tuple(range(1, 9))
+
+#: Frozen bootstrap plan: block lengths 5, 1 and 20 in that order, 2,000 replicates each.
+BOOTSTRAP_BLOCK_ORDER: Final[tuple[int, ...]] = REQUIRED_BLOCK_LENGTHS
+EXPECTED_BOOTSTRAP_REPLICATES: Final[int] = BOOTSTRAP_REPETITIONS * len(BOOTSTRAP_BLOCK_ORDER)
 
 #: Import prefixes this stage must never reach, enforced statically by its tests.
 FORBIDDEN_IMPORT_PREFIXES: Final[tuple[str, ...]] = (
@@ -160,6 +218,7 @@ ALLOWED_IMPORT_ROOTS: Final[frozenset[str]] = frozenset(
         "math",
         "mes_quant.exploration.test3_contract",
         "mes_quant.exploration.test3_design",
+        "mes_quant.exploration.test3_stats",
         "numbers",
         "numpy",
         "os",
@@ -200,15 +259,35 @@ REVIEWED_IMPLEMENTATION_PATHS: Final[tuple[str, ...]] = (
     "tests/test_run_test3_one_shot_scientific_recovery.py",
 )
 
-#: The closed top-level key set of a local activation file.
-ACTIVATION_DOCUMENT_KEYS: Final[frozenset[str]] = frozenset(
+#: The closed top-level key set of the activation envelope.  The envelope carries nothing but
+#: one nested payload and the digest of that payload, so the digest can never cover itself or
+#: any envelope field.
+ACTIVATION_ENVELOPE_KEYS: Final[frozenset[str]] = frozenset(
+    {"activation_payload", "activation_payload_sha256"}
+)
+
+#: The closed key set of the nested activation payload.  The payload alone is digested.
+ACTIVATION_PAYLOAD_KEYS: Final[frozenset[str]] = frozenset(
     {
-        "activation_document_sha256",
         "fit_permit_budget",
+        "implementation_path_sha256",
         "implementation_paths",
-        "owner_activation_id",
-        "reviewed_path_sha256",
+        "override_id",
+        "protocol_id",
+        "protocol_sha256",
+        "recovery_lineage_id",
         "runtime_evidence",
+        "target_space_id",
+    }
+)
+
+#: Spent identities that a fresh recovery lineage may never reuse or re-credit.
+FORBIDDEN_HISTORICAL_IDENTITIES: Final[frozenset[str]] = frozenset(
+    {
+        "AUTH_TEST3_G3P_TRAIN_PREFIT_20260825",
+        "MES_TEST3_G3P_TRAIN_PREFIT_V1",
+        "OWNER_AUTHORIZED_TEST3_G3P_TRAIN_PREFIT_20260825",
+        "TEST3_G3P_TRAIN_TARGET_SUPPORT_PREFIT",
     }
 )
 
@@ -235,6 +314,17 @@ _ACTIVATION_CLAIM_SCOPE: Final[str] = (
     "NO_SCIENTIFIC_CONTENT_NO_TARGET_ACCESS_NO_RESERVATION_NO_FIT"
 )
 
+#: Closed record kinds; every durable runtime record declares exactly one of them.
+RESERVATION_RECORD_KIND: Final[str] = "TEST3_ONE_SHOT_EXECUTION_AUTHORITY_RESERVATION_V1"
+PERMIT_RECORD_KIND: Final[str] = "TEST3_ONE_SHOT_FIT_PERMIT_V1"
+TERMINAL_RECORD_KIND: Final[str] = "TEST3_ONE_SHOT_TERMINAL_V1"
+
+RESERVATION_STATUS: Final[str] = (
+    "RESERVED_AND_DURABLE_BEFORE_ANY_SOURCE_PROVIDER_OR_TARGET_ACCESS"
+)
+VALIDATION_STATUS: Final[str] = "UNOPENED"
+FINAL_TEST_STATUS: Final[str] = "SEALED"
+
 
 class Test3G3FOneShotError(RuntimeError):
     """Base fail-closed error for the one-shot G3-F stage."""
@@ -246,6 +336,10 @@ class Test3G3FPreActivationStop(Test3G3FOneShotError):
 
 class Test3G3FPermitError(Test3G3FOneShotError):
     """Raised when the unreplenished four-permit contract would be violated."""
+
+
+class Test3G3FUnderpoweredStop(Test3G3FOneShotError):
+    """Raised for a pre-fit structural minimum failure, always before any permit or fit."""
 
 
 def _error(message: str) -> Test3G3FOneShotError:
@@ -604,8 +698,13 @@ def describe_pre_activation_stop() -> Mapping[str, object]:
         "target_access": "NOT_AUTHORIZED_BEFORE_SEPARATE_OWNER_ACTIVATION",
         "target_space_reservation": "NOT_AUTHORIZED_BEFORE_SEPARATE_OWNER_ACTIVATION",
         "real_fits": "NOT_AUTHORIZED_BEFORE_SEPARATE_OWNER_ACTIVATION",
-        "validation": "UNOPENED",
-        "final_test": "SEALED",
+        "estimator": "INTERNAL_NUMPY_LINALG_LSTSQ_RCOND_NONE_NO_CALLBACK_IN_REAL_MODE",
+        "bootstrap_plan": BOOTSTRAP_BLOCK_ORDER,
+        "bootstrap_replicates": EXPECTED_BOOTSTRAP_REPLICATES,
+        "min_holdout_sessions": MIN_HOLDOUT_SESSIONS,
+        "required_acf_lags": REQUIRED_ACF_LAGS,
+        "validation": VALIDATION_STATUS,
+        "final_test": FINAL_TEST_STATUS,
         "protected_counters": PROTECTED_COUNTER_FIELDS,
     }
 
@@ -745,6 +844,374 @@ def _validated_fit_output(output: object, *, model_id: str, fold_id: str) -> tup
     return int(beta.size), rank
 
 
+def _finite_float64_vector(value: object, *, expected_size: int, label: str) -> np.ndarray:
+    """Prove one linear-algebra result immediately, without any floating-point error policy.
+
+    The BLAS/LAPACK-backed least-squares call is not wrapped in :func:`_strict_numerics`, because
+    a backend status flag is not evidence about the value that was returned.  Its correctness is
+    established here instead: the result must convert exactly to float64, must have exactly one
+    dimension of exactly the expected length, and must be finite in every entry.  Anything else
+    raises the ordinary fail-closed error, so the spent permit stays consumed, poisoned and
+    unreplaced and exactly one ``INVALID_EVIDENCE`` terminal is written without retry.  Nothing
+    here clips, floors, widens a tolerance or absorbs a value.
+
+    :func:`_checked_matrix_vector_product` reuses this same proof as the final step of the
+    explicit prediction kernel, so a product and a fitted coefficient vector are held to one
+    identical dimension, shape, dtype and finiteness contract.
+    """
+
+    if isinstance(expected_size, bool) or not isinstance(expected_size, int) or expected_size < 1:
+        raise _error(f"{label} requires a positive expected size")
+    try:
+        array = np.asarray(value, dtype=np.float64)
+    except (TypeError, ValueError) as exc:
+        raise _error(f"{label} must convert exactly to float64") from exc
+    if array.dtype != np.dtype(np.float64):
+        raise _error(f"{label} must convert exactly to float64")
+    if array.ndim != 1 or array.shape != (expected_size,):
+        raise _error(f"{label} must be one-dimensional with exactly {expected_size} values")
+    if not np.all(np.isfinite(array)):
+        raise _error(f"{label} must be finite")
+    return array
+
+
+def _checked_matrix_vector_product(
+    matrix: object,
+    vector: object,
+    *,
+    expected_rows: int,
+    label: str,
+) -> np.ndarray:
+    """Compute one float64 matrix-vector product explicitly, with no BLAS and no status flag.
+
+    This is the single prediction kernel for both the fitted TRAIN log-variance and the holdout
+    log-variance.  It deliberately avoids ``@``, :func:`numpy.matmul` and every other BLAS-backed
+    route.  A blocked and vectorized backend kernel evaluates padding lanes and partial products
+    that never reach the returned result, and it sets the hardware floating-point status flags for
+    them; NumPy then reports those flags as ``RuntimeWarning`` divide, overflow or invalid
+    conditions even for a well-conditioned product whose returned values are exact and finite.
+    Such a warning describes the backend, not the arithmetic this stage asked for, and it must
+    neither fail a valid fit nor be silenced by a warning filter.
+
+    The kernel therefore proceeds in three explicit steps and nothing else:
+
+    1. Operand compatibility is validated **before** any arithmetic: both operands must convert
+       exactly to float64, the matrix must be two-dimensional with exactly ``expected_rows`` rows
+       and at least one column, and its column count must equal the vector length.  An
+       incompatible pair is a defect and is refused before a single product is formed.
+    2. The contraction is evaluated as ``numpy.einsum("ij,j->i", ..., optimize=False)``, a
+       deterministic explicit sum of products with no optimization or BLAS dispatch, under a
+       narrowly relevant ``numpy.errstate(over="raise", invalid="raise")``.  The state covers only
+       this one contraction, so a genuine overflow or invalid operation in the requested
+       arithmetic raises ``FloatingPointError`` instead of escaping as a warning.
+    3. The product is proved immediately by :func:`_finite_float64_vector` for exact dimension,
+       shape, float64 dtype and finiteness.
+
+    Both failure routes are the ordinary fail-closed route: the raised error propagates, the
+    permit that was already spent stays consumed, poisoned and unreplaced, and exactly one
+    ``INVALID_EVIDENCE`` terminal is written without retry.  Nothing here suppresses a warning,
+    clips, floors, widens a tolerance or absorbs an exception, and the frozen
+    ``numpy.linalg.lstsq(rcond=None)`` estimator is untouched by this kernel.
+    """
+
+    if isinstance(expected_rows, bool) or not isinstance(expected_rows, int) or expected_rows < 1:
+        raise _error(f"{label} requires a positive expected row count")
+    try:
+        left = np.asarray(matrix, dtype=np.float64)
+        right = np.asarray(vector, dtype=np.float64)
+    except (TypeError, ValueError) as exc:
+        raise _error(f"{label} operands must convert exactly to float64") from exc
+    if left.dtype != np.dtype(np.float64) or right.dtype != np.dtype(np.float64):
+        raise _error(f"{label} operands must convert exactly to float64")
+    if left.ndim != 2 or right.ndim != 1:
+        raise _error(f"{label} needs a two-dimensional matrix and a one-dimensional vector")
+    if left.shape[0] != expected_rows:
+        raise _error(f"{label} matrix must have exactly {expected_rows} rows")
+    if left.shape[1] < 1:
+        raise _error(f"{label} matrix must have at least one column")
+    if left.shape[1] != right.shape[0]:
+        raise _error(
+            f"{label} matrix columns ({int(left.shape[1])}) must equal the vector length "
+            f"({int(right.shape[0])})"
+        )
+    with np.errstate(over="raise", invalid="raise"):
+        product = np.einsum("ij,j->i", left, right, optimize=False)
+    return _finite_float64_vector(product, expected_size=expected_rows, label=label)
+
+
+def _underpowered(message: str) -> NoReturn:
+    raise Test3G3FUnderpoweredStop(message)
+
+
+def _session_date(row: OneShotEligibleRow) -> date:
+    """Derive the frozen NYSE session date from the G3-P session identity."""
+
+    try:
+        parsed = date.fromisoformat(row.session_id)
+    except ValueError as exc:
+        raise _error(f"session_id must be an ISO session date: {row.session_id}") from exc
+    if type(parsed) is not date:
+        raise _error("session_date must be an exact date")
+    return parsed
+
+
+def _recovery_partition(
+    fold_id: str,
+    rows: tuple[OneShotEligibleRow, ...],
+) -> OneShotFoldPartition:
+    """Partition one fold under the full frozen structural minima.
+
+    This is the recovery-only partition.  It keeps every rule of the shared partition -- purge,
+    the 60-minute wall-clock boundary gap and non-empty partitions -- and adds the frozen holdout
+    calendar year and the 20-ordered-session minimum.  Any failure here is ``UNDERPOWERED_STOP``
+    and happens before any permit, matrix decomposition or fit.
+    """
+
+    try:
+        partition = _fold_partition(fold_id, rows)
+    except Test3G3FOneShotError as exc:
+        _underpowered(f"{fold_id} structural partition failed: {exc}")
+    expected_year = FOLD_HOLDOUT_YEARS[fold_id]
+    for index in partition.holdout_indices:
+        if rows[index].decision_time_utc.year != expected_year:
+            _underpowered(
+                f"{fold_id} holdout row {rows[index].decision_identity} is not in calendar "
+                f"year {expected_year}"
+            )
+    if len(partition.holdout_sessions) < MIN_HOLDOUT_SESSIONS:
+        _underpowered(
+            f"{fold_id} requires at least {MIN_HOLDOUT_SESSIONS} ordered holdout sessions, "
+            f"observed {len(partition.holdout_sessions)}"
+        )
+    return partition
+
+
+def _dependence_record(
+    fold_id: str,
+    rows: tuple[OneShotEligibleRow, ...],
+    indices: tuple[int, ...],
+    *,
+    label: str,
+) -> tuple[tuple[DependenceRow, ...], dict[str, object]]:
+    """Compute the frozen within-session ACF profile and require lags 1..8 to be defined."""
+
+    dependence_rows = tuple(
+        DependenceRow(
+            fold_id,
+            rows[index].session_id,
+            rows[index].decision_time_utc,
+            rows[index].rv_fwd_60,
+        )
+        for index in indices
+    )
+    return dependence_rows, _summarize_dependence(dependence_rows, label=label)
+
+
+def _summarize_dependence(
+    dependence_rows: tuple[DependenceRow, ...],
+    *,
+    label: str,
+) -> dict[str, object]:
+    try:
+        summary = dependence_summary(dependence_rows)
+    except Test3StatsContractError as exc:
+        _underpowered(f"{label} dependence audit failed: {exc}")
+    observed = {item.lag: item for item in summary.lags}
+    for lag in REQUIRED_ACF_LAGS:
+        item = observed.get(lag)
+        if item is None or item.rho_observed is None or not math.isfinite(item.rho_observed):
+            _underpowered(f"{label} required ACF lag {lag} is undefined")
+    return {
+        "row_count": summary.row_count,
+        "design_effect": summary.design_effect,
+        "effective_sample_size": summary.effective_sample_size,
+        "status": summary.status,
+        "lags": [
+            {
+                "lag": item.lag,
+                "pairs": item.pairs,
+                "rho_observed": item.rho_observed,
+                "rho_null": item.rho_null,
+                "excess": item.excess,
+            }
+            for item in summary.lags
+        ],
+    }
+
+
+def _strict_numerics() -> np.errstate:
+    """Return the strict NumPy error state for the semantic elementwise regions.
+
+    Overflow, division by zero and invalid operations are raised as ``FloatingPointError``
+    instead of being warned about, ignored or absorbed.  Nothing here suppresses a warning,
+    clips a value or floors a forecast: a raised error travels the ordinary failure route, so
+    the permit that was already spent stays consumed, poisoned and unreplaced and exactly one
+    ``INVALID_EVIDENCE`` terminal is written without retry.
+
+    The scope of this state is deliberately semantic.  It guards the elementwise exponential,
+    division and logarithm arithmetic this module performs itself -- the residual difference,
+    the fold/model-local Duan exponential, the back-transform, QLIKE, the relative reduction and
+    the bootstrap arithmetic -- where a raised floating-point condition really is a defect in
+    the quantity being computed.
+
+    It is never placed around ``numpy.linalg.lstsq``.  That call runs inside a BLAS/LAPACK backend
+    whose blocked and vectorized inner kernels set hardware floating-point status flags for lanes
+    and partial products that never reach the returned result, so a flag observed there describes
+    the backend rather than the correctness of the fit, and treating it as a semantic error
+    misclassifies a valid result as a failure.  Its coefficients are instead proved immediately
+    and explicitly by :func:`_finite_float64_vector`, and an invalid result fails closed on
+    exactly the same route.
+
+    It is not placed around the train/holdout predictions either, because those no longer use a
+    BLAS-backed product at all.  :func:`_checked_matrix_vector_product` owns them and carries its
+    own narrowly scoped raised state over one deterministic explicit contraction, so a genuine
+    overflow or invalid operation in the requested arithmetic still raises rather than warning,
+    while an unrelated backend lane flag can no longer be produced.
+
+    Gradual underflow is left at the NumPy default disposition for the same reason: a subnormal
+    or flushed intermediate is an IEEE status, not a defect.  Every required output is proved by
+    an explicit strictly-positive and finite check rather than by an underflow flag.
+    """
+
+    return np.errstate(over="raise", divide="raise", invalid="raise", under="ignore")
+
+
+def _numerical_identity() -> dict[str, object]:
+    """Report the NumPy and LAPACK identity without printing anything."""
+
+    build: dict[str, object] = {}
+    try:
+        configuration = np.show_config(mode="dicts")
+        dependencies = configuration.get("Build Dependencies", {})
+        for name in ("blas", "lapack"):
+            entry = dependencies.get(name, {})
+            build[name] = {
+                "name": str(entry.get("name", "UNAVAILABLE")),
+                "version": str(entry.get("version", "UNAVAILABLE")),
+            }
+    except Exception:  # noqa: BLE001 - identity disclosure degrades, it never fails a run
+        build = {"blas": "UNAVAILABLE", "lapack": "UNAVAILABLE"}
+    return {
+        "numpy_version": str(np.__version__),
+        "float_dtype": "float64",
+        "estimator": "numpy.linalg.lstsq(rcond=None)",
+        "build_dependencies": build,
+    }
+
+
+def _singular_rank(matrix: np.ndarray) -> tuple[int, np.ndarray]:
+    singular = np.linalg.svd(matrix, compute_uv=False)
+    if singular.size == 0 or not np.all(np.isfinite(singular)):
+        _underpowered("training design singular values must be finite")
+    tolerance = max(matrix.shape) * float(np.finfo(np.float64).eps) * float(singular[0])
+    return int(np.count_nonzero(singular > tolerance)), singular
+
+
+@dataclass(frozen=True, slots=True)
+class _PrefitStructure:
+    """The complete structural prefit state; it exists only before any permit or fit."""
+
+    rows: tuple[OneShotEligibleRow, ...]
+    partitions: Mapping[str, OneShotFoldPartition]
+    designs: Mapping[str, np.ndarray]
+    response: np.ndarray
+    dependence: Mapping[str, object]
+
+
+def _prefit_structure(rows: Iterable[OneShotEligibleRow]) -> _PrefitStructure:
+    """Run every structural minimum before a permit may be created or a fit may start."""
+
+    materialized = _validate_rows(rows, mode=ExecutionMode.OWNER_ACTIVATED_REAL)
+    partitions = {fold_id: _recovery_partition(fold_id, materialized) for fold_id in FOLD_ORDER}
+    first, second = (partitions[fold_id] for fold_id in FOLD_ORDER)
+    if set(first.holdout_indices) & set(second.holdout_indices):
+        _underpowered("fold holdouts must be disjoint before pooled out-of-fold support")
+    pooled_rows: list[DependenceRow] = []
+    dependence: dict[str, object] = {}
+    for fold_id in FOLD_ORDER:
+        fold_rows, record = _dependence_record(
+            fold_id,
+            materialized,
+            partitions[fold_id].holdout_indices,
+            label=fold_id,
+        )
+        dependence[fold_id] = record
+        pooled_rows.extend(fold_rows)
+    dependence["pooled_disjoint_oof"] = _summarize_dependence(
+        tuple(pooled_rows),
+        label="pooled disjoint out-of-fold",
+    )
+    response = build_response_vector(materialized)
+    designs = {model_id: build_design_matrix(model_id, materialized) for model_id in MODEL_ORDER}
+    for model_id, fold_id in EXPECTED_PAIR_ORDER:
+        index = np.asarray(partitions[fold_id].train_indices, dtype=np.int64)
+        train_design = designs[model_id][index]
+        columns = len(MODEL_COLUMNS[model_id])
+        if train_design.shape[0] <= columns:
+            _underpowered(
+                f"{model_id}/{fold_id} training rows ({train_design.shape[0]}) must exceed "
+                f"fitted columns ({columns})"
+            )
+        rank, _singular = _singular_rank(train_design)
+        if rank != columns:
+            _underpowered(
+                f"{model_id}/{fold_id} training design is rank deficient: rank={rank}, "
+                f"columns={columns}"
+            )
+    return _PrefitStructure(
+        rows=materialized,
+        partitions=partitions,
+        designs=designs,
+        response=response,
+        dependence=dependence,
+    )
+
+
+def _session_tables(
+    oof: Mapping[str, Mapping[str, object]],
+) -> dict[str, tuple[SessionImprovementAggregate, ...]]:
+    """Aggregate ordered per-session improvement sums and row counts, fold by fold."""
+
+    tables: dict[str, tuple[SessionImprovementAggregate, ...]] = {}
+    for fold_id in FOLD_ORDER:
+        fold = oof[fold_id]
+        order: list[str] = []
+        counts: dict[str, int] = {}
+        sums: dict[str, float] = {}
+        dates: dict[str, date] = {}
+        for session_id, session_date, improvement in zip(
+            fold["session_ids"], fold["session_dates"], fold["improvement"], strict=True
+        ):
+            if session_id not in counts:
+                order.append(session_id)
+                counts[session_id] = 0
+                sums[session_id] = 0.0
+                dates[session_id] = session_date
+            elif dates[session_id] != session_date:
+                raise _error(f"session {session_id} has an inconsistent session date")
+            counts[session_id] += 1
+            sums[session_id] += float(improvement)
+        tables[fold_id] = tuple(
+            SessionImprovementAggregate(
+                fold_id=fold_id,
+                session_id=session_id,
+                session_date=dates[session_id],
+                row_count=counts[session_id],
+                improvement_sum=sums[session_id],
+            )
+            for session_id in order
+        )
+    return tables
+
+
+def _sign(value: float) -> int:
+    if value > 0.0:
+        return 1
+    if value < 0.0:
+        return -1
+    return 0
+
+
 def _read_regular_file_bytes(path: str, *, limit: int, label: str) -> bytes:
     """Read one existing, non-symlinked, bounded regular file; nothing else is opened."""
 
@@ -852,6 +1319,137 @@ def _activation_claim_bytes(activation_file_sha256: str) -> bytes:
     ).encode()
 
 
+def _create_record_once(
+    root: str,
+    *,
+    evidence_root: str,
+    namespace: str,
+    name: str,
+    payload: bytes,
+    label: str,
+) -> str:
+    """Atomically and durably create one named record inside an existing directory.
+
+    This is the single write surface of this module.  It publishes the activation replay claim,
+    the execution-authority reservation, each ordered fit permit and the one terminal record.
+    Every path component below ``root`` must already exist and must not be a symlink: nothing
+    here creates, renames or removes a directory, and the traversal uses directory descriptors
+    with ``O_NOFOLLOW`` so a symlinked component cannot redirect it.  The record itself is
+    created with ``O_CREAT | O_EXCL`` and is never overwritten or truncated, and both the record
+    and its directory are fsynced before the caller may proceed.  An existing name, an unusable
+    directory, or any publication or durability ambiguity is a terminal refusal.
+    """
+
+    descriptors = _open_namespace_directory(root, evidence_root, namespace, label=label)
+    try:
+        parent = descriptors[-1]
+        try:
+            handle = os.open(
+                name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o400,
+                dir_fd=parent,
+            )
+        except FileExistsError as exc:
+            raise _error(f"{label} already exists; create-once is never overwritten") from exc
+        except OSError as exc:
+            raise _error(f"{label} could not be created exclusively") from exc
+        try:
+            view = memoryview(payload)
+            while view:
+                progress = os.write(handle, view)
+                if progress <= 0:
+                    raise _error(f"{label} made no write progress")
+                view = view[progress:]
+            os.fsync(handle)
+        except OSError as exc:
+            raise _error(f"{label} could not be published durably") from exc
+        finally:
+            os.close(handle)
+        try:
+            os.fsync(parent)
+        except OSError as exc:
+            raise _error(f"{label} directory could not be published durably") from exc
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+    return name
+
+
+def _open_namespace_directory(
+    root: str,
+    evidence_root: str,
+    namespace: str,
+    *,
+    label: str,
+) -> list[int]:
+    """Open the evidence namespace by directory descriptor; the caller closes every result."""
+
+    if (
+        not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+        or os.open not in os.supports_dir_fd
+    ):
+        raise _error(f"{label} requires secure directory-descriptor traversal")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptors: list[int] = []
+    try:
+        try:
+            descriptors.append(os.open(root, directory_flags))
+        except OSError as exc:
+            raise _error(f"{label} root directory is unusable") from exc
+        for segment in (*evidence_root.split("/"), namespace):
+            try:
+                descriptors.append(os.open(segment, directory_flags, dir_fd=descriptors[-1]))
+            except OSError as exc:
+                raise _error(
+                    f"{label} directory is missing, symlinked or not a directory"
+                ) from exc
+        if not stat.S_ISDIR(os.fstat(descriptors[-1]).st_mode):
+            raise _error(f"{label} directory is missing, symlinked or not a directory")
+    except BaseException:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise
+    return descriptors
+
+
+def _read_record_once(
+    root: str,
+    *,
+    evidence_root: str,
+    namespace: str,
+    name: str,
+    label: str,
+) -> bytes:
+    """Read back one published record through the same non-symlinked namespace traversal."""
+
+    descriptors = _open_namespace_directory(root, evidence_root, namespace, label=label)
+    try:
+        try:
+            handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=descriptors[-1])
+        except OSError as exc:
+            raise _error(f"{label} is missing, symlinked or unreadable") from exc
+        try:
+            status = os.fstat(handle)
+            if not stat.S_ISREG(status.st_mode):
+                raise _error(f"{label} is not a regular file")
+            if status.st_size > ACTIVATION_FILE_MAX_BYTES:
+                raise _error(f"{label} exceeds the bounded read size")
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(handle, 65_536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+        finally:
+            os.close(handle)
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+    return b"".join(chunks)
+
+
 def _claim_activation_once(
     root: str,
     *,
@@ -860,78 +1458,70 @@ def _claim_activation_once(
     reservation_name: str,
     payload: bytes,
 ) -> str:
-    """Atomically claim one activation inside an existing, non-symlinked directory.
+    """Atomically claim one activation; this is a replay claim, not a reservation."""
 
-    This is an activation replay claim, not a target-space reservation.  Every path component
-    below ``root`` must already exist and must not be a symlink: nothing here creates, renames
-    or removes a directory, and the traversal uses directory descriptors with ``O_NOFOLLOW`` so
-    a symlinked component cannot redirect it.  The claim itself is created with
-    ``O_CREAT | O_EXCL`` and is never overwritten, and the claim file and its directory are both
-    fsynced before the caller may receive a capability.  An existing claim, an unusable claim
-    directory, or any publication or durability ambiguity is a terminal refusal.
-    """
+    return _create_record_once(
+        root,
+        evidence_root=evidence_root,
+        namespace=namespace,
+        name=reservation_name + _ACTIVATION_CLAIM_SUFFIX,
+        payload=payload,
+        label="the activation replay claim",
+    )
 
-    if (
-        not hasattr(os, "O_DIRECTORY")
-        or not hasattr(os, "O_NOFOLLOW")
-        or os.open not in os.supports_dir_fd
-    ):
-        raise _error("the activation claim requires secure directory-descriptor traversal")
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    descriptors: list[int] = []
-    try:
-        try:
-            descriptors.append(os.open(root, directory_flags))
-        except OSError as exc:
-            raise _error("the activation claim root directory is unusable") from exc
-        for segment in (*evidence_root.split("/"), namespace):
-            try:
-                descriptors.append(
-                    os.open(segment, directory_flags, dir_fd=descriptors[-1])
-                )
-            except OSError as exc:
-                raise _error(
-                    "the activation claim directory is missing, symlinked or not a directory"
-                ) from exc
-        parent = descriptors[-1]
-        if not stat.S_ISDIR(os.fstat(parent).st_mode):
-            raise _error(
-                "the activation claim directory is missing, symlinked or not a directory"
-            )
-        name = reservation_name + _ACTIVATION_CLAIM_SUFFIX
-        try:
-            claim = os.open(
-                name,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                0o400,
-                dir_fd=parent,
-            )
-        except FileExistsError as exc:
-            raise _error("this activation is already claimed; replay is refused") from exc
-        except OSError as exc:
-            raise _error("the activation claim could not be created exclusively") from exc
-        try:
-            view = memoryview(payload)
-            while view:
-                progress = os.write(claim, view)
-                if progress <= 0:
-                    raise _error("the activation claim made no write progress")
-                view = view[progress:]
-            os.fsync(claim)
-        except OSError as exc:
-            raise _error("the activation claim could not be published durably") from exc
-        finally:
-            os.close(claim)
-        try:
-            os.fsync(parent)
-        except OSError as exc:
-            raise _error(
-                "the activation claim directory could not be published durably"
-            ) from exc
-    finally:
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
-    return name
+
+def _assert_json_closed(value: object, *, field: str) -> object:
+    """Fail closed unless ``value`` is a closed, finite, deterministic JSON structure."""
+
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise _error(f"record field {field} must be finite")
+        return value
+    if isinstance(value, Mapping):
+        for key in value:
+            if not isinstance(key, str):
+                raise _error(f"record field {field} has a non-string key")
+        return {key: _assert_json_closed(value[key], field=f"{field}.{key}") for key in value}
+    if isinstance(value, (list, tuple)):
+        return [
+            _assert_json_closed(item, field=f"{field}[{index}]")
+            for index, item in enumerate(value)
+        ]
+    raise _error(f"record field {field} is not a closed JSON value")
+
+
+def _canonical_bytes(value: object) -> bytes:
+    """Serialize one closed structure to the single canonical UTF-8 byte form."""
+
+    return (
+        json.dumps(
+            _assert_json_closed(value, field="record"),
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _canonical_digest(value: object) -> str:
+    """Digest the canonical bytes of one closed structure; never text typed by hand."""
+
+    return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+
+
+def _coefficient_sha256(beta: object) -> str:
+    """Digest coefficients as little-endian float64 C-order bytes, never as text."""
+
+    array = np.ascontiguousarray(np.asarray(beta, dtype="<f8").reshape(-1))
+    if array.ndim != 1 or array.size == 0 or not np.all(np.isfinite(array)):
+        raise _error("coefficient digest requires a finite one-dimensional vector")
+    return hashlib.sha256(array.tobytes(order="C")).hexdigest()
 
 
 def _reject_json_constant(name: str) -> NoReturn:
@@ -1033,6 +1623,9 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
     activation_registry: dict[int, str] = {}
     verified_root: list[str] = []
     verified_digests: list[tuple[str, ...]] = []
+    verified_binding: list[dict[str, object]] = []
+    authority_registry: dict[int, dict[str, object]] = {}
+    authority_state: dict[str, object] = {"armed": True, "issued": None, "state": None}
     loader_state: dict[str, object] = {"armed": True, "issued": None}
     delivery_state: dict[str, bool] = {"claimed": False, "armed": True}
     issued_state = "ISSUED"
@@ -1090,10 +1683,11 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
         """Single-use capability proving one locally verified and claimed activation file."""
 
         __slots__ = (
-            "activation_document_sha256",
             "activation_file_sha256",
+            "activation_payload_sha256",
             "fit_permit_budget",
-            "owner_activation_id",
+            "override_id",
+            "recovery_lineage_id",
             "repository_root",
             "reviewed_digests",
             "runtime_evidence",
@@ -1243,7 +1837,14 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
                 harmonic_by_identity=harmonic_by_identity,
             )
             handoff_registry[serial] = issued_state
-            return rows_from_handoff(handoff)
+            delivered = rows_from_handoff(handoff)
+            state = authority_state["state"]
+            if state is None:
+                return delivered
+            # Real mode: the rows never leave this closure.  They go straight into the
+            # activation-bound numerical pipeline and only a closed, row-free summary survives.
+            run_real_pipeline(delivered, state)
+            return None
 
         return supply_g3p_rows
 
@@ -1305,26 +1906,50 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
             )
         except ValueError as exc:
             raise _error("the activation file must be one closed JSON object") from exc
-        if not isinstance(document, dict) or set(document) != set(ACTIVATION_DOCUMENT_KEYS):
-            raise _error("the activation file must carry the exact closed top-level key set")
+        if not isinstance(document, dict) or set(document) != set(ACTIVATION_ENVELOPE_KEYS):
+            raise _error("the activation file must carry the exact closed envelope key set")
         _assert_finite(document, field="activation")
-        _identity(document["owner_activation_id"], field="owner_activation_id")
-        if not _is_sha256(document["activation_document_sha256"]):
-            raise _error("activation_document_sha256 must be a lowercase 64-hex digest")
-        budget = document["fit_permit_budget"]
+        payload = document["activation_payload"]
+        if not isinstance(payload, dict) or set(payload) != set(ACTIVATION_PAYLOAD_KEYS):
+            raise _error("the activation payload must carry the exact closed key set")
+        declared_payload_sha256 = document["activation_payload_sha256"]
+        if not _is_sha256(declared_payload_sha256):
+            raise _error("activation_payload_sha256 must be a lowercase 64-hex digest")
+        payload_sha256 = _canonical_digest(payload)
+        if payload_sha256 != declared_payload_sha256:
+            raise _error("the activation digest does not cover the exact nested payload")
+        canonical = _canonical_bytes(
+            {"activation_payload": payload, "activation_payload_sha256": payload_sha256}
+        )
+        if raw != canonical:
+            raise _error("the activation file is not the exact canonical UTF-8 envelope")
+        lineage = _identity(payload["recovery_lineage_id"], field="recovery_lineage_id")
+        override = _identity(payload["override_id"], field="override_id")
+        for label, value in (("recovery_lineage_id", lineage), ("override_id", override)):
+            if len(value) > _MAX_NAME_LENGTH or not set(value).issubset(_NAME_CHARACTERS):
+                raise _error(f"{label} must be a bounded closed-alphabet identity")
+            if value in FORBIDDEN_HISTORICAL_IDENTITIES:
+                raise _error(f"{label} may not reuse a spent historical identity")
+        if payload["protocol_id"] != PROTOCOL_ID:
+            raise _error("the activation must bind the exact ratified protocol identity")
+        if payload["protocol_sha256"] != PROTOCOL_SHA256:
+            raise _error("the activation must bind the exact ratified protocol bytes")
+        if payload["target_space_id"] != TARGET_SPACE_ID:
+            raise _error("the activation must bind the exact frozen target space")
+        budget = payload["fit_permit_budget"]
         if (
             isinstance(budget, bool)
             or not isinstance(budget, int)
             or budget != FIT_PERMIT_BUDGET
         ):
             raise _error(f"the lifetime fit budget is exactly {FIT_PERMIT_BUDGET}")
-        declared_paths = document["implementation_paths"]
+        declared_paths = payload["implementation_paths"]
         if (
             not isinstance(declared_paths, list)
             or tuple(declared_paths) != REVIEWED_IMPLEMENTATION_PATHS
         ):
             raise _error("the activation must bind the exact ordered six implementation paths")
-        declared_digests = document["reviewed_path_sha256"]
+        declared_digests = payload["implementation_path_sha256"]
         if (
             not isinstance(declared_digests, list)
             or len(declared_digests) != len(REVIEWED_IMPLEMENTATION_PATHS)
@@ -1334,7 +1959,7 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
         observed = _observed_reviewed_digests(root)
         if observed != tuple(declared_digests):
             raise _error("the current six-path bytes do not match the activation")
-        evidence = _validated_runtime_evidence(document["runtime_evidence"])
+        evidence = _validated_runtime_evidence(payload["runtime_evidence"])
         names = dict(evidence)
         activation_file_sha256 = hashlib.sha256(raw).hexdigest()
         _claim_activation_once(
@@ -1347,10 +1972,11 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
         serial = next_serial()
         capability = _VerifiedOwnerActivationCapability(
             closure_key,
-            activation_document_sha256=document["activation_document_sha256"],
             activation_file_sha256=activation_file_sha256,
+            activation_payload_sha256=payload_sha256,
             fit_permit_budget=budget,
-            owner_activation_id=document["owner_activation_id"],
+            override_id=override,
+            recovery_lineage_id=lineage,
             repository_root=root,
             reviewed_digests=observed,
             runtime_evidence=evidence,
@@ -1359,6 +1985,25 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
         activation_registry[serial] = issued_state
         verified_root.append(root)
         verified_digests.append(observed)
+        verified_binding.append(
+            {
+                "activation_file_sha256": activation_file_sha256,
+                "activation_payload_sha256": payload_sha256,
+                "evidence_namespace": str(names["namespace"]),
+                "evidence_root": str(names["root"]),
+                "fit_permit_budget": budget,
+                "implementation_path_sha256": list(observed),
+                "implementation_paths": list(REVIEWED_IMPLEMENTATION_PATHS),
+                "override_id": override,
+                "permit_names": list(names["permit_names"]),
+                "protocol_id": PROTOCOL_ID,
+                "protocol_sha256": PROTOCOL_SHA256,
+                "recovery_lineage_id": lineage,
+                "reservation_name": str(names["reservation_name"]),
+                "target_space_id": TARGET_SPACE_ID,
+                "terminal_name": str(names["terminal_name"]),
+            }
+        )
         loader_state["issued"] = capability
         return capability
 
@@ -1395,6 +2040,742 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
         if _observed_reviewed_digests(verified_root[0]) != verified_digests[0]:
             _stop("the reviewed six-path bytes drifted after the activation was verified")
 
+    class _ExecutionAuthority(_ClosureBound):
+        """Opaque witness of one durable execution-authority reservation.
+
+        It carries nothing but its serial: every reservation fact lives in the closure, so no
+        field on this object can be redirected to change what is written or rechecked.
+        """
+
+        __slots__ = ("serial",)
+
+        def __init__(self, key: object, /, **fields: object) -> None:
+            if key is not closure_key:
+                raise _error("direct construction of the execution authority is forbidden")
+            if set(fields) != set(type(self).__slots__):
+                raise _error("the execution authority requires its exact closed field set")
+            for name in type(self).__slots__:
+                object.__setattr__(self, name, fields[name])
+
+    def publish_record(
+        state: Mapping[str, object],
+        *,
+        name: str,
+        payload: Mapping[str, object],
+        label: str,
+    ) -> str:
+        """Create one durable record exactly once, then reread and verify it semantically."""
+
+        expected = _assert_json_closed(payload, field="record")
+        body = _canonical_bytes(expected)
+        _create_record_once(
+            str(state["root"]),
+            evidence_root=str(state["evidence_root"]),
+            namespace=str(state["namespace"]),
+            name=name,
+            payload=body,
+            label=label,
+        )
+        observed = _read_record_once(
+            str(state["root"]),
+            evidence_root=str(state["evidence_root"]),
+            namespace=str(state["namespace"]),
+            name=name,
+            label=label,
+        )
+        if observed != body:
+            raise _error(f"{label} failed its byte-exact reread")
+        try:
+            parsed = json.loads(
+                observed.decode("utf-8"),
+                object_pairs_hook=_reject_duplicate_keys,
+                parse_constant=_reject_json_constant,
+            )
+        except ValueError as exc:
+            raise _error(f"{label} reread is not one closed JSON object") from exc
+        if parsed != expected:
+            raise _error(f"{label} semantic reread rejects the published content")
+        return hashlib.sha256(body).hexdigest()
+
+    def resolve_authority(authority: object) -> dict[str, object]:
+        issued = authority_state["issued"]
+        if issued is None or authority is not issued:
+            _stop(
+                "execution authority must be the exact object returned by "
+                "open_execution_authority"
+            )
+        if type(authority) is not _ExecutionAuthority:
+            _stop("execution authority must be a verified execution authority")
+        serial = _serial_of(authority)
+        state = authority_registry.get(serial) if serial is not None else None
+        if state is None:
+            _stop("the execution authority is absent or already released")
+        return state
+
+    def open_execution_authority(activation: object) -> object:
+        """Accept the activation and publish one durable execution-authority reservation.
+
+        This runs before any source, provider, target, target-space, permit or fit surface.  It
+        spends the exact issued activation capability, rechecks the reviewed six-path bytes from
+        closure-captured values, then exclusively creates the activation-named reservation and
+        rereads it.  The activation replay claim taken by the loader is not this reservation.
+        """
+
+        if not authority_state["armed"]:
+            raise _error(
+                "the execution authority is one-attempt per module instance and is spent"
+            )
+        authority_state["armed"] = False
+        accept_and_consume_activation(activation)
+        binding = dict(verified_binding[0])
+        state: dict[str, object] = {
+            "root": verified_root[0],
+            "evidence_root": binding["evidence_root"],
+            "namespace": binding["evidence_namespace"],
+            "reservation_name": binding["reservation_name"],
+            "permit_names": list(binding["permit_names"]),
+            "terminal_name": binding["terminal_name"],
+            "binding": binding,
+            "permits_created": [],
+            "terminal_attempted": False,
+            "terminal_written": False,
+            "report": None,
+            "released": False,
+            "closed": False,
+        }
+        reservation = {
+            "record_kind": RESERVATION_RECORD_KIND,
+            "module_id": ONE_SHOT_MODULE_ID,
+            "activation_binding": binding,
+            "pair_order": [f"{model}/{fold}" for model, fold in EXPECTED_PAIR_ORDER],
+            "status": RESERVATION_STATUS,
+            "retry_authorized": False,
+            "replacement_authorized": False,
+            "validation_status": VALIDATION_STATUS,
+            "final_test_status": FINAL_TEST_STATUS,
+        }
+        state["reservation_sha256"] = publish_record(
+            state,
+            name=str(state["reservation_name"]),
+            payload=reservation,
+            label="the execution-authority reservation",
+        )
+        serial = next_serial()
+        authority = _ExecutionAuthority(closure_key, serial=serial)
+        authority_registry[serial] = state
+        authority_state["issued"] = authority
+        authority_state["state"] = state
+        return authority
+
+    def assert_execution_authority_reserved(authority: object) -> Mapping[str, object]:
+        """Prove one durable reservation exists; the predecessor stage calls this first."""
+
+        state = resolve_authority(authority)
+        if state["closed"]:
+            _stop("the execution authority is already closed")
+        if not _is_sha256(state.get("reservation_sha256")):
+            _stop("no durable execution-authority reservation exists")
+        binding = dict(state["binding"])
+        binding["reservation_name"] = state["reservation_name"]
+        binding["reservation_sha256"] = state["reservation_sha256"]
+        binding["reservation_status"] = RESERVATION_STATUS
+        return binding
+
+    def terminal_payload(
+        state: dict[str, object],
+        *,
+        disposition: str,
+        reasons: tuple[str, ...],
+        source_binding: Mapping[str, object],
+        permits: Mapping[str, object],
+        fits: list[dict[str, object]],
+        metrics: Mapping[str, object] | None,
+        bootstrap: list[dict[str, object]],
+        sign_diagnostic: Mapping[str, object] | None,
+        gates: Mapping[str, object] | None,
+        counters: Mapping[str, object],
+        cleanup: Mapping[str, object],
+    ) -> dict[str, object]:
+        body = {
+            "record_kind": TERMINAL_RECORD_KIND,
+            "module_id": ONE_SHOT_MODULE_ID,
+            "activation_binding": dict(state["binding"]),
+            "reservation": {
+                "name": state["reservation_name"],
+                "sha256": state["reservation_sha256"],
+                "status": RESERVATION_STATUS,
+            },
+            "source_and_g3p_binding": dict(source_binding),
+            "pair_order": [f"{model}/{fold}" for model, fold in EXPECTED_PAIR_ORDER],
+            "permits": dict(permits),
+            "fits": fits,
+            "metrics": dict(metrics) if metrics is not None else None,
+            "bootstrap": bootstrap,
+            "sign_diagnostic": dict(sign_diagnostic) if sign_diagnostic is not None else None,
+            "gates": dict(gates) if gates is not None else None,
+            "disposition": disposition,
+            "reasons": list(reasons),
+            "counters": dict(counters),
+            "cleanup": dict(cleanup),
+            "validation_status": VALIDATION_STATUS,
+            "final_test_status": FINAL_TEST_STATUS,
+            "retry_authorized": False,
+        }
+        body["terminal_record_sha256"] = _canonical_digest(body)
+        return body
+
+    def cleanup_observation(state: dict[str, object]) -> dict[str, object]:
+        """Report exactly what cleanup does; it never claims memory erasure or deletion."""
+
+        return {
+            "scope": "CLOSES_DESCRIPTORS_AND_RELEASES_LIVE_REFERENCES_ONLY",
+            "open_descriptors": 0,
+            "live_row_references_released": bool(state["released"]),
+            "durable_records_deleted": 0,
+            "durable_records_mutated": 0,
+            "memory_erasure_claimed": False,
+        }
+
+    def write_terminal(
+        state: dict[str, object],
+        *,
+        disposition: str,
+        reasons: tuple[str, ...],
+        source_binding: Mapping[str, object],
+        permits: Mapping[str, object],
+        fits: list[dict[str, object]],
+        metrics: Mapping[str, object] | None,
+        bootstrap: list[dict[str, object]],
+        sign_diagnostic: Mapping[str, object] | None,
+        gates: Mapping[str, object] | None,
+        counters: Mapping[str, object],
+    ) -> dict[str, object]:
+        if state["terminal_attempted"]:
+            raise _error("the one-shot terminal record is attempted exactly once")
+        state["terminal_attempted"] = True
+        state["released"] = True
+        payload = terminal_payload(
+            state,
+            disposition=disposition,
+            reasons=reasons,
+            source_binding=source_binding,
+            permits=permits,
+            fits=fits,
+            metrics=metrics,
+            bootstrap=bootstrap,
+            sign_diagnostic=sign_diagnostic,
+            gates=gates,
+            counters=counters,
+            cleanup=cleanup_observation(state),
+        )
+        state["terminal_sha256"] = publish_record(
+            state,
+            name=str(state["terminal_name"]),
+            payload=payload,
+            label="the one-shot terminal record",
+        )
+        state["terminal_written"] = True
+        state["report"] = {
+            "disposition": disposition,
+            "reasons": list(reasons),
+            "counters": dict(counters),
+            "permits": dict(permits),
+            "reservation_name": state["reservation_name"],
+            "terminal_name": state["terminal_name"],
+            "terminal_record_sha256": payload["terminal_record_sha256"],
+            "terminal_file_sha256": state["terminal_sha256"],
+            "recovery_lineage_id": state["binding"]["recovery_lineage_id"],
+            "validation_status": VALIDATION_STATUS,
+            "final_test_status": FINAL_TEST_STATUS,
+        }
+        return payload
+
+    def stop_counters(budget: OneShotFitPermitBudget | None) -> dict[str, object]:
+        return {
+            "permits_created": 0,
+            "permits_consumed": 0 if budget is None else budget.permits_consumed,
+            "real_fold_fit_calls": 0,
+            "real_models_fitted": 0,
+            "real_coefficients_computed": 0,
+            "duan_factors_computed": 0,
+            "real_forecasts_computed": 0,
+            "real_qlike_evaluations": 0,
+            "real_bootstrap_replicates": 0,
+            "validation_rows_read": 0,
+            "final_test_rows_read": 0,
+        }
+
+    def record_terminal_stop(
+        authority: object,
+        *,
+        disposition: str,
+        reasons: Iterable[str],
+        source_binding: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        """Write the single terminal record for a stop that produced no validated fit."""
+
+        state = resolve_authority(authority)
+        if disposition not in {
+            TerminalDisposition.UNDERPOWERED.value,
+            TerminalDisposition.INVALID.value,
+        }:
+            raise _error("a stop terminal must be UNDERPOWERED_STOP or INVALID_EVIDENCE")
+        counters = stop_counters(None)
+        counters["permits_created"] = len(list(state["permits_created"]))
+        write_terminal(
+            state,
+            disposition=disposition,
+            reasons=tuple(str(reason) for reason in reasons),
+            source_binding=source_binding,
+            permits={
+                "names": list(state["permit_names"]),
+                "created": len(list(state["permits_created"])),
+                "consumed": 0,
+                "callback_starts": 0,
+                "validated_outputs": 0,
+                "refused_requests": 0,
+                "poisoned": False,
+                "sealed": False,
+            },
+            fits=[],
+            metrics=None,
+            bootstrap=[],
+            sign_diagnostic=None,
+            gates=None,
+            counters=counters,
+        )
+        return dict(state["report"])
+
+    def complete_real_execution(
+        structure: _PrefitStructure,
+        state: dict[str, object],
+        budget: OneShotFitPermitBudget,
+        source_binding: Mapping[str, object],
+    ) -> None:
+        """Publish four ordered permits, run four internal fits, and close the terminal."""
+
+        identity = _numerical_identity()
+        fits: list[dict[str, object]] = []
+        forecasts: dict[tuple[str, str], np.ndarray] = {}
+        for ordinal, (model_id, fold_id) in enumerate(EXPECTED_PAIR_ORDER, start=1):
+            partition = structure.partitions[fold_id]
+            train_index = np.asarray(partition.train_indices, dtype=np.int64)
+            holdout_index = np.asarray(partition.holdout_indices, dtype=np.int64)
+            train_design = np.ascontiguousarray(
+                structure.designs[model_id][train_index], dtype=np.float64
+            )
+            train_response = np.ascontiguousarray(
+                structure.response[train_index], dtype=np.float64
+            )
+            holdout_design = np.ascontiguousarray(
+                structure.designs[model_id][holdout_index], dtype=np.float64
+            )
+            permit_name = str(state["permit_names"][ordinal - 1])
+            publish_record(
+                state,
+                name=permit_name,
+                payload={
+                    "record_kind": PERMIT_RECORD_KIND,
+                    "module_id": ONE_SHOT_MODULE_ID,
+                    "recovery_lineage_id": state["binding"]["recovery_lineage_id"],
+                    "reservation_name": state["reservation_name"],
+                    "reservation_sha256": state["reservation_sha256"],
+                    "ordinal": ordinal,
+                    "model_id": model_id,
+                    "fold_id": fold_id,
+                    "column_names": list(MODEL_COLUMNS[model_id]),
+                    "train_row_count": int(train_design.shape[0]),
+                    "holdout_row_count": int(holdout_design.shape[0]),
+                    "estimator": "numpy.linalg.lstsq(rcond=None)",
+                    "replacement_authorized": False,
+                    "status": "PERMIT_DURABLE_BEFORE_ITS_LEAST_SQUARES_CALL",
+                },
+                label=f"fit permit {ordinal}",
+            )
+            state["permits_created"].append(permit_name)
+            permit = budget.consume(model_id=model_id, fold_id=fold_id)
+            budget.start_callback(permit)
+            try:
+                # The frozen estimator runs in its BLAS/LAPACK backend with no surrounding
+                # floating-point error policy; its result is proved explicitly just below.
+                output = np.linalg.lstsq(train_design, train_response, rcond=None)
+            except Exception:
+                budget.fail(permit, reason="internal_least_squares_raised")
+                raise
+            try:
+                beta, _residual_sums, rank, singular = output
+                dimension, validated_rank = _validated_fit_output(
+                    (beta, _residual_sums, rank, singular),
+                    model_id=model_id,
+                    fold_id=fold_id,
+                )
+                coefficients = _finite_float64_vector(
+                    beta,
+                    expected_size=len(MODEL_COLUMNS[model_id]),
+                    label=f"{model_id}/{fold_id} least-squares coefficients",
+                )
+                # Neither prediction uses a BLAS-backed product. Each is one explicit checked
+                # float64 contraction: operand compatibility is validated first, the requested
+                # arithmetic raises overflow and invalid conditions instead of warning, and the
+                # product is then proved for exact dimension, shape and finiteness.
+                train_fitted = _checked_matrix_vector_product(
+                    train_design,
+                    coefficients,
+                    expected_rows=int(train_design.shape[0]),
+                    label=f"{model_id}/{fold_id} fitted TRAIN log-variance",
+                )
+                holdout_fitted = _checked_matrix_vector_product(
+                    holdout_design,
+                    coefficients,
+                    expected_rows=int(holdout_design.shape[0]),
+                    label=f"{model_id}/{fold_id} holdout log-variance",
+                )
+                with _strict_numerics():
+                    # The semantic elementwise region: the residual difference, the fold and
+                    # model-local Duan exponential and the back-transform.
+                    residuals = train_response - train_fitted
+                    smear = duan_smearing_factor(residuals)
+                    forecast = back_transform_log_variance(holdout_fitted, smear)
+                smear = _positive_finite(
+                    smear, field=f"{model_id}/{fold_id} Duan smearing factor"
+                )
+                forecast = _finite_float64_vector(
+                    forecast,
+                    expected_size=int(holdout_design.shape[0]),
+                    label=f"{model_id}/{fold_id} holdout forecast",
+                )
+                if not np.all(forecast > 0.0):
+                    raise _error(f"{model_id}/{fold_id} forecasts must be strictly positive")
+            except Exception:
+                budget.fail(permit, reason="fit_output_validation_failed")
+                raise
+            budget.record_validated_output(permit)
+            forecasts[(model_id, fold_id)] = forecast
+            singular_values = [
+                float(value) for value in np.asarray(singular, dtype=np.float64)
+            ]
+            smallest = singular_values[-1]
+            fits.append(
+                {
+                    "ordinal": ordinal,
+                    "permit_name": permit_name,
+                    "model_id": model_id,
+                    "fold_id": fold_id,
+                    "column_names": list(MODEL_COLUMNS[model_id]),
+                    "coefficients": [float(value) for value in np.asarray(beta)],
+                    "coefficient_dimension": dimension,
+                    "coefficient_sha256": _coefficient_sha256(beta),
+                    "rank": validated_rank,
+                    "singular_values": singular_values,
+                    "condition_number": (
+                        None if smallest == 0.0 else singular_values[0] / smallest
+                    ),
+                    "duan_smearing_factor": float(smear),
+                    "duan_scope": "FOLD_AND_MODEL_LOCAL_TRAIN_RESIDUALS_ONLY",
+                    "forecast_floor_or_clipping_applied": False,
+                    "train_row_count": int(train_design.shape[0]),
+                    "holdout_row_count": int(holdout_design.shape[0]),
+                    "numerical_identity": identity,
+                }
+            )
+        budget.seal()
+
+        base_model, har_model = MODEL_ORDER
+        oof: dict[str, dict[str, object]] = {}
+        fold_metrics: list[dict[str, object]] = []
+        pooled_base_parts: list[np.ndarray] = []
+        pooled_har_parts: list[np.ndarray] = []
+        for fold_id in FOLD_ORDER:
+            partition = structure.partitions[fold_id]
+            holdout_rows = tuple(structure.rows[index] for index in partition.holdout_indices)
+            actual = np.asarray([row.rv_fwd_60 for row in holdout_rows], dtype=np.float64)
+            with _strict_numerics():
+                # QLIKE ratios, logarithms and fold means raise every floating-point error.
+                losses_base = qlike(actual, forecasts[(base_model, fold_id)])
+                losses_har = qlike(actual, forecasts[(har_model, fold_id)])
+                improvement = losses_base - losses_har
+                fold_mean_base = float(losses_base.mean())
+                fold_mean_har = float(losses_har.mean())
+                fold_mean_improvement = float(improvement.mean())
+            oof[fold_id] = {
+                "session_ids": [row.session_id for row in holdout_rows],
+                "session_dates": [_session_date(row) for row in holdout_rows],
+                "improvement": [float(value) for value in improvement],
+            }
+            pooled_base_parts.append(losses_base)
+            pooled_har_parts.append(losses_har)
+            fold_metrics.append(
+                {
+                    "fold_id": fold_id,
+                    "row_count": int(actual.size),
+                    "session_count": len(partition.holdout_sessions),
+                    "mean_qlike_base": fold_mean_base,
+                    "mean_qlike_har": fold_mean_har,
+                    "mean_improvement": fold_mean_improvement,
+                    "weighting": "ROW_WEIGHTED_MEAN_OVER_FOLD_HOLDOUT_ROWS",
+                }
+            )
+        with _strict_numerics():
+            # Pooled out-of-fold aggregation and the relative reduction raise every error.
+            pooled_base = np.concatenate(pooled_base_parts)
+            pooled_har = np.concatenate(pooled_har_parts)
+            pooled_improvement = pooled_base - pooled_har
+            pooled_mean_base = float(pooled_base.mean())
+            pooled_mean_har = float(pooled_har.mean())
+            pooled_mean_improvement = float(pooled_improvement.mean())
+            relative = relative_qlike_reduction(pooled_mean_base, pooled_mean_har)
+        tables = _session_tables(oof)
+        bootstrap: list[dict[str, object]] = []
+        for block_length in BOOTSTRAP_BLOCK_ORDER:
+            with _strict_numerics():
+                # Every paired session-block replicate is drawn and reduced under raised errors.
+                result = paired_session_block_bootstrap(
+                    tables,
+                    block_length=block_length,
+                    repetitions=BOOTSTRAP_REPETITIONS,
+                    master_seed=MASTER_SEED,
+                )
+            bootstrap.append(
+                {
+                    "block_length": result.block_length,
+                    "repetitions": result.repetitions,
+                    "master_seed": MASTER_SEED,
+                    "pooled_seed": result.pooled_seed,
+                    "fold_seeds": [[fold_id, seed] for fold_id, seed in result.fold_seeds],
+                    "draw_identity_sha256": result.draw_identity_sha256,
+                    "percentile": result.percentile,
+                    "lower_bound": result.lower_bound,
+                    "role": (
+                        "PRIMARY" if result.block_length == PRIMARY_BLOCK_LENGTH else "DIAGNOSTIC"
+                    ),
+                }
+            )
+        if [entry["block_length"] for entry in bootstrap] != list(BOOTSTRAP_BLOCK_ORDER):
+            raise _error("the bootstrap block order is frozen at 5, 1 and 20")
+        primary = next(
+            entry for entry in bootstrap if entry["block_length"] == PRIMARY_BLOCK_LENGTH
+        )
+        twenty = next(entry for entry in bootstrap if entry["block_length"] == 20)
+        sign_diagnostic = {
+            "primary_block_length": PRIMARY_BLOCK_LENGTH,
+            "primary_lower_bound_sign": _sign(float(primary["lower_bound"])),
+            "twenty_session_lower_bound_sign": _sign(float(twenty["lower_bound"])),
+            "sign_changed": _sign(float(twenty["lower_bound"]))
+            != _sign(float(primary["lower_bound"])),
+            "effect": "MANDATORY_DISCLOSURE_ONLY_NOT_A_GATE",
+        }
+        decision = decide_continuation(
+            ContinuationInputs(
+                assertions_passed=True,
+                fold_mean_improvements=tuple(
+                    (str(entry["fold_id"]), float(entry["mean_improvement"]))
+                    for entry in fold_metrics
+                ),
+                pooled_mean_qlike_base=pooled_mean_base,
+                pooled_mean_qlike_har=pooled_mean_har,
+                primary_lower_bound=float(primary["lower_bound"]),
+                real_fold_fit_calls=len(fits),
+                underpowered=False,
+            )
+        )
+        pooled_rows = int(pooled_base.size)
+        counters = {
+            "permits_created": len(list(state["permits_created"])),
+            "permits_consumed": budget.permits_consumed,
+            "real_fold_fit_calls": len(fits),
+            "real_models_fitted": len(MODEL_ORDER),
+            "real_coefficients_computed": len(fits),
+            "duan_factors_computed": len(fits),
+            "real_forecasts_computed": pooled_rows * len(MODEL_ORDER),
+            "real_qlike_evaluations": pooled_rows * len(MODEL_ORDER),
+            "real_bootstrap_replicates": BOOTSTRAP_REPETITIONS * len(bootstrap),
+            "validation_rows_read": 0,
+            "final_test_rows_read": 0,
+        }
+        expected_counters = {
+            "permits_created": FIT_PERMIT_BUDGET,
+            "permits_consumed": FIT_PERMIT_BUDGET,
+            "real_fold_fit_calls": FIT_PERMIT_BUDGET,
+            "real_models_fitted": 2,
+            "real_coefficients_computed": FIT_PERMIT_BUDGET,
+            "duan_factors_computed": FIT_PERMIT_BUDGET,
+            "real_bootstrap_replicates": EXPECTED_BOOTSTRAP_REPLICATES,
+            "validation_rows_read": 0,
+            "final_test_rows_read": 0,
+        }
+        for name, expected in expected_counters.items():
+            if counters[name] != expected:
+                raise _error(f"counter {name} is not the frozen value {expected}")
+        if counters["real_forecasts_computed"] != counters["real_qlike_evaluations"]:
+            raise _error("forecast and QLIKE counts must agree with the pooled out-of-fold rows")
+        write_terminal(
+            state,
+            disposition=decision.disposition.value,
+            reasons=tuple(decision.failures),
+            source_binding=source_binding,
+            permits={
+                "names": list(state["permit_names"]),
+                "created": len(list(state["permits_created"])),
+                "consumed": budget.permits_consumed,
+                "callback_starts": budget.callback_starts,
+                "validated_outputs": budget.validated_outputs,
+                "refused_requests": budget.refused_requests,
+                "poisoned": budget.poisoned,
+                "sealed": budget.sealed,
+                "unreplenished": True,
+            },
+            fits=fits,
+            metrics={
+                "dependence": dict(structure.dependence),
+                "folds": fold_metrics,
+                "pooled": {
+                    "row_count": pooled_rows,
+                    "mean_qlike_base": pooled_mean_base,
+                    "mean_qlike_har": pooled_mean_har,
+                    "mean_improvement": pooled_mean_improvement,
+                    "relative_qlike_reduction": relative,
+                },
+                "sessions": [
+                    {
+                        "fold_id": aggregate.fold_id,
+                        "session_id": aggregate.session_id,
+                        "session_date": aggregate.session_date.isoformat(),
+                        "row_count": aggregate.row_count,
+                        "improvement_sum": aggregate.improvement_sum,
+                    }
+                    for fold_id in FOLD_ORDER
+                    for aggregate in tables[fold_id]
+                ],
+            },
+            bootstrap=bootstrap,
+            sign_diagnostic=sign_diagnostic,
+            gates={
+                "fold_mean_improvement_strictly_positive": {
+                    str(entry["fold_id"]): float(entry["mean_improvement"]) > 0.0
+                    for entry in fold_metrics
+                },
+                "relative_qlike_reduction": relative,
+                "relative_qlike_reduction_floor": RELATIVE_QLIKE_REDUCTION_FLOOR,
+                "relative_qlike_reduction_passes": relative >= RELATIVE_QLIKE_REDUCTION_FLOOR,
+                "primary_lower_bound": float(primary["lower_bound"]),
+                "primary_lower_bound_strictly_positive": float(primary["lower_bound"]) > 0.0,
+                "four_and_only_four_real_fits": len(fits) == FIT_PERMIT_BUDGET,
+                "equality_policy": (
+                    "FOLD_AND_PRIMARY_BOUND_EQUALITY_FAILS_RELATIVE_REDUCTION_EQUALITY_PASSES"
+                ),
+            },
+            counters=counters,
+        )
+
+    def run_real_pipeline(
+        rows: tuple[OneShotEligibleRow, ...],
+        state: dict[str, object],
+    ) -> None:
+        """Run the whole real numerical pipeline behind the durable reservation.
+
+        The structural prefit runs first and, if it fails, stops with ``UNDERPOWERED_STOP``
+        before any permit exists and before any decomposition or fit.  Otherwise each ordered
+        durable permit is published before its own internal ``numpy.linalg.lstsq`` call, and any
+        later defect writes exactly one ``INVALID_EVIDENCE`` terminal without retry.
+        """
+
+        if state["terminal_attempted"]:
+            _stop("the one-shot terminal has already been attempted; there is no retry")
+        source_binding = dict(state.get("source_binding") or {})
+        try:
+            structure = _prefit_structure(rows)
+        except Exception as exc:
+            # Precedence: a structural or undefined-ACF prefit failure is UNDERPOWERED_STOP with
+            # zero permits and zero fits; any other prefit defect is INVALID_EVIDENCE. Either
+            # way exactly one terminal is attempted and nothing is retried.
+            write_terminal(
+                state,
+                disposition=(
+                    TerminalDisposition.UNDERPOWERED.value
+                    if isinstance(exc, Test3G3FUnderpoweredStop)
+                    else TerminalDisposition.INVALID.value
+                ),
+                reasons=(f"{type(exc).__name__}: {exc}",),
+                source_binding=source_binding,
+                permits={
+                    "names": list(state["permit_names"]),
+                    "created": 0,
+                    "consumed": 0,
+                    "callback_starts": 0,
+                    "validated_outputs": 0,
+                    "refused_requests": 0,
+                    "poisoned": False,
+                    "sealed": False,
+                },
+                fits=[],
+                metrics=None,
+                bootstrap=[],
+                sign_diagnostic=None,
+                gates=None,
+                counters=stop_counters(None),
+            )
+            raise
+        budget = OneShotFitPermitBudget()
+        try:
+            complete_real_execution(structure, state, budget, source_binding)
+        except Exception as exc:
+            if not state["terminal_attempted"]:
+                counters = stop_counters(budget)
+                counters["permits_created"] = len(list(state["permits_created"]))
+                counters["permits_consumed"] = budget.permits_consumed
+                write_terminal(
+                    state,
+                    disposition=TerminalDisposition.INVALID.value,
+                    reasons=(f"{type(exc).__name__}: {exc}",),
+                    source_binding=source_binding,
+                    permits={
+                        "names": list(state["permit_names"]),
+                        "created": len(list(state["permits_created"])),
+                        "consumed": budget.permits_consumed,
+                        "callback_starts": budget.callback_starts,
+                        "validated_outputs": budget.validated_outputs,
+                        "refused_requests": budget.refused_requests,
+                        "poisoned": budget.poisoned,
+                        "sealed": budget.sealed,
+                    },
+                    fits=[],
+                    metrics=None,
+                    bootstrap=[],
+                    sign_diagnostic=None,
+                    gates=None,
+                    counters=counters,
+                )
+            raise
+
+    def execution_authority_report(authority: object) -> Mapping[str, object]:
+        """Return the closed, row-free terminal summary; no eligible row ever leaves here."""
+
+        state = resolve_authority(authority)
+        report = state["report"]
+        if report is None:
+            _stop("no terminal record has been written for this execution authority")
+        return dict(report)
+
+    def close_execution_authority(authority: object) -> Mapping[str, object]:
+        """Close descriptors and release live references; never delete or mutate a record."""
+
+        state = resolve_authority(authority)
+        state["released"] = True
+        state["closed"] = True
+        state["source_binding"] = None
+        return cleanup_observation(state)
+
+    def bind_source_evidence(
+        authority: object,
+        source_binding: Mapping[str, object],
+    ) -> None:
+        """Record the predecessor source/G3-P binding that the terminal must carry."""
+
+        state = resolve_authority(authority)
+        if state["terminal_attempted"]:
+            _stop("the source binding cannot change after the terminal was attempted")
+        state["source_binding"] = _assert_json_closed(source_binding, field="source_binding")
+
     def local_state_report() -> Mapping[str, object]:
         """Return a read-only, explicitly non-authoritative view of local lifecycle state.
 
@@ -1414,6 +2795,21 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
             "handoffs_spent": sum(
                 1 for value in handoff_registry.values() if value == spent_state
             ),
+            "execution_authority_armed": bool(authority_state["armed"]),
+            "execution_authority_open": authority_state["issued"] is not None,
+            "reservations_created": sum(
+                1
+                for value in authority_registry.values()
+                if _is_sha256(value.get("reservation_sha256"))
+            ),
+            "permits_created": sum(
+                len(list(value["permits_created"])) for value in authority_registry.values()
+            ),
+            "terminals_written": sum(
+                1 for value in authority_registry.values() if value["terminal_written"]
+            ),
+            "validation_status": VALIDATION_STATUS,
+            "final_test_status": FINAL_TEST_STATUS,
         }
 
     return (
@@ -1422,6 +2818,12 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
         accept_and_consume_activation,
         claim_g3p_delivery_handle,
         local_state_report,
+        open_execution_authority,
+        assert_execution_authority_reserved,
+        bind_source_evidence,
+        record_terminal_stop,
+        execution_authority_report,
+        close_execution_authority,
     )
 
 
@@ -1433,6 +2835,12 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
     _accept_and_consume_activation,
     _claim_g3p_delivery_handle,
     _local_state_report,
+    open_execution_authority,
+    assert_execution_authority_reserved,
+    bind_source_evidence,
+    record_terminal_stop,
+    execution_authority_report,
+    close_execution_authority,
 ) = _build_closed_activation_and_handoff_state_machine()
 
 del _build_closed_activation_and_handoff_state_machine
@@ -1445,11 +2853,17 @@ def run_one_shot_fits(
     rows: Iterable[OneShotEligibleRow],
     *,
     mode: ExecutionMode,
-    fit_callback: FitCallback,
+    fit_callback: FitCallback | None = None,
     activation: object | None = None,
     budget: OneShotFitPermitBudget | None = None,
 ) -> OneShotFitReport:
     """Run the exact four ordered model/fold fits behind four unreplenished permits.
+
+    This entrypoint is the inert synthetic structural rehearsal, and the injectable
+    ``fit_callback`` exists only for it.  Real mode has no arbitrary fit callback at all: a real
+    run is refused here after the activation is checked and must go through the
+    activation-bound, reservation-backed recovery pipeline, which uses internal
+    ``numpy.linalg.lstsq(..., rcond=None)`` only.
 
     Every permit is consumed immediately before its callback runs, so an attempted fit always
     spends it.  Any failure poisons the budget without replacement or retry, and a fifth request
@@ -1466,7 +2880,11 @@ def run_one_shot_fits(
         raise _error("mode must be an ExecutionMode")
     if mode is ExecutionMode.OWNER_ACTIVATED_REAL:
         _accept_and_consume_activation(activation)
-    elif activation is not None:
+        _stop(
+            "a real one-shot TRAIN run has no arbitrary fit callback; it runs only through the "
+            "activation-bound reservation pipeline with internal numpy.linalg.lstsq(rcond=None)"
+        )
+    if activation is not None:
         _stop("activation material must not be supplied to a pre-activation inert run")
     if not callable(fit_callback):
         raise _error("fit_callback must be callable")
@@ -1519,25 +2937,19 @@ def run_one_shot_fits(
         )
     active_budget.seal()
 
-    real = mode is ExecutionMode.OWNER_ACTIVATED_REAL
+    # Only the inert mode can reach this point, so every real/scientific counter stays zero.
     counters = OneShotCounters(
         permits_consumed=active_budget.permits_consumed,
         fit_callback_starts=active_budget.callback_starts,
         fit_outputs_validated=active_budget.validated_outputs,
         refused_fit_requests=active_budget.refused_requests,
-        real_fold_fit_calls=len(fits) if real else 0,
-        real_models_fitted=len(fits) if real else 0,
-        real_coefficients_computed=len(fits) if real else 0,
     )
-    if not real:
-        assert_zero_protected_counters(counters)
+    assert_zero_protected_counters(counters)
 
     return OneShotFitReport(
         module_id=ONE_SHOT_MODULE_ID,
         mode=mode,
-        activation_state=(
-            "OWNER_ACTIVATED" if real else ExecutionMode.PRE_ACTIVATION_INERT.value
-        ),
+        activation_state=ExecutionMode.PRE_ACTIVATION_INERT.value,
         evidence_naming=EVIDENCE_NAMING,
         pair_order=EXPECTED_PAIR_ORDER,
         fits=tuple(fits),
@@ -1547,22 +2959,35 @@ def run_one_shot_fits(
 
 
 __all__ = [
-    "ACTIVATION_DOCUMENT_KEYS",
+    "ACTIVATION_ENVELOPE_KEYS",
     "ACTIVATION_FILE_MAX_BYTES",
+    "ACTIVATION_PAYLOAD_KEYS",
     "ALLOWED_IMPORT_ROOTS",
+    "BOOTSTRAP_BLOCK_ORDER",
     "EVIDENCE_NAMING",
+    "EXPECTED_BOOTSTRAP_REPLICATES",
     "EXPECTED_HANDOFF_ID",
     "EXPECTED_PAIR_ORDER",
+    "FINAL_TEST_STATUS",
     "FIT_PERMIT_BUDGET",
+    "FOLD_HOLDOUT_YEARS",
     "FOLD_ROLES",
     "FOLD_ROLE_ATTRIBUTES",
+    "FORBIDDEN_HISTORICAL_IDENTITIES",
     "FORBIDDEN_IMPORT_PREFIXES",
     "MIN_BOUNDARY_GAP_MINUTES",
+    "MIN_HOLDOUT_SESSIONS",
     "ONE_SHOT_MODULE_ID",
+    "PERMIT_RECORD_KIND",
     "PROTECTED_COUNTER_FIELDS",
+    "REQUIRED_ACF_LAGS",
+    "RESERVATION_RECORD_KIND",
+    "RESERVATION_STATUS",
     "REVIEWED_FILE_MAX_BYTES",
     "REVIEWED_IMPLEMENTATION_PATHS",
     "RUNTIME_EVIDENCE_KEYS",
+    "TERMINAL_RECORD_KIND",
+    "VALIDATION_STATUS",
     "ExecutionMode",
     "OneShotCounters",
     "OneShotEligibleRow",
@@ -1575,10 +3000,17 @@ __all__ = [
     "Test3G3FOneShotError",
     "Test3G3FPermitError",
     "Test3G3FPreActivationStop",
+    "Test3G3FUnderpoweredStop",
+    "assert_execution_authority_reserved",
     "assert_zero_protected_counters",
+    "bind_source_evidence",
     "build_design_matrix",
     "build_response_vector",
+    "close_execution_authority",
     "describe_pre_activation_stop",
+    "execution_authority_report",
     "load_owner_activation_capability",
+    "open_execution_authority",
+    "record_terminal_stop",
     "run_one_shot_fits",
 ]

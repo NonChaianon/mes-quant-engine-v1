@@ -64,6 +64,7 @@ from mes_quant.exploration.test3_contract import (
     TARGET_SPACE_ID,
     FailureReason,
     RowStatus,
+    TerminalDisposition,
 )
 from mes_quant.exploration.test3_design import (
     Harmonic,
@@ -1708,8 +1709,16 @@ def _predictor_data(
     table: pa.Table,
     controls: tuple[ControlRow, ...],
     *,
-    expected_ledger: Mapping[str, object],
+    expected_ledger: Mapping[str, object] | None,
 ) -> PredictorData:
+    """Build the frozen predictor ledger.
+
+    ``expected_ledger`` cross-checks the ledger against a committed predecessor record. The
+    fresh recovery lineage deliberately claims no historical predecessor credit, so it passes
+    ``None`` and the ledger is only computed and frozen here, never reconciled against a spent
+    authority. Every other predictor rule is unchanged.
+    """
+
     rows = table.to_pylist()
     statuses: list[PredictorStatusRow] = []
     values_by_id: dict[str, tuple[float | None, float | None, float | None]] = {}
@@ -1758,9 +1767,10 @@ def _predictor_data(
         "ordered_identity_sha256": identity_sha,
         "ordered_identity_status_sha256": status_sha,
     }
-    for field_name, observed in expected.items():
-        if expected_ledger.get(field_name) != observed:
-            _invalid(f"G2P_PREDICTOR_LEDGER_{field_name.upper()}_MISMATCH")
+    if expected_ledger is not None:
+        for field_name, observed in expected.items():
+            if expected_ledger.get(field_name) != observed:
+                _invalid(f"G2P_PREDICTOR_LEDGER_{field_name.upper()}_MISMATCH")
     if counts[FailureReason.PREDICTOR_NONFINITE.value] or counts[
         FailureReason.PREDICTOR_NONPOSITIVE.value
     ]:
@@ -3180,6 +3190,304 @@ def run_g3p(
     return record
 
 
+G3P_RECOVERY_ENTRYPOINT_ID = "MES_TEST3_G3P_RECOVERY_FRESH_LINEAGE_V1"
+G3P_RECOVERY_OUTPUT_SUBPATH = "artifacts/exploration/test3/g3p-recovery"
+G3P_RECOVERY_REQUEST_WITNESS = "request_set.sealed.json"
+G3P_RECOVERY_TARGET_WITNESS = "target_space.consumed.json"
+
+#: Spent G3-P identities and witness paths that the fresh recovery lineage may never reuse or
+#: re-credit. Historical branch/base topology, request/target witnesses and terminal lineage are
+#: deliberately excluded from the recovery call graph.
+G3P_RECOVERY_FORBIDDEN_REUSE = (
+    AUTHORIZATION_RESERVATION_PATH,
+    REQUEST_SET_WITNESS_PATH,
+    TARGET_SPACE_WITNESS_PATH,
+    FAILURE_RECORD_PATH,
+    G2P_RESERVATION_PATH,
+)
+
+
+def _recovery_required_lags_defined(evidence: Mapping[str, object]) -> tuple[str, ...]:
+    """Report every fold or pooled ACF lag in 1..8 that is undefined.
+
+    A required lag with no finite observed autocorrelation cannot support the frozen dependence
+    disclosure, so it is a structural pre-fit failure and must stop before any permit or fit.
+    """
+
+    failures: list[str] = []
+    sections: list[tuple[str, object]] = [
+        ("pooled_disjoint_oof", evidence.get("pooled_disjoint_oof_dependence"))
+    ]
+    folds = evidence.get("folds")
+    if isinstance(folds, Mapping):
+        for fold_id in FOLD_ORDER:
+            fold = folds.get(fold_id)
+            if isinstance(fold, Mapping):
+                sections.append((fold_id, fold.get("dependence")))
+            else:
+                failures.append(f"{fold_id}:DEPENDENCE_ABSENT")
+    for label, section in sections:
+        if not isinstance(section, Mapping):
+            failures.append(f"{label}:DEPENDENCE_ABSENT")
+            continue
+        lags = section.get("lags")
+        if not isinstance(lags, list) or len(lags) != 8:
+            failures.append(f"{label}:DEPENDENCE_LAG_PROFILE_INCOMPLETE")
+            continue
+        observed = {
+            item.get("lag"): item.get("rho_observed")
+            for item in lags
+            if isinstance(item, Mapping)
+        }
+        for lag in range(1, 9):
+            value = observed.get(lag)
+            if not isinstance(value, float) or not math.isfinite(value):
+                failures.append(f"{label}:REQUIRED_ACF_LAG_{lag}_UNDEFINED")
+    return tuple(failures)
+
+
+def _recovery_holdout_year_failures(controls: tuple[ControlRow, ...]) -> tuple[str, ...]:
+    """Report every holdout row assigned to the wrong frozen fold year."""
+
+    failures: list[str] = []
+    for fold_id, attribute, year in (
+        ("WF_2022", "role_2022", 2022),
+        ("WF_2023", "role_2023", 2023),
+    ):
+        wrong = sum(
+            1
+            for row in controls
+            if getattr(row, attribute) == "VALIDATION" and row.timestamp.year != year
+        )
+        if wrong:
+            failures.append(f"{fold_id}:HOLDOUT_YEAR_NOT_{year}")
+    return tuple(failures)
+
+
+def run_g3p_recovery(
+    *,
+    root: Path,
+    paths: ArtifactPaths,
+    execution_authority: object,
+) -> dict[str, object]:
+    """Run the fresh, capability-bound G3-P recovery pre-fit for one new TRAIN lineage.
+
+    This entrypoint claims no historical credit at all. It does not consume the spent G3-P
+    authorization reservation, does not read or re-attest the historical request-set, target-space
+    or failure witnesses, and takes no branch, base-commit or repository-topology credit. Its only
+    authority is the durable execution-authority reservation already published by the reviewed
+    G3-F stage, which it verifies before it touches any source artifact, provider, target or
+    target-space surface.
+
+    Every frozen scientific contract is preserved by reusing the same source projections, control
+    ledger, predictor ledger, common eligibility mask, folds, purge and boundary rules, intraday
+    harmonic, row statuses and rank contract. The target space is consumed immediately before the
+    first numeric target or path read. When any structural minimum fails -- an undefined required
+    ACF lag, fewer than twenty holdout sessions, insufficient training rows, rank impossibility,
+    a wrong fold year, or an overlap/purge failure -- the stage returns ``UNDERPOWERED_STOP`` and
+    delivers nothing, so no permit and no fit can exist. Support-pass rows are delivered exactly
+    once, strictly in process, into the reviewed G3-F stage.
+    """
+
+    binding = _test3_g3f.assert_execution_authority_reserved(execution_authority)
+    lineage = str(binding["recovery_lineage_id"])
+    spent_identities = {G3P_AUTHORIZATION_ID, G3P_GATE_ID, G3P_GATE_LITERAL, G3P_BRANCH}
+    unusable = (
+        not lineage
+        or any(character in lineage for character in "/\\.")
+        or lineage in spent_identities
+    )
+    if unusable:
+        _fail("the recovery lineage identity is unusable or reuses a spent G3-P identity")
+    if binding.get("protocol_sha256") != PROTOCOL_SHA256:
+        _fail("the execution authority does not bind the exact ratified protocol bytes")
+    if binding.get("target_space_id") != TARGET_SPACE_ID:
+        _fail("the execution authority does not bind the exact frozen target space")
+    observed_protocol, _size = _hash_file(
+        root / "docs/research/TEST3_VOLATILITY_RISK_EDGE_PROTOCOL_V1.md"
+    )
+    if observed_protocol != PROTOCOL_SHA256:
+        _fail("the ratified protocol document bytes drifted")
+    recovery_root = root / G3P_RECOVERY_OUTPUT_SUBPATH / lineage
+    for relative in G3P_RECOVERY_FORBIDDEN_REUSE:
+        if str(recovery_root).startswith(str(root / relative)):
+            _fail("the recovery lineage may not reuse a historical evidence path")
+
+    _validate_canonical_paths(root, paths)
+    source_bindings = _preflight_sources(paths)
+    cell8_table = _read_train_projection(
+        paths.cell8,
+        expected_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+        columns=CONTROL_COLUMNS,
+        field_name="cell8",
+    )
+    cell14_table = _read_train_projection(
+        paths.cell14,
+        expected_sha256=CELL14_FEATURE_FILE_SHA256,
+        columns=CELL14_COLUMNS,
+        field_name="cell14",
+    )
+    cell8_controls = _control_rows(cell8_table, field_name="cell8")
+    cell14_controls = _control_rows(cell14_table, field_name="cell14")
+    if cell8_controls != cell14_controls:
+        _invalid("CELL8_CELL14_OUTER_TRAIN_CONTROL_LEDGER_MISMATCH")
+    predictor = _predictor_data(cell14_table, cell14_controls, expected_ledger=None)
+    harmonic_by_identity, pre_target_support = _pre_target_support_contract(
+        cell8_controls,
+        predictor,
+    )
+    source_bindings = {
+        **source_bindings,
+        "pre_target_support_contract": pre_target_support,
+    }
+    sealed = build_streaming_request_set(
+        tuple(
+            ParentDecision(row.identity, row.timestamp, "TRAIN") for row in cell8_controls
+        ),
+        split_assignment_sha256=CELL8_SPLIT_ASSIGNMENT_SHA256,
+    )
+    if sealed.validation_path_bar_lookup_count or sealed.final_test_path_bar_lookup_count:
+        _fail("protected request count is nonzero before the recovery request-set witness")
+    request_witness_path = recovery_root / G3P_RECOVERY_REQUEST_WITNESS
+    try:
+        request_witness_sha256 = _atomic_create_json(
+            request_witness_path,
+            {
+                "entrypoint_id": G3P_RECOVERY_ENTRYPOINT_ID,
+                "recovery_lineage_id": lineage,
+                "reservation_name": binding["reservation_name"],
+                "reservation_sha256": binding["reservation_sha256"],
+                "cell8_split_assignment_sha256": CELL8_SPLIT_ASSIGNMENT_SHA256,
+                "request_set_sha256": sealed.request_set_sha256,
+                "parent_count": len(sealed.decisions),
+                "request_key_count": sealed.key_count,
+                "outer_validation_request_count": 0,
+                "final_test_request_count": 0,
+                "per_key_identities_persisted": False,
+                "status": "SEALED_AND_PERSISTED_BEFORE_PROVIDER_ACCESS",
+                "sealed_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            },
+        )
+    except FileExistsError as exc:
+        raise Test3G3PBoundaryError(
+            "the recovery request-set witness already exists; replay is refused"
+        ) from exc
+
+    with pre_fit_only_guard() as guard:
+        _assert_forbidden_modules_absent(phase="immediately before target consumption")
+        target_witness_path = recovery_root / G3P_RECOVERY_TARGET_WITNESS
+        try:
+            target_witness_sha256 = _atomic_create_json(
+                target_witness_path,
+                {
+                    "entrypoint_id": G3P_RECOVERY_ENTRYPOINT_ID,
+                    "recovery_lineage_id": lineage,
+                    "target_space_id": TARGET_SPACE_ID,
+                    "target_space_state": "CONSUMED",
+                    "reservation_name": binding["reservation_name"],
+                    "reservation_sha256": binding["reservation_sha256"],
+                    "request_set_sha256": sealed.request_set_sha256,
+                    "request_set_witness_sha256": request_witness_sha256,
+                    "status": (
+                        "CONSUMED_IMMEDIATELY_BEFORE_FIRST_NUMERIC_TARGET_OR_PATH_READ"
+                    ),
+                    "consumed_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    "retry_authorized": False,
+                    "replacement_target_authorized": False,
+                },
+            )
+        except FileExistsError as exc:
+            raise Test3G3PBoundaryError(
+                "the recovery target space is already consumed; replay is refused"
+            ) from exc
+        cell10_table = _read_train_projection(
+            paths.cell10,
+            expected_sha256=CELL10_LABEL_SHA256,
+            columns=CELL10_COLUMNS,
+            field_name="cell10",
+        )
+        cell12_table = _read_train_projection(
+            paths.cell12,
+            expected_sha256=CELL12_PATH_SHA256,
+            columns=CELL12_COLUMNS,
+            field_name="cell12",
+        )
+        cell10_controls = _control_rows(cell10_table, field_name="cell10")
+        cell12_controls = _control_rows(cell12_table, field_name="cell12")
+        if cell8_controls != cell10_controls or cell8_controls != cell12_controls:
+            _invalid("CELL8_CELL10_CELL12_OUTER_TRAIN_CONTROL_LEDGER_MISMATCH")
+        references = _references(cell10_table, cell10_controls)
+        expectations = _cell12_expectations(cell12_table, cell12_controls)
+        decoded_frame, decoded_evidence = decode_canonical_dbn(paths.raw_dbn)
+        _assert_forbidden_modules_absent(phase="after canonical decode")
+        provider = SealedFrameProvider(
+            decoded_frame,
+            sealed=sealed,
+            instruments={row.identity: row.instrument for row in cell8_controls},
+        )
+        targets = _build_targets(
+            sealed,
+            cell8_controls,
+            references,
+            expectations,
+            provider,
+        )
+        _assert_forbidden_modules_absent(phase="after target ledger")
+        support_evidence, disposition, _g3f_status = _support_evidence(
+            cell8_controls,
+            predictor,
+            targets,
+            harmonic_by_identity,
+        )
+        guard_record = _fit_guard_record(guard)
+
+    structural_failures = tuple(support_evidence.get("structural_failures") or ())
+    structural_failures += _recovery_required_lags_defined(support_evidence)
+    structural_failures += _recovery_holdout_year_failures(cell8_controls)
+    support_passed = disposition != "UNDERPOWERED_STOP" and not structural_failures
+    record: dict[str, object] = {
+        "entrypoint_id": G3P_RECOVERY_ENTRYPOINT_ID,
+        "recovery_lineage_id": lineage,
+        "reservation_name": binding["reservation_name"],
+        "reservation_sha256": binding["reservation_sha256"],
+        "protocol_id": PROTOCOL_ID,
+        "protocol_sha256": PROTOCOL_SHA256,
+        "target_space_id": TARGET_SPACE_ID,
+        "historical_credit_claimed": False,
+        "request_set_sha256": sealed.request_set_sha256,
+        "request_set_witness_sha256": request_witness_sha256,
+        "target_space_witness_sha256": target_witness_sha256,
+        "decoded_content_sha256": decoded_evidence.content_sha256,
+        "source_bindings": source_bindings,
+        "support_evidence": support_evidence,
+        "structural_failures": list(structural_failures),
+        "fit_guard": guard_record,
+        "support_gate_status": (
+            "G3P_RECOVERY_SUPPORT_PASS" if support_passed else "G3P_RECOVERY_UNDERPOWERED_STOP"
+        ),
+        "disposition": (
+            "DELIVERED_TO_REVIEWED_G3F_IN_PROCESS"
+            if support_passed
+            else TerminalDisposition.UNDERPOWERED.value
+        ),
+        "rows_delivered": support_passed,
+        "validation_status": "UNOPENED",
+        "final_test_status": "SEALED",
+    }
+    if not support_passed:
+        return record
+    # The terminal record must carry this stage's binding, and the terminal is written inside the
+    # in-process delivery, so the binding is registered before a single row moves.
+    _test3_g3f.bind_source_evidence(execution_authority, record)
+    _deliver_in_memory_handoff(
+        controls=cell8_controls,
+        predictor=predictor,
+        targets=targets,
+        harmonic_by_identity=harmonic_by_identity,
+    )
+    return record
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Owner-authorized Test 3 G3-P TRAIN pre-fit")
     parser.add_argument("--gate", choices=(G3P_GATE_LITERAL,), required=True)
@@ -3257,11 +3565,15 @@ __all__ = [
     "G3P_BRANCH",
     "G3P_GATE_LITERAL",
     "G3P_IN_MEMORY_HANDOFF_ID",
+    "G3P_RECOVERY_ENTRYPOINT_ID",
+    "G3P_RECOVERY_FORBIDDEN_REUSE",
+    "G3P_RECOVERY_OUTPUT_SUBPATH",
     "Test3G3PBoundaryError",
     "Test3G3PInvalidEvidenceError",
     "main",
     "pre_fit_only_guard",
     "run_g3p",
+    "run_g3p_recovery",
     "write_failure_summary_if_reserved",
     "write_g3p_record",
 ]

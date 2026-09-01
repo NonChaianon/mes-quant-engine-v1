@@ -24,9 +24,10 @@ import json
 import math
 import pickle
 import sys
-from collections.abc import Mapping
+import warnings
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -61,12 +62,27 @@ _prepend_worktree_source_path()
 
 from mes_quant.exploration import test3_g3f_one_shot as g3f
 from mes_quant.exploration.test3_contract import (
+    BOOTSTRAP_REPETITIONS,
     FOLD_ORDER,
+    MASTER_SEED,
     MODEL_COLUMNS,
     MODEL_ORDER,
+    PROTOCOL_ID,
+    PROTOCOL_SHA256,
+    RELATIVE_QLIKE_REDUCTION_FLOOR,
+    TARGET_SPACE_ID,
     RowStatus,
+    TerminalDisposition,
 )
 from mes_quant.exploration.test3_design import Harmonic, PredictorStatusRow
+from mes_quant.exploration.test3_stats import (
+    ContinuationInputs,
+    SessionImprovementAggregate,
+    decide_continuation,
+    duan_smearing_factor,
+    paired_session_block_bootstrap,
+    qlike,
+)
 from mes_quant.exploration.test3_target import TargetStatusRow
 
 _BASE = datetime(2022, 1, 3, 15, 0, tzinfo=UTC)
@@ -108,46 +124,85 @@ def _write_reviewed_tree(root: Path) -> tuple[str, ...]:
     return tuple(digests)
 
 
-def _activation_document(digests: tuple[str, ...], **overrides: object) -> dict[str, object]:
-    """Build a synthetic activation document; every value here is a test placeholder."""
+def _canonical(value: object) -> bytes:
+    """The one canonical UTF-8 serialization; every digest below is machine-computed."""
 
-    document: dict[str, object] = {
-        "owner_activation_id": "SYNTHETIC_PLACEHOLDER_NOT_OWNER_EVIDENCE",
-        "activation_document_sha256": "0" * 64,
+    return (
+        json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _runtime_evidence(**overrides: object) -> dict[str, object]:
+    evidence: dict[str, object] = {
+        "root": "synthetic-placeholder-root",
+        "namespace": "synthetic-placeholder-namespace",
+        "reservation_name": "synthetic-placeholder-reservation",
+        "permit_names": [f"synthetic-placeholder-permit-{index}" for index in (1, 2, 3, 4)],
+        "terminal_name": "synthetic-placeholder-terminal",
+    }
+    evidence.update(overrides)
+    return evidence
+
+
+def _activation_payload(digests: tuple[str, ...], **overrides: object) -> dict[str, object]:
+    """Build a synthetic activation payload; every value here is a test placeholder."""
+
+    payload: dict[str, object] = {
+        "recovery_lineage_id": "SYNTHETIC-PLACEHOLDER-LINEAGE-001",
+        "override_id": "SYNTHETIC-PLACEHOLDER-OVERRIDE-001",
+        "protocol_id": PROTOCOL_ID,
+        "protocol_sha256": PROTOCOL_SHA256,
+        "target_space_id": TARGET_SPACE_ID,
         "fit_permit_budget": 4,
         "implementation_paths": list(g3f.REVIEWED_IMPLEMENTATION_PATHS),
-        "reviewed_path_sha256": list(digests),
-        "runtime_evidence": {
-            "root": "synthetic-placeholder-root",
-            "namespace": "synthetic-placeholder-namespace",
-            "reservation_name": "synthetic-placeholder-reservation",
-            "permit_names": [f"synthetic-placeholder-permit-{index}" for index in (1, 2, 3, 4)],
-            "terminal_name": "synthetic-placeholder-terminal",
-        },
+        "implementation_path_sha256": list(digests),
+        "runtime_evidence": _runtime_evidence(),
     }
-    document.update(overrides)
-    return document
+    payload.update(overrides)
+    return payload
 
 
-def _write_activation(path: Path, document: object) -> str:
-    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _envelope(payload: object, *, digest: str | None = None) -> dict[str, object]:
+    """Wrap one payload in the closed envelope with a machine-computed payload digest."""
+
+    return {
+        "activation_payload": payload,
+        "activation_payload_sha256": (
+            hashlib.sha256(_canonical(payload)).hexdigest() if digest is None else digest
+        ),
+    }
+
+
+def _write_activation(path: Path, payload: object, *, digest: str | None = None) -> str:
+    path.write_bytes(_canonical(_envelope(payload, digest=digest)))
     return str(path)
 
 
-def _claim_directory(root: Path, document: Mapping[str, object]) -> Path:
-    """Locate the synthetic activation-claim directory; it never leaves ``tmp_path``."""
+def _claim_directory(root: Path, payload: Mapping[str, object]) -> Path:
+    """Locate the synthetic evidence namespace; it never leaves ``tmp_path``."""
 
-    evidence = document["runtime_evidence"]
+    evidence = payload["runtime_evidence"]
     assert isinstance(evidence, Mapping)
     return root.joinpath(*str(evidence["root"]).split("/"), str(evidence["namespace"]))
 
 
-def _claim_path(root: Path, document: Mapping[str, object]) -> Path:
-    evidence = document["runtime_evidence"]
+def _claim_path(root: Path, payload: Mapping[str, object]) -> Path:
+    evidence = payload["runtime_evidence"]
     assert isinstance(evidence, Mapping)
-    return _claim_directory(root, document) / (
+    return _claim_directory(root, payload) / (
         str(evidence["reservation_name"]) + g3f._ACTIVATION_CLAIM_SUFFIX
     )
+
+
+def _record_path(root: Path, payload: Mapping[str, object], name: str) -> Path:
+    return _claim_directory(root, payload) / name
 
 
 def _prepared_activation(
@@ -162,11 +217,11 @@ def _prepared_activation(
     root = tmp_path / name
     root.mkdir()
     digests = _write_reviewed_tree(root)
-    document = _activation_document(digests, **overrides)
+    payload = _activation_payload(digests, **overrides)
     if create_claim_directory:
-        _claim_directory(root, document).mkdir(parents=True, exist_ok=True)
-    activation = _write_activation(tmp_path / f"{name}-activation-file", document)
-    return root, activation, digests, document
+        _claim_directory(root, payload).mkdir(parents=True, exist_ok=True)
+    activation = _write_activation(tmp_path / f"{name}-activation-file", payload)
+    return root, activation, digests, payload
 
 
 def _harmonic(index: int) -> Harmonic:
@@ -406,6 +461,7 @@ def test_inert_mode_refuses_activation_material_and_handoff_rows() -> None:
 _FORBIDDEN_MODULE_ATTRIBUTES = (
     "OwnerActivation",
     "_ACTIVATION_REGISTRY",
+    "_ExecutionAuthority",
     "_G3PHandoffCapability",
     "_G3PRowHandoff",
     "_HANDOFF_REGISTRY",
@@ -425,22 +481,35 @@ _FORBIDDEN_MODULE_ATTRIBUTES = (
 )
 
 _EXPECTED_PUBLIC_SURFACE = (
-    "ACTIVATION_DOCUMENT_KEYS",
+    "ACTIVATION_ENVELOPE_KEYS",
     "ACTIVATION_FILE_MAX_BYTES",
+    "ACTIVATION_PAYLOAD_KEYS",
     "ALLOWED_IMPORT_ROOTS",
+    "BOOTSTRAP_BLOCK_ORDER",
     "EVIDENCE_NAMING",
+    "EXPECTED_BOOTSTRAP_REPLICATES",
     "EXPECTED_HANDOFF_ID",
     "EXPECTED_PAIR_ORDER",
+    "FINAL_TEST_STATUS",
     "FIT_PERMIT_BUDGET",
+    "FOLD_HOLDOUT_YEARS",
     "FOLD_ROLES",
     "FOLD_ROLE_ATTRIBUTES",
+    "FORBIDDEN_HISTORICAL_IDENTITIES",
     "FORBIDDEN_IMPORT_PREFIXES",
     "MIN_BOUNDARY_GAP_MINUTES",
+    "MIN_HOLDOUT_SESSIONS",
     "ONE_SHOT_MODULE_ID",
+    "PERMIT_RECORD_KIND",
     "PROTECTED_COUNTER_FIELDS",
+    "REQUIRED_ACF_LAGS",
+    "RESERVATION_RECORD_KIND",
+    "RESERVATION_STATUS",
     "REVIEWED_FILE_MAX_BYTES",
     "REVIEWED_IMPLEMENTATION_PATHS",
     "RUNTIME_EVIDENCE_KEYS",
+    "TERMINAL_RECORD_KIND",
+    "VALIDATION_STATUS",
     "ExecutionMode",
     "OneShotCounters",
     "OneShotEligibleRow",
@@ -453,11 +522,18 @@ _EXPECTED_PUBLIC_SURFACE = (
     "Test3G3FOneShotError",
     "Test3G3FPermitError",
     "Test3G3FPreActivationStop",
+    "Test3G3FUnderpoweredStop",
+    "assert_execution_authority_reserved",
     "assert_zero_protected_counters",
+    "bind_source_evidence",
     "build_design_matrix",
     "build_response_vector",
+    "close_execution_authority",
     "describe_pre_activation_stop",
+    "execution_authority_report",
     "load_owner_activation_capability",
+    "open_execution_authority",
+    "record_terminal_stop",
     "run_one_shot_fits",
 )
 
@@ -482,7 +558,7 @@ def test_no_module_level_mint_factory_capability_class_or_registry_remains() -> 
         for name, value in vars(g3f).items()
         if isinstance(value, (dict, list, set)) and not name.startswith("__")
     }
-    assert mutable == {"FOLD_ROLE_ATTRIBUTES"}
+    assert mutable == {"FOLD_HOLDOUT_YEARS", "FOLD_ROLE_ATTRIBUTES"}
 
     # The only bare sentinel object is the non-authoritative module-instance identity marker.
     bare = {name for name, value in vars(g3f).items() if type(value) is object}
@@ -573,8 +649,9 @@ def test_direct_dataclass_dict_duck_and_serial_copies_cannot_enable_real_mode(
         repository_root: str
         reviewed_digests: tuple[str, ...]
         fit_permit_budget: int = 4
-        owner_activation_id: str = "SYNTHETIC_PLACEHOLDER_NOT_OWNER_EVIDENCE"
-        activation_document_sha256: str = "0" * 64
+        recovery_lineage_id: str = "SYNTHETIC-PLACEHOLDER-LINEAGE-001"
+        override_id: str = "SYNTHETIC-PLACEHOLDER-OVERRIDE-001"
+        activation_payload_sha256: str = "0" * 64
         activation_file_sha256: str = "1" * 64
         runtime_evidence: tuple[object, ...] = ()
 
@@ -586,8 +663,9 @@ def test_direct_dataclass_dict_duck_and_serial_copies_cannot_enable_real_mode(
             self.repository_root = str(root)
             self.reviewed_digests = digests
             self.fit_permit_budget = 4
-            self.owner_activation_id = "SYNTHETIC_PLACEHOLDER_NOT_OWNER_EVIDENCE"
-            self.activation_document_sha256 = "0" * 64
+            self.recovery_lineage_id = "SYNTHETIC-PLACEHOLDER-LINEAGE-001"
+            self.override_id = "SYNTHETIC-PLACEHOLDER-OVERRIDE-001"
+            self.activation_payload_sha256 = "0" * 64
             self.activation_file_sha256 = "1" * 64
             self.runtime_evidence = ()
 
@@ -619,10 +697,11 @@ def test_direct_dataclass_dict_duck_and_serial_copies_cannot_enable_real_mode(
     with pytest.raises(module.Test3G3FOneShotError, match="direct construction"):
         capability_type(
             object(),
-            activation_document_sha256="0" * 64,
             activation_file_sha256="1" * 64,
+            activation_payload_sha256="0" * 64,
             fit_permit_budget=4,
-            owner_activation_id="A",
+            override_id="A",
+            recovery_lineage_id="B",
             repository_root=str(root),
             reviewed_digests=digests,
             runtime_evidence=(),
@@ -671,10 +750,10 @@ def test_reviewed_byte_drift_after_load_stops_before_math_permits_or_callbacks(
 
 def test_wrong_reviewed_bytes_never_issue_a_capability(tmp_path: Path) -> None:
     module = _fresh_g3f_module()
-    root, _activation, digests, _document = _prepared_activation(tmp_path)
+    root, _activation, digests, _payload = _prepared_activation(tmp_path)
     forged = _write_activation(
         tmp_path / "forged-bytes",
-        _activation_document(digests, reviewed_path_sha256=["a" * 64] * 6),
+        _activation_payload(digests, implementation_path_sha256=["a" * 64] * 6),
     )
     with pytest.raises(module.Test3G3FOneShotError, match="do not match the activation"):
         module.load_owner_activation_capability(forged, repository_root=str(root))
@@ -1016,7 +1095,7 @@ def test_a_failed_validation_leaves_the_loader_permanently_refused(tmp_path: Pat
     root, activation, digests, document = _prepared_activation(tmp_path)
     hostile = _write_activation(
         tmp_path / "hostile-budget",
-        _activation_document(digests, fit_permit_budget=5),
+        _activation_payload(digests, fit_permit_budget=5),
     )
 
     with pytest.raises(module.Test3G3FOneShotError, match="lifetime fit budget"):
@@ -1038,7 +1117,7 @@ def test_a_pre_existing_replay_claim_refuses_the_activation(tmp_path: Path) -> N
     prior = b"PRIOR_SYNTHETIC_PROCESS_CLAIM\n"
     claim.write_bytes(prior)
 
-    with pytest.raises(module.Test3G3FOneShotError, match="already claimed"):
+    with pytest.raises(module.Test3G3FOneShotError, match="already exists"):
         module.load_owner_activation_capability(activation, repository_root=str(root))
 
     assert claim.read_bytes() == prior  # the claim is never overwritten
@@ -1070,7 +1149,7 @@ def test_a_second_module_instance_cannot_replay_a_claimed_activation(tmp_path: P
     assert claim.is_file() and not claim.is_symlink()
 
     second = _fresh_g3f_module()
-    with pytest.raises(second.Test3G3FOneShotError, match="already claimed"):
+    with pytest.raises(second.Test3G3FOneShotError, match="already exists"):
         second.load_owner_activation_capability(activation, repository_root=str(root))
 
     # The persistent claim is never rewritten, extended or truncated by the refused replay.
@@ -1122,7 +1201,7 @@ def test_claim_collisions_and_unsafe_claim_directories_are_terminal(tmp_path: Pa
         name="collision-directory",
     )
     _claim_path(root3, document3).mkdir()
-    with pytest.raises(collision.Test3G3FOneShotError, match="already claimed"):
+    with pytest.raises(collision.Test3G3FOneShotError, match="already exists"):
         collision.load_owner_activation_capability(activation3, repository_root=str(root3))
     assert _claim_path(root3, document3).is_dir()
 
@@ -1134,7 +1213,7 @@ def test_claim_collisions_and_unsafe_claim_directories_are_terminal(tmp_path: Pa
     )
     never = tmp_path / "never-created-claim-target"
     _claim_path(root4, document4).symlink_to(never)
-    with pytest.raises(symlinked.Test3G3FOneShotError, match="already claimed"):
+    with pytest.raises(symlinked.Test3G3FOneShotError, match="already exists"):
         symlinked.load_owner_activation_capability(activation4, repository_root=str(root4))
     assert not never.exists()
 
@@ -1147,70 +1226,48 @@ def test_activation_loader_refuses_every_hostile_document(tmp_path: Path) -> Non
     root, _activation, digests, document = _prepared_activation(tmp_path)
     paths = list(g3f.REVIEWED_IMPLEMENTATION_PATHS)
 
-    hostile_documents = (
-        _activation_document(digests, fit_permit_budget=5),
-        _activation_document(digests, fit_permit_budget=True),
-        _activation_document(digests, activation_document_sha256="not-a-digest"),
-        _activation_document(digests, owner_activation_id=""),
-        _activation_document(digests, implementation_paths=paths[:5]),
-        _activation_document(digests, implementation_paths=[*paths, "tools/extra.py"]),
-        _activation_document(digests, implementation_paths=[paths[1], paths[0], *paths[2:]]),
-        _activation_document(digests, implementation_paths=[*paths[:5], "tools/other.py"]),
-        _activation_document(digests, reviewed_path_sha256=list(digests[:5])),
-        _activation_document(digests, reviewed_path_sha256=["4" * 64] * 6),
-        _activation_document(digests, runtime_evidence={"root": "only"}),
-        _activation_document(
+    hostile_payloads = (
+        _activation_payload(digests, fit_permit_budget=5),
+        _activation_payload(digests, fit_permit_budget=True),
+        _activation_payload(digests, recovery_lineage_id=""),
+        _activation_payload(digests, override_id=""),
+        _activation_payload(digests, recovery_lineage_id="lineage/with/separators"),
+        _activation_payload(
             digests,
-            runtime_evidence={
-                "root": "synthetic-placeholder-root",
-                "namespace": "synthetic-placeholder-namespace",
-                "reservation_name": "synthetic-placeholder-namespace",
-                "permit_names": [f"synthetic-placeholder-permit-{i}" for i in (1, 2, 3, 4)],
-                "terminal_name": "synthetic-placeholder-terminal",
-            },
+            recovery_lineage_id=min(g3f.FORBIDDEN_HISTORICAL_IDENTITIES),
         ),
-        _activation_document(
+        _activation_payload(digests, protocol_id="MES_TEST3_SOMETHING_ELSE"),
+        _activation_payload(digests, protocol_sha256="7" * 64),
+        _activation_payload(digests, target_space_id="TARGET_SPACE_999"),
+        _activation_payload(digests, implementation_paths=paths[:5]),
+        _activation_payload(digests, implementation_paths=[*paths, "tools/extra.py"]),
+        _activation_payload(digests, implementation_paths=[paths[1], paths[0], *paths[2:]]),
+        _activation_payload(digests, implementation_paths=[*paths[:5], "tools/other.py"]),
+        _activation_payload(digests, implementation_path_sha256=list(digests[:5])),
+        _activation_payload(digests, implementation_path_sha256=["4" * 64] * 6),
+        _activation_payload(digests, runtime_evidence={"root": "only"}),
+        _activation_payload(
             digests,
-            runtime_evidence={
-                "root": "synthetic-placeholder-root",
-                "namespace": "synthetic-placeholder-namespace",
-                "reservation_name": "synthetic-placeholder-reservation",
-                "permit_names": ["synthetic-placeholder-permit-1"] * 4,
-                "terminal_name": "synthetic-placeholder-terminal",
-            },
+            runtime_evidence=_runtime_evidence(
+                reservation_name="synthetic-placeholder-namespace"
+            ),
         ),
-        _activation_document(
+        _activation_payload(
             digests,
-            runtime_evidence={
-                "root": "../escape",
-                "namespace": "synthetic-placeholder-namespace",
-                "reservation_name": "synthetic-placeholder-reservation",
-                "permit_names": [f"synthetic-placeholder-permit-{i}" for i in (1, 2, 3, 4)],
-                "terminal_name": "synthetic-placeholder-terminal",
-            },
+            runtime_evidence=_runtime_evidence(
+                permit_names=["synthetic-placeholder-permit-1"] * 4
+            ),
         ),
-        _activation_document(
+        _activation_payload(digests, runtime_evidence=_runtime_evidence(root="../escape")),
+        _activation_payload(digests, runtime_evidence=_runtime_evidence(namespace="")),
+        _activation_payload(
             digests,
-            runtime_evidence={
-                "root": "synthetic-placeholder-root",
-                "namespace": "",
-                "reservation_name": "synthetic-placeholder-reservation",
-                "permit_names": [f"synthetic-placeholder-permit-{i}" for i in (1, 2, 3, 4)],
-                "terminal_name": "synthetic-placeholder-terminal",
-            },
-        ),
-        _activation_document(
-            digests,
-            runtime_evidence={
-                "root": "synthetic-placeholder-root",
-                "namespace": "synthetic-placeholder-namespace",
-                "reservation_name": "synthetic-placeholder-reservation",
-                "permit_names": [f"synthetic-placeholder-permit-{i}" for i in (1, 2, 3)],
-                "terminal_name": "synthetic-placeholder-terminal",
-            },
+            runtime_evidence=_runtime_evidence(
+                permit_names=[f"synthetic-placeholder-permit-{i}" for i in (1, 2, 3)]
+            ),
         ),
     )
-    for index, hostile in enumerate(hostile_documents):
+    for index, hostile in enumerate(hostile_payloads):
         module = _fresh_g3f_module()
         path = _write_activation(tmp_path / f"hostile-{index}", hostile)
         with pytest.raises(module.Test3G3FOneShotError):
@@ -1218,18 +1275,67 @@ def test_activation_loader_refuses_every_hostile_document(tmp_path: Path) -> Non
         assert module._local_state_report()["activation_capability_issued"] is False
 
     missing = _fresh_g3f_module()
-    accepted = _activation_document(digests)
+    accepted = _activation_payload(digests)
     accepted.pop("runtime_evidence")
     path = _write_activation(tmp_path / "hostile-missing-key", accepted)
-    with pytest.raises(missing.Test3G3FOneShotError, match="closed top-level key set"):
+    with pytest.raises(missing.Test3G3FOneShotError, match="closed key set"):
         missing.load_owner_activation_capability(path, repository_root=str(root))
 
     additional = _fresh_g3f_module()
-    extra = _activation_document(digests)
+    extra = _activation_payload(digests)
     extra["unexpected"] = "value"
     path = _write_activation(tmp_path / "hostile-extra-key", extra)
-    with pytest.raises(additional.Test3G3FOneShotError, match="closed top-level key set"):
+    with pytest.raises(additional.Test3G3FOneShotError, match="closed key set"):
         additional.load_owner_activation_capability(path, repository_root=str(root))
+
+    # An envelope that carries anything beyond the payload and its digest is refused, and a
+    # digest that does not cover the exact nested payload is refused.
+    broadened = _fresh_g3f_module()
+    envelope = _envelope(_activation_payload(digests))
+    envelope["extra_envelope_field"] = "value"
+    path = tmp_path / "hostile-envelope-key"
+    path.write_bytes(_canonical(envelope))
+    with pytest.raises(broadened.Test3G3FOneShotError, match="closed envelope key set"):
+        broadened.load_owner_activation_capability(str(path), repository_root=str(root))
+
+    forged = _fresh_g3f_module()
+    path = _write_activation(
+        tmp_path / "hostile-forged-digest",
+        _activation_payload(digests),
+        digest="b" * 64,
+    )
+    with pytest.raises(forged.Test3G3FOneShotError, match="does not cover the exact nested"):
+        forged.load_owner_activation_capability(path, repository_root=str(root))
+
+    # A digest that covers the envelope rather than only the payload is refused, which is
+    # exactly the self-referential shape this envelope replaces.
+    self_referential = _fresh_g3f_module()
+    payload = _activation_payload(digests)
+    placeholder = _envelope(payload, digest="0" * 64)
+    path = tmp_path / "hostile-self-referential"
+    path.write_bytes(
+        _canonical(
+            _envelope(payload, digest=hashlib.sha256(_canonical(placeholder)).hexdigest())
+        )
+    )
+    with pytest.raises(
+        self_referential.Test3G3FOneShotError,
+        match="does not cover the exact nested",
+    ):
+        self_referential.load_owner_activation_capability(
+            str(path),
+            repository_root=str(root),
+        )
+
+    # Valid JSON with a correct payload digest is still refused unless the bytes are canonical.
+    noncanonical = _fresh_g3f_module()
+    path = tmp_path / "hostile-noncanonical"
+    path.write_text(
+        json.dumps(_envelope(_activation_payload(digests)), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(noncanonical.Test3G3FOneShotError, match="canonical UTF-8 envelope"):
+        noncanonical.load_owner_activation_capability(str(path), repository_root=str(root))
 
     # No capability was issued and no activation was claimed, so a real run still stops with
     # zero permits and no callback.
@@ -1243,21 +1349,21 @@ def test_activation_loader_refuses_duplicate_keys_nonfinite_and_invalid_utf8(
     tmp_path: Path,
 ) -> None:
     root, _activation, digests, document = _prepared_activation(tmp_path)
-    body = json.dumps(_activation_document(digests), indent=2, sort_keys=True)
+    body = _canonical(_envelope(_activation_payload(digests))).decode("utf-8")
 
-    duplicate = "{\n" + '  "fit_permit_budget": 4,\n' + body[1:].lstrip()
+    duplicate = '{"activation_payload_sha256":"' + "0" * 64 + '",' + body[1:]
     duplicate_path = tmp_path / "duplicate-keys"
     duplicate_path.write_text(duplicate, encoding="utf-8")
 
     nonfinite_path = tmp_path / "nonfinite"
     nonfinite_path.write_text(
-        body.replace('"fit_permit_budget": 4', '"fit_permit_budget": NaN'),
+        body.replace('"fit_permit_budget":4', '"fit_permit_budget":NaN'),
         encoding="utf-8",
     )
 
     overflow_path = tmp_path / "overflow"
     overflow_path.write_text(
-        body.replace('"fit_permit_budget": 4', '"fit_permit_budget": 1e999'),
+        body.replace('"fit_permit_budget":4', '"fit_permit_budget":1e999'),
         encoding="utf-8",
     )
 
@@ -1433,9 +1539,1282 @@ def test_module_imports_only_the_closed_allowlist_and_writes_only_the_activation
 
     assert _filesystem_rename_surfaces(source) == []
 
-    # The single write surface is the exclusive, non-overwriting activation replay claim: one
-    # create, one write loop, and exactly two fsyncs for the file and its directory.
+    # There is exactly one write surface in the whole module: the exclusive, non-overwriting
+    # create-once record writer that publishes the activation replay claim, the reservation, the
+    # four ordered permits and the one terminal. One create, one write loop, and exactly two
+    # fsyncs for the record and its directory.
     assert source.count("os.O_CREAT") == 1
     assert source.count("os.O_EXCL") == 1
     assert source.count("os.write(") == 1
     assert source.count("os.fsync(") == 2
+    assert source.count("def _create_record_once(") == 1
+
+
+# ---------------------------------------------------------------------------------------------
+# Real execution completion.
+#
+# Every fixture below is synthetic and in memory, and every durable record lives under a
+# per-test ``tmp_path``. No test here reads a data artifact, reaches a provider, requests or
+# constructs a real target, consumes the real target space, or creates a real activation file.
+# ---------------------------------------------------------------------------------------------
+
+_SESSION_ROWS = 9
+_TRAIN_SESSIONS = 30
+
+#: The injected overlapping TRAIN session opens five hours earlier than an ordinary session, so
+#: every injected row carries a unique identity and a unique decision time on a date that is also
+#: a holdout date. The synthetic duplicate rejection of the stage is left completely intact; the
+#: fixture simply stops shadowing it so the intended purge gate is the control that fires.
+_OVERLAP_TRAIN_OPEN_OFFSET_MINUTES = -300
+
+#: Deterministic low-discrepancy multipliers. They give three effectively uncorrelated predictor
+#: sequences plus one unexplained response component, so the synthetic design is well conditioned
+#: and full rank without any random generator.
+_LOW_DISCREPANCY_MULTIPLIERS = (
+    0.6180339887498949,
+    0.4142135623730951,
+    0.7320508075688772,
+    0.2360679774997897,
+)
+
+#: A finite, full-rank, but nearly collinear synthetic TRAIN ``X60`` column. The spread stays far
+#: above the frozen rank tolerance, so the structural prefit passes and least squares legitimately
+#: returns a huge finite coefficient.
+_DEGENERATE_VOL_60M = 0.5
+_DEGENERATE_X60_SPREAD = 1.0e-9
+
+
+def _unit(index: int, multiplier: float) -> float:
+    """One deterministic low-discrepancy value in ``[0, 1)``; no random generator is used."""
+
+    return math.fmod(float(index) * multiplier, 1.0)
+
+
+def _recovery_values(
+    index: int,
+    harmonic: Harmonic,
+    *,
+    degenerate: bool,
+) -> tuple[tuple[float, float, float], float]:
+    """Well-conditioned synthetic predictors and one strictly positive forward variance.
+
+    The three volatilities come from independent low-discrepancy sequences, so the frozen design
+    ``2 * ln(vol)`` stays full rank and far from collinear, and the response is a mild linear
+    function of that design plus one unexplained component. ``degenerate`` keeps every value
+    finite and positive but compresses ``X60`` into a ``1e-9`` band around a constant, which is
+    the controlled adversarial condition that makes least squares return a huge finite result.
+    """
+
+    u60, u120, u240, u_noise = (
+        _unit(index, multiplier) for multiplier in _LOW_DISCREPANCY_MULTIPLIERS
+    )
+    vol_60m = 0.25 + 0.55 * u60
+    vol_120m = 0.30 + 0.45 * u120
+    vol_240m = 0.35 + 0.40 * u240
+    if degenerate:
+        vol_60m = _DEGENERATE_VOL_60M * math.exp(0.5 * _DEGENERATE_X60_SPREAD * u_noise)
+    x60, x120, x240 = (2.0 * math.log(value) for value in (vol_60m, vol_120m, vol_240m))
+    log_variance = (
+        -3.4
+        + 0.20 * x60
+        + 0.12 * x120
+        + 0.08 * x240
+        + 0.05 * harmonic.session_sin
+        + 0.04 * harmonic.session_cos
+        + 0.30 * (u_noise - 0.5)
+    )
+    return (vol_60m, vol_120m, vol_240m), math.exp(log_variance)
+
+
+def _recovery_specs(
+    *,
+    holdout_2022_sessions: int = 22,
+    holdout_2023_sessions: int = 24,
+    train_sessions: int = _TRAIN_SESSIONS,
+    wrong_holdout_year: bool = False,
+    overlapping_train_session: bool = False,
+) -> list[tuple[date, str, str, int]]:
+    """Ordered ``(session_date, role_wf_2022, role_wf_2023, session_open_offset)`` specs."""
+
+    specs: list[tuple[date, str, str, int]] = [
+        (date(2021, 1, 4) + timedelta(days=index), "TRAIN", "TRAIN", 0)
+        for index in range(train_sessions)
+    ]
+    if overlapping_train_session:
+        specs.append(
+            (date(2022, 3, 10), "TRAIN", "TRAIN", _OVERLAP_TRAIN_OPEN_OFFSET_MINUTES)
+        )
+    specs.extend(
+        (date(2022, 3, 1) + timedelta(days=index), "VALIDATION", "UNUSED", 0)
+        for index in range(holdout_2022_sessions)
+    )
+    specs.extend(
+        (
+            date(2023, 3, 1) + timedelta(days=index),
+            "UNUSED",
+            "VALIDATION",
+            0,
+        )
+        for index in range(holdout_2023_sessions)
+    )
+    if wrong_holdout_year:
+        specs = [
+            (
+                session_date,
+                role_2022,
+                "VALIDATION" if role_2022 == "VALIDATION" else role_2023,
+                open_offset,
+            )
+            for session_date, role_2022, role_2023, open_offset in specs
+        ]
+    return sorted(specs, key=lambda item: (item[0], item[3]))
+
+
+def _recovery_fields(
+    *,
+    rows_per_session: int = _SESSION_ROWS,
+    train_rows_per_session: int | None = None,
+    degenerate_train_predictors: bool = False,
+    **spec_options: object,
+) -> dict[str, object]:
+    """Build one synthetic, structurally sufficient G3-P delivery payload."""
+
+    controls: list[_StubControl] = []
+    predictor_rows: list[PredictorStatusRow] = []
+    target_rows: list[TargetStatusRow] = []
+    values: dict[str, tuple[float, float, float]] = {}
+    variances: dict[str, float] = {}
+    harmonics: dict[str, Harmonic] = {}
+    index = 0
+    for session_date, role_2022, role_2023, open_offset in _recovery_specs(**spec_options):
+        session_open = datetime.combine(session_date, time(14, 45), tzinfo=UTC) + timedelta(
+            minutes=open_offset
+        )
+        is_train = (role_2022, role_2023) == ("TRAIN", "TRAIN")
+        session_rows = rows_per_session
+        if train_rows_per_session is not None and is_train:
+            session_rows = train_rows_per_session
+        for slot in range(session_rows):
+            moment = session_open + timedelta(minutes=15 * slot)
+            identity = f"{moment.isoformat()}|instrument_id=12345"
+            angle = 2.0 * math.pi * slot / 22
+            harmonic = Harmonic(
+                slot=slot,
+                n_slots=22,
+                session_sin=math.sin(angle),
+                session_cos=math.cos(angle),
+            )
+            predictors, variance = _recovery_values(
+                index,
+                harmonic,
+                degenerate=degenerate_train_predictors and is_train,
+            )
+            controls.append(
+                _StubControl(
+                    identity,
+                    moment,
+                    session_date.isoformat(),
+                    role_2022,
+                    role_2023,
+                )
+            )
+            predictor_rows.append(
+                PredictorStatusRow(identity, moment, RowStatus.PREDICTOR_USABLE.value)
+            )
+            target_rows.append(
+                TargetStatusRow(
+                    identity,
+                    moment,
+                    moment + timedelta(minutes=60),
+                    RowStatus.TARGET_USABLE.value,
+                    variance,
+                    math.log(variance),
+                )
+            )
+            values[identity] = predictors
+            variances[identity] = variance
+            harmonics[identity] = harmonic
+            index += 1
+    return {
+        "controls": tuple(controls),
+        "predictor_status_rows": tuple(predictor_rows),
+        "predictor_values": values,
+        "target_status_rows": tuple(target_rows),
+        "target_variance_by_identity": variances,
+        "harmonic_by_identity": harmonics,
+    }
+
+
+def _prepared_execution(
+    tmp_path: Path,
+    module,
+    *,
+    name: str = "recovery-repository",
+) -> tuple[Path, dict[str, object], object]:
+    """Verify a synthetic activation and open one durable execution authority."""
+
+    root, activation, _digests, payload = _prepared_activation(tmp_path, name=name)
+    capability = module.load_owner_activation_capability(activation, repository_root=str(root))
+    authority = module.open_execution_authority(capability)
+    return root, payload, authority
+
+
+def _deliver(module, fields: Mapping[str, object]) -> object:
+    handle, marker = module._claim_g3p_delivery_handle()
+    return handle(marker, handoff_id=module.EXPECTED_HANDOFF_ID)(**fields)
+
+
+def _recovery_rows(module, fields: Mapping[str, object]) -> tuple[object, ...]:
+    """Rebuild, in the same order, the eligible rows the stage derives from one payload.
+
+    Every synthetic row here is usable, so this mirrors the stage's own ordered intake and lets a
+    test recompute a pair's TRAIN quantities from the delivered values alone.
+    """
+
+    values = fields["predictor_values"]
+    variances = fields["target_variance_by_identity"]
+    harmonics = fields["harmonic_by_identity"]
+    return tuple(
+        module.OneShotEligibleRow(
+            decision_identity=control.identity,
+            decision_time_utc=control.timestamp,
+            session_id=control.session_id,
+            role_wf_2022=control.role_2022,
+            role_wf_2023=control.role_2023,
+            harmonic=harmonics[control.identity],
+            rv_fwd_60=float(variances[control.identity]),
+            realized_vol_60m=float(values[control.identity][0]),
+            realized_vol_120m=float(values[control.identity][1]),
+            realized_vol_240m=float(values[control.identity][2]),
+            origin=module.RowOrigin.G3P_IN_PROCESS_HANDOFF,
+        )
+        for control in fields["controls"]
+    )
+
+
+def _read_record(root: Path, payload: Mapping[str, object], name: str) -> dict:
+    return json.loads(_record_path(root, payload, name).read_text(encoding="utf-8"))
+
+
+def _evidence(payload: Mapping[str, object]) -> Mapping[str, object]:
+    evidence = payload["runtime_evidence"]
+    assert isinstance(evidence, Mapping)
+    return evidence
+
+
+def test_full_real_trace_reserves_fits_and_writes_exactly_one_terminal(tmp_path: Path) -> None:
+    """verify -> reservation -> handoff -> four internal fits -> metrics -> terminal."""
+
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    evidence = _evidence(payload)
+
+    binding = module.assert_execution_authority_reserved(authority)
+    assert binding["reservation_status"] == module.RESERVATION_STATUS
+    assert binding["protocol_id"] == PROTOCOL_ID
+    assert binding["target_space_id"] == TARGET_SPACE_ID
+    reservation = _read_record(root, payload, str(evidence["reservation_name"]))
+    assert reservation["record_kind"] == module.RESERVATION_RECORD_KIND
+    assert reservation["validation_status"] == "UNOPENED"
+    assert reservation["final_test_status"] == "SEALED"
+
+    # No permit and no terminal may exist before a single row moves.
+    for name in (*evidence["permit_names"], evidence["terminal_name"]):
+        assert not _record_path(root, payload, str(name)).exists()
+
+    module.bind_source_evidence(
+        authority,
+        {"stage": "SYNTHETIC_G3P_STAND_IN", "rows_delivered": True},
+    )
+    assert _deliver(module, _recovery_fields()) is None  # no raw row returns to the caller
+
+    terminal = _read_record(root, payload, str(evidence["terminal_name"]))
+    assert terminal["record_kind"] == module.TERMINAL_RECORD_KIND
+    assert terminal["disposition"] in {item.value for item in TerminalDisposition}
+    assert terminal["disposition"] not in {"UNDERPOWERED_STOP", "INVALID_EVIDENCE"}
+    assert terminal["pair_order"] == [
+        "RVBASE001/WF_2022",
+        "RVHAR001/WF_2022",
+        "RVBASE001/WF_2023",
+        "RVHAR001/WF_2023",
+    ]
+    assert terminal["permits"] == {
+        "names": list(evidence["permit_names"]),
+        "created": 4,
+        "consumed": 4,
+        "callback_starts": 4,
+        "validated_outputs": 4,
+        "refused_requests": 0,
+        "poisoned": False,
+        "sealed": True,
+        "unreplenished": True,
+    }
+    assert terminal["counters"] == {
+        "permits_created": 4,
+        "permits_consumed": 4,
+        "real_fold_fit_calls": 4,
+        "real_models_fitted": 2,
+        "real_coefficients_computed": 4,
+        "duan_factors_computed": 4,
+        "real_forecasts_computed": terminal["metrics"]["pooled"]["row_count"] * 2,
+        "real_qlike_evaluations": terminal["metrics"]["pooled"]["row_count"] * 2,
+        "real_bootstrap_replicates": 6_000,
+        "validation_rows_read": 0,
+        "final_test_rows_read": 0,
+    }
+    assert terminal["validation_status"] == "UNOPENED"
+    assert terminal["final_test_status"] == "SEALED"
+    assert terminal["source_and_g3p_binding"]["stage"] == "SYNTHETIC_G3P_STAND_IN"
+
+    # Every ordered permit exists, each bound to its own pair and to the reservation.
+    for ordinal, name in enumerate(evidence["permit_names"], start=1):
+        permit = _read_record(root, payload, str(name))
+        assert permit["record_kind"] == module.PERMIT_RECORD_KIND
+        assert permit["ordinal"] == ordinal
+        assert permit["reservation_sha256"] == binding["reservation_sha256"]
+        model_id, fold_id = module.EXPECTED_PAIR_ORDER[ordinal - 1]
+        assert (permit["model_id"], permit["fold_id"]) == (model_id, fold_id)
+        assert permit["estimator"] == "numpy.linalg.lstsq(rcond=None)"
+
+    report = module.execution_authority_report(authority)
+    assert report["disposition"] == terminal["disposition"]
+    assert report["terminal_record_sha256"] == terminal["terminal_record_sha256"]
+
+    cleanup = module.close_execution_authority(authority)
+    assert cleanup["durable_records_deleted"] == 0
+    assert cleanup["durable_records_mutated"] == 0
+    assert cleanup["memory_erasure_claimed"] is False
+    assert _record_path(root, payload, str(evidence["terminal_name"])).is_file()
+
+
+def test_terminal_digest_is_machine_computed_and_not_self_referential(tmp_path: Path) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    _deliver(module, _recovery_fields())
+    terminal = _read_record(root, payload, str(_evidence(payload)["terminal_name"]))
+
+    declared = terminal.pop("terminal_record_sha256")
+    assert hashlib.sha256(_canonical(terminal)).hexdigest() == declared
+    # The digest of the whole published record is necessarily a different value.
+    terminal["terminal_record_sha256"] = declared
+    assert hashlib.sha256(_canonical(terminal)).hexdigest() != declared
+
+
+def test_recorded_fits_use_the_frozen_estimator_pair_order_and_coefficient_bytes(
+    tmp_path: Path,
+) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    _deliver(module, _recovery_fields())
+    terminal = _read_record(root, payload, str(_evidence(payload)["terminal_name"]))
+
+    assert len(terminal["fits"]) == 4
+    for ordinal, fit in enumerate(terminal["fits"], start=1):
+        model_id, fold_id = module.EXPECTED_PAIR_ORDER[ordinal - 1]
+        assert (fit["ordinal"], fit["model_id"], fit["fold_id"]) == (ordinal, model_id, fold_id)
+        assert fit["column_names"] == list(MODEL_COLUMNS[model_id])
+        assert fit["coefficient_dimension"] == len(MODEL_COLUMNS[model_id])
+        assert fit["rank"] == len(MODEL_COLUMNS[model_id])
+        assert len(fit["singular_values"]) == len(MODEL_COLUMNS[model_id])
+        assert fit["condition_number"] is not None and fit["condition_number"] > 0.0
+        assert fit["train_row_count"] > len(MODEL_COLUMNS[model_id])
+        assert fit["numerical_identity"]["estimator"] == "numpy.linalg.lstsq(rcond=None)"
+        assert fit["numerical_identity"]["numpy_version"] == np.__version__
+        assert fit["forecast_floor_or_clipping_applied"] is False
+        expected = hashlib.sha256(
+            np.ascontiguousarray(
+                np.asarray(fit["coefficients"], dtype="<f8").reshape(-1)
+            ).tobytes(order="C")
+        ).hexdigest()
+        assert fit["coefficient_sha256"] == expected
+
+
+def test_coefficient_digest_is_little_endian_float64_c_order_bytes_never_text() -> None:
+    beta = np.array([1.5, -2.25, 0.0, 7.125, 1e-9, -3.0], dtype=np.float64)
+    expected = hashlib.sha256(
+        np.ascontiguousarray(np.asarray(beta, dtype="<f8").reshape(-1)).tobytes(order="C")
+    ).hexdigest()
+
+    assert g3f._coefficient_sha256(beta) == expected
+    assert g3f._coefficient_sha256(list(beta)) == expected
+    assert g3f._coefficient_sha256(np.asfortranarray(beta)) == expected
+    assert g3f._coefficient_sha256(beta) != hashlib.sha256(
+        json.dumps([float(value) for value in beta]).encode("utf-8")
+    ).hexdigest()
+    with pytest.raises(g3f.Test3G3FOneShotError):
+        g3f._coefficient_sha256(np.array([1.0, math.nan], dtype=np.float64))
+
+
+def test_duan_is_fold_and_model_local_and_forecasts_are_unclipped(tmp_path: Path) -> None:
+    """Four separately computed model/fold-local factors, never four numerically unique values.
+
+    The frozen contract requires one Duan factor per model/fold pair, computed from that pair's
+    own TRAIN residuals. Symmetric fold TRAIN populations can legitimately give the same model
+    equal factors in both folds, so numeric inequality is not required and is not asserted. Each
+    factor is instead recomputed mechanically from that pair's TRAIN design and response and the
+    coefficients recorded for it.
+    """
+
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    fields = _recovery_fields()
+    _deliver(module, fields)
+    terminal = _read_record(root, payload, str(_evidence(payload)["terminal_name"]))
+
+    factors = {
+        (fit["model_id"], fit["fold_id"]): fit["duan_smearing_factor"]
+        for fit in terminal["fits"]
+    }
+    # Exactly the four ordered model/fold keys, each carrying one positive finite factor.
+    assert len(terminal["fits"]) == 4
+    assert set(factors) == set(module.EXPECTED_PAIR_ORDER)
+    assert len(factors) == 4
+    for factor in factors.values():
+        assert factor > 0.0 and math.isfinite(factor)
+
+    rows = _recovery_rows(module, fields)
+    response = module.build_response_vector(rows)
+    designs = {model_id: module.build_design_matrix(model_id, rows) for model_id in MODEL_ORDER}
+    for fit in terminal["fits"]:
+        model_id = str(fit["model_id"])
+        fold_id = str(fit["fold_id"])
+        train = [index for index, row in enumerate(rows) if row.fold_role(fold_id) == "TRAIN"]
+        # The factor is scoped to this pair's own fold TRAIN population, never to holdout rows.
+        assert len(train) == fit["train_row_count"]
+        assert len(train) < len(rows)
+        beta = np.asarray(fit["coefficients"], dtype=np.float64)
+        # The oracle recomputes the fitted values through the same explicit checked kernel the
+        # module uses, so the comparison is against the identical arithmetic and the oracle
+        # cannot emit a BLAS backend ``RuntimeWarning`` of its own.
+        fitted = module._checked_matrix_vector_product(
+            designs[model_id][train],
+            beta,
+            expected_rows=len(train),
+            label=f"{model_id}/{fold_id} oracle fitted TRAIN log-variance",
+        )
+        residuals = response[train] - fitted
+        assert fit["duan_smearing_factor"] == pytest.approx(
+            float(np.mean(np.exp(residuals))), rel=1e-12, abs=1e-15
+        )
+        assert fit["duan_scope"] == "FOLD_AND_MODEL_LOCAL_TRAIN_RESIDUALS_ONLY"
+        assert fit["forecast_floor_or_clipping_applied"] is False
+
+
+def test_a_huge_finite_least_squares_result_raises_instead_of_warning(tmp_path: Path) -> None:
+    """Adversarial numerics: finite inputs, a huge finite fit, and no escaping warning.
+
+    The synthetic TRAIN ``X60`` column is compressed into a ``1e-9`` band, which stays full rank
+    under the frozen prefit but makes least squares return a huge finite coefficient. The extreme
+    result then leaves the representable range, and the stage must fail closed into its single
+    ``INVALID_EVIDENCE`` terminal rather than emit a NumPy ``RuntimeWarning``, clip, floor or
+    absorb the value.
+
+    Two fail-closed routes are equally correct here and both are asserted as one closed set: the
+    checked prediction kernel raises ``FloatingPointError`` from its own narrowly scoped raised
+    state, or it proves the product non-finite and raises the module's ordinary error, or the
+    guarded semantic Duan/back-transform region raises ``FloatingPointError``. Which route fires
+    depends on where the extreme magnitude first leaves the range; the terminal, the counters and
+    the spent, poisoned, unreplaced permit asserted below are identical either way. What is *not*
+    permitted, and is asserted explicitly, is a ``Warning`` escaping instead of an error.
+    """
+
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module, name="numerical-repository")
+    evidence = _evidence(payload)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+
+    fields = _recovery_fields(degenerate_train_predictors=True)
+    # Every delivered input is finite and strictly positive; only the fit result is extreme.
+    for predictors in fields["predictor_values"].values():
+        assert all(math.isfinite(value) and value > 0.0 for value in predictors)
+    for variance in fields["target_variance_by_identity"].values():
+        assert math.isfinite(variance) and variance > 0.0
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with pytest.raises((FloatingPointError, module.Test3G3FOneShotError)) as extreme:
+            _deliver(module, fields)
+    # An error, never a warning promoted to an error, and never an underpowered pre-fit stop:
+    # the permit was already spent, so this must be the post-permit fail-closed route.
+    assert not isinstance(extreme.value, Warning)
+    assert not isinstance(extreme.value, module.Test3G3FUnderpoweredStop)
+
+    terminal = _read_record(root, payload, str(evidence["terminal_name"]))
+    assert terminal["disposition"] == "INVALID_EVIDENCE"
+    assert terminal["fits"] == []
+    assert terminal["bootstrap"] == []
+    assert terminal["metrics"] is None
+    assert terminal["gates"] is None
+
+    counters = terminal["counters"]
+    # Nothing succeeded downstream of the failed fit.
+    assert counters["real_fold_fit_calls"] == 0
+    assert counters["real_forecasts_computed"] == 0
+    assert counters["real_qlike_evaluations"] == 0
+    assert counters["real_bootstrap_replicates"] == 0
+    assert counters["duan_factors_computed"] == 0
+
+    # The issued permit was consumed before its own least-squares call and is never replaced.
+    assert counters["permits_created"] == 1
+    assert counters["permits_consumed"] == 1
+    assert terminal["permits"]["consumed"] == 1
+    assert terminal["permits"]["callback_starts"] == 1
+    assert terminal["permits"]["validated_outputs"] == 0
+    assert terminal["permits"]["poisoned"] is True
+    assert terminal["permits"]["sealed"] is False
+
+    # Exactly one terminal and exactly one permit exist beside the claim and the reservation.
+    assert {entry.name for entry in _claim_directory(root, payload).iterdir()} == {
+        str(evidence["reservation_name"]) + module._ACTIVATION_CLAIM_SUFFIX,
+        str(evidence["reservation_name"]),
+        str(evidence["permit_names"][0]),
+        str(evidence["terminal_name"]),
+    }
+    assert module.execution_authority_report(authority)["disposition"] == "INVALID_EVIDENCE"
+    with pytest.raises(module.Test3G3FOneShotError, match="attempted exactly once"):
+        module.record_terminal_stop(
+            authority,
+            disposition="INVALID_EVIDENCE",
+            reasons=("synthetic retry",),
+            source_binding={"stage": "SYNTHETIC_RETRY"},
+        )
+
+
+# ---------------------------------------------------------------------------------------------
+# Numerical error-state policy.
+#
+# The strict state is a semantic control, not a backend control. It guards the elementwise
+# exponential, division and logarithm arithmetic this stage performs itself, and it is never
+# placed around the BLAS/LAPACK-backed least-squares call, whose coefficients are proved
+# immediately for exact shape, float64 conversion and finiteness.
+#
+# The two predictions are no longer BLAS-backed products at all. One explicit checked float64
+# kernel validates operand compatibility, evaluates a deterministic non-optimized ``einsum``
+# contraction under its own narrowly scoped raised overflow/invalid state, and then proves the
+# product. That removes the backend lane flags that made a valid, well-conditioned fit emit a
+# ``RuntimeWarning``, while keeping a genuine extreme product on the fail-closed route.
+# ---------------------------------------------------------------------------------------------
+
+
+def _strict_numeric_contexts(source: str) -> list[ast.With]:
+    """Every ``with _strict_numerics():`` block in the module source."""
+
+    return [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.With)
+        and any(
+            isinstance(item.context_expr, ast.Call)
+            and isinstance(item.context_expr.func, ast.Name)
+            and item.context_expr.func.id == "_strict_numerics"
+            for item in node.items
+        )
+    ]
+
+
+def _matmul_nodes(node: ast.AST) -> list[ast.BinOp]:
+    return [
+        child
+        for child in ast.walk(node)
+        if isinstance(child, ast.BinOp) and isinstance(child.op, ast.MatMult)
+    ]
+
+
+def _attribute_calls(node: ast.AST, attribute: str) -> list[ast.Call]:
+    return [
+        child
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Attribute)
+        and child.func.attr == attribute
+    ]
+
+
+def _lstsq_calls(node: ast.AST) -> list[ast.Call]:
+    return _attribute_calls(node, "lstsq")
+
+
+def test_the_frozen_estimator_is_never_placed_under_the_strict_semantic_state() -> None:
+    """Structural proof: no BLAS/LAPACK-backed operation sits inside the strict semantic state.
+
+    A blocked, vectorized backend kernel sets hardware floating-point status flags for lanes and
+    partial products that never reach the returned result, so a flag observed there describes the
+    backend rather than the correctness of the fit. The strict state must therefore cover only
+    the elementwise arithmetic this stage performs itself.
+    """
+
+    source = Path(g3f.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    # The frozen estimator is still present, exactly once and unchanged.
+    assert len(_lstsq_calls(tree)) == 1
+
+    # Four semantic regions stay guarded: Duan and back-transform, per-fold QLIKE, the pooled
+    # relative reduction and the bootstrap arithmetic. The estimator is in none of them.
+    contexts = _strict_numeric_contexts(source)
+    assert len(contexts) == 4
+    for context in contexts:
+        assert _lstsq_calls(context) == []
+
+
+def test_no_blas_backed_product_remains_and_one_explicit_einsum_kernel_replaces_them() -> None:
+    """Structural proof of the causal fix: the prediction products are not BLAS-backed.
+
+    ``@`` and :func:`numpy.matmul` both dispatch to a blocked, vectorized backend that raises
+    hardware floating-point status flags for lanes and partial products which never reach the
+    returned result. NumPy surfaces those flags as ``RuntimeWarning`` divide, overflow or invalid
+    conditions even outside any ``errstate``, which is exactly what failed a valid fit. The module
+    must therefore contain no matrix-multiplication operator and no ``matmul`` call at all, and
+    exactly one deterministic non-optimized ``einsum`` contraction in their place.
+    """
+
+    source = Path(g3f.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    assert _matmul_nodes(tree) == []
+    assert _attribute_calls(tree, "matmul") == []
+    assert _attribute_calls(tree, "dot") == []
+    assert _attribute_calls(tree, "tensordot") == []
+
+    einsum_calls = _attribute_calls(tree, "einsum")
+    assert len(einsum_calls) == 1
+    call = einsum_calls[0]
+    # The subscript is the explicit matrix-vector contraction, given positionally and literally.
+    assert isinstance(call.args[0], ast.Constant)
+    assert call.args[0].value == "ij,j->i"
+    # Optimization is disabled, so no BLAS/tensordot path can be selected behind the subscript.
+    optimize = [keyword for keyword in call.keywords if keyword.arg == "optimize"]
+    assert len(optimize) == 1
+    assert isinstance(optimize[0].value, ast.Constant)
+    assert optimize[0].value.value is False
+
+    # The contraction sits inside its own narrowly scoped raised state, not the semantic state,
+    # so a genuine overflow or invalid operation in the requested arithmetic still raises.
+    for context in _strict_numeric_contexts(source):
+        assert _attribute_calls(context, "einsum") == []
+
+    guards = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.With)
+        and any(
+            isinstance(item.context_expr, ast.Call)
+            and isinstance(item.context_expr.func, ast.Attribute)
+            and item.context_expr.func.attr == "errstate"
+            for item in node.items
+        )
+    ]
+    assert len(guards) == 1
+    guard = guards[0]
+    # The guard covers exactly the one contraction and nothing else, in particular not lstsq.
+    assert len(_attribute_calls(guard, "einsum")) == 1
+    assert _lstsq_calls(guard) == []
+    assert _matmul_nodes(guard) == []
+    guard_call = guard.items[0].context_expr
+    assert isinstance(guard_call, ast.Call)
+    states = {
+        keyword.arg: keyword.value.value
+        for keyword in guard_call.keywords
+        if isinstance(keyword.value, ast.Constant)
+    }
+    # Only the two conditions that are genuinely relevant to a product are raised here; nothing
+    # is set to "ignore", suppressed, or handed to a warning filter or np.seterr.
+    assert states == {"over": "raise", "invalid": "raise"}
+
+
+def test_the_strict_state_raises_over_divide_and_invalid_but_not_gradual_underflow() -> None:
+    """Semantic overflow, division by zero and invalid operations still raise, never warn."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with g3f._strict_numerics():
+            with pytest.raises(FloatingPointError):
+                np.exp(np.array([1.0e6], dtype=np.float64))
+            with pytest.raises(FloatingPointError):
+                np.divide(np.array([1.0], dtype=np.float64), np.array([0.0], dtype=np.float64))
+            with pytest.raises(FloatingPointError):
+                np.log(np.array([-1.0], dtype=np.float64))
+            # Gradual underflow is an IEEE status, not a semantic defect. It neither raises nor
+            # escapes as a warning; the required outputs stay guarded by the explicit
+            # strictly-positive and finite checks instead.
+            underflowed = np.multiply(
+                np.array([1.0e-320], dtype=np.float64),
+                np.array([1.0e-10], dtype=np.float64),
+            )
+
+    assert float(underflowed[0]) == 0.0
+
+
+def test_every_linear_algebra_result_is_proved_for_shape_float64_and_finiteness() -> None:
+    """The replacement control is an explicit validation, never a clip, floor or absorption."""
+
+    accepted = g3f._finite_float64_vector([1.0, -2.5], expected_size=2, label="probe")
+    assert accepted.dtype == np.dtype(np.float64)
+    assert accepted.shape == (2,)
+
+    for rejected in (
+        [1.0],
+        [1.0, 2.0, 3.0],
+        [[1.0, 2.0]],
+        [1.0, math.inf],
+        [1.0, -math.inf],
+        [1.0, math.nan],
+    ):
+        with pytest.raises(g3f.Test3G3FOneShotError):
+            g3f._finite_float64_vector(rejected, expected_size=2, label="probe")
+
+
+def test_the_checked_kernel_computes_the_exact_product_without_a_runtime_warning() -> None:
+    """The replacement prediction kernel is exact, deterministic and warning-free."""
+
+    design = np.array([[1.0, -2.0, 0.5], [3.0, 0.25, -4.0]], dtype=np.float64)
+    coefficients = np.array([2.0, -1.0, 8.0], dtype=np.float64)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        product = g3f._checked_matrix_vector_product(
+            design, coefficients, expected_rows=2, label="probe"
+        )
+
+    assert product.dtype == np.dtype(np.float64)
+    assert product.shape == (2,)
+    # Exact expected values; no clipping, floor, tolerance widening or absorption is applied.
+    assert product.tolist() == [8.0, -26.25]
+    # Deterministic: the same operands give byte-identical results on repetition.
+    assert g3f._checked_matrix_vector_product(
+        design, coefficients, expected_rows=2, label="probe"
+    ).tolist() == product.tolist()
+
+
+def test_the_checked_kernel_validates_compatibility_before_it_computes_anything() -> None:
+    """Dimension, shape and dtype compatibility are refused before a single product is formed."""
+
+    design = np.array([[1.0, -2.0], [1.0, -3.0]], dtype=np.float64)
+    coefficients = np.array([1.0, 2.0], dtype=np.float64)
+
+    rejected: tuple[tuple[object, object, int], ...] = (
+        # A vector length that does not match the matrix column count.
+        (design, np.array([1.0, 2.0, 3.0], dtype=np.float64), 2),
+        # A one-dimensional "matrix" and a two-dimensional "vector".
+        (np.array([1.0, 2.0], dtype=np.float64), coefficients, 2),
+        (design, np.array([[1.0], [2.0]], dtype=np.float64), 2),
+        # A row count that does not match the declared expectation.
+        (design, coefficients, 3),
+        # A matrix with no columns to contract over.
+        (np.zeros((2, 0), dtype=np.float64), np.zeros(0, dtype=np.float64), 2),
+        # Operands that do not convert exactly to float64.
+        (np.array([["a", "b"], ["c", "d"]]), coefficients, 2),
+    )
+    for matrix, vector, expected_rows in rejected:
+        with pytest.raises(g3f.Test3G3FOneShotError):
+            g3f._checked_matrix_vector_product(
+                matrix, vector, expected_rows=expected_rows, label="probe"
+            )
+
+    for bad_rows in (0, -1, True):
+        with pytest.raises(g3f.Test3G3FOneShotError):
+            g3f._checked_matrix_vector_product(
+                design, coefficients, expected_rows=bad_rows, label="probe"
+            )
+
+
+def test_the_checked_kernel_fails_closed_on_an_extreme_product_and_never_warns() -> None:
+    """An extreme product raises into the ordinary fail-closed route instead of warning.
+
+    Either the narrowly scoped raised state stops the contraction with ``FloatingPointError`` or
+    the immediate finiteness proof rejects the product with the module's ordinary error. Both are
+    the same fail-closed route; neither clips, floors, absorbs or reads a backend status flag.
+    """
+
+    design = np.array([[1.0, -2.0], [1.0, -3.0]], dtype=np.float64)
+    coefficients = np.full(2, np.finfo(np.float64).max, dtype=np.float64)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with pytest.raises((FloatingPointError, g3f.Test3G3FOneShotError)) as extreme:
+            g3f._checked_matrix_vector_product(
+                design, coefficients, expected_rows=2, label="probe"
+            )
+    assert not isinstance(extreme.value, Warning)
+
+    # A non-finite operand is refused on the same route rather than propagated.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with pytest.raises((FloatingPointError, g3f.Test3G3FOneShotError)) as nonfinite:
+            g3f._checked_matrix_vector_product(
+                design,
+                np.array([math.inf, 1.0], dtype=np.float64),
+                expected_rows=2,
+                label="probe",
+            )
+    assert not isinstance(nonfinite.value, Warning)
+
+
+def test_the_normal_synthetic_path_completes_four_ordered_fits_without_a_runtime_warning(
+    tmp_path: Path,
+) -> None:
+    """The well-conditioned synthetic path must not be failed by a backend status flag."""
+
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        assert _deliver(module, _recovery_fields()) is None
+
+    terminal = _read_record(root, payload, str(_evidence(payload)["terminal_name"]))
+    assert terminal["disposition"] not in {"UNDERPOWERED_STOP", "INVALID_EVIDENCE"}
+    assert [(str(fit["model_id"]), str(fit["fold_id"])) for fit in terminal["fits"]] == list(
+        module.EXPECTED_PAIR_ORDER
+    )
+    assert terminal["permits"]["consumed"] == 4
+    assert terminal["permits"]["callback_starts"] == 4
+    assert terminal["permits"]["validated_outputs"] == 4
+    assert terminal["permits"]["poisoned"] is False
+    assert terminal["permits"]["sealed"] is True
+    assert terminal["counters"]["real_fold_fit_calls"] == 4
+    assert terminal["counters"]["real_bootstrap_replicates"] == 6_000
+    for fit in terminal["fits"]:
+        assert fit["duan_smearing_factor"] > 0.0
+        assert math.isfinite(float(fit["duan_smearing_factor"]))
+        assert fit["forecast_floor_or_clipping_applied"] is False
+
+
+def _stub_lstsq(beta_for: Callable[[int], np.ndarray]) -> Callable[..., tuple]:
+    """A stubbed frozen estimator that returns one chosen coefficient vector.
+
+    Everything else it reports is structurally valid, so each case below isolates exactly one
+    defective linear-algebra result rather than a rank, singular-value or arity defect.
+    """
+
+    def stub(design: np.ndarray, response: np.ndarray, rcond: object = None) -> tuple:
+        columns = int(np.asarray(design).shape[1])
+        return (
+            beta_for(columns),
+            np.zeros(0, dtype=np.float64),
+            columns,
+            np.full(columns, 2.0, dtype=np.float64),
+        )
+
+    return stub
+
+
+@pytest.mark.parametrize(
+    "beta_for",
+    [
+        pytest.param(
+            lambda columns: np.full(columns, math.nan, dtype=np.float64),
+            id="nonfinite_coefficients",
+        ),
+        pytest.param(
+            lambda columns: np.zeros((columns, 1), dtype=np.float64),
+            id="wrong_dimensionality",
+        ),
+        pytest.param(
+            lambda columns: np.full(columns, np.finfo(np.float64).max, dtype=np.float64),
+            id="overflowing_matrix_products",
+        ),
+    ],
+)
+def test_an_invalid_linear_algebra_result_stops_at_one_invalid_evidence_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    beta_for: Callable[[int], np.ndarray],
+) -> None:
+    """A non-finite or wrongly shaped linear-algebra result must fail closed, not pass through.
+
+    The first permit is consumed before its own least-squares call, so it stays consumed and the
+    budget stays poisoned and unreplaced. Exactly one ``INVALID_EVIDENCE`` terminal is written,
+    nothing downstream of the failed fit runs, and there is no retry.
+    """
+
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    evidence = _evidence(payload)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    monkeypatch.setattr(np.linalg, "lstsq", _stub_lstsq(beta_for))
+
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        with pytest.raises(module.Test3G3FOneShotError):
+            _deliver(module, _recovery_fields())
+
+    terminal = _read_record(root, payload, str(evidence["terminal_name"]))
+    assert terminal["disposition"] == "INVALID_EVIDENCE"
+    assert terminal["fits"] == []
+    assert terminal["bootstrap"] == []
+    assert terminal["metrics"] is None
+    assert terminal["gates"] is None
+
+    counters = terminal["counters"]
+    assert counters["permits_created"] == 1
+    assert counters["permits_consumed"] == 1
+    assert counters["real_fold_fit_calls"] == 0
+    assert counters["duan_factors_computed"] == 0
+    # Nothing downstream of the failed fit ran: no forecast, no QLIKE and no bootstrap.
+    assert counters["real_forecasts_computed"] == 0
+    assert counters["real_qlike_evaluations"] == 0
+    assert counters["real_bootstrap_replicates"] == 0
+
+    assert terminal["permits"]["consumed"] == 1
+    assert terminal["permits"]["callback_starts"] == 1
+    assert terminal["permits"]["validated_outputs"] == 0
+    assert terminal["permits"]["poisoned"] is True
+    assert terminal["permits"]["sealed"] is False
+
+    # Exactly one terminal and exactly one permit exist beside the claim and the reservation.
+    assert {entry.name for entry in _claim_directory(root, payload).iterdir()} == {
+        str(evidence["reservation_name"]) + module._ACTIVATION_CLAIM_SUFFIX,
+        str(evidence["reservation_name"]),
+        str(evidence["permit_names"][0]),
+        str(evidence["terminal_name"]),
+    }
+    assert module.execution_authority_report(authority)["disposition"] == "INVALID_EVIDENCE"
+    with pytest.raises(module.Test3G3FOneShotError, match="attempted exactly once"):
+        module.record_terminal_stop(
+            authority,
+            disposition="INVALID_EVIDENCE",
+            reasons=("synthetic retry",),
+            source_binding={"stage": "SYNTHETIC_RETRY"},
+        )
+
+
+def test_fold_and_pooled_metrics_are_row_weighted_with_unequal_fold_sizes(
+    tmp_path: Path,
+) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    _deliver(module, _recovery_fields())
+    metrics = _read_record(root, payload, str(_evidence(payload)["terminal_name"]))["metrics"]
+
+    folds = {entry["fold_id"]: entry for entry in metrics["folds"]}
+    assert list(folds) == list(FOLD_ORDER)
+    first, second = (folds[fold_id] for fold_id in FOLD_ORDER)
+    assert first["row_count"] != second["row_count"]  # the weighting has to matter
+    assert first["session_count"] >= 20 and second["session_count"] >= 20
+
+    pooled = metrics["pooled"]
+    assert pooled["row_count"] == first["row_count"] + second["row_count"]
+    weighted = (
+        first["mean_improvement"] * first["row_count"]
+        + second["mean_improvement"] * second["row_count"]
+    ) / pooled["row_count"]
+    assert pooled["mean_improvement"] == pytest.approx(weighted, rel=1e-12, abs=1e-15)
+    assert pooled["mean_improvement"] == pytest.approx(
+        pooled["mean_qlike_base"] - pooled["mean_qlike_har"], rel=1e-12, abs=1e-15
+    )
+    assert pooled["relative_qlike_reduction"] == pytest.approx(
+        (pooled["mean_qlike_base"] - pooled["mean_qlike_har"]) / pooled["mean_qlike_base"],
+        rel=1e-12,
+    )
+
+    sessions = metrics["sessions"]
+    assert sum(entry["row_count"] for entry in sessions) == pooled["row_count"]
+    assert [entry["fold_id"] for entry in sessions] == sorted(
+        (entry["fold_id"] for entry in sessions),
+        key=lambda fold_id: FOLD_ORDER.index(fold_id),
+    )
+
+
+def test_bootstrap_order_seeds_draws_and_sign_diagnostic_are_reproducible(
+    tmp_path: Path,
+) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    _deliver(module, _recovery_fields())
+    terminal = _read_record(root, payload, str(_evidence(payload)["terminal_name"]))
+
+    bootstrap = terminal["bootstrap"]
+    assert [entry["block_length"] for entry in bootstrap] == [5, 1, 20]
+    assert [entry["role"] for entry in bootstrap] == ["PRIMARY", "DIAGNOSTIC", "DIAGNOSTIC"]
+    assert len({entry["draw_identity_sha256"] for entry in bootstrap}) == 3
+
+    tables = {
+        fold_id: tuple(
+            SessionImprovementAggregate(
+                fold_id=fold_id,
+                session_id=entry["session_id"],
+                session_date=date.fromisoformat(entry["session_date"]),
+                row_count=entry["row_count"],
+                improvement_sum=entry["improvement_sum"],
+            )
+            for entry in terminal["metrics"]["sessions"]
+            if entry["fold_id"] == fold_id
+        )
+        for fold_id in FOLD_ORDER
+    }
+    for entry in bootstrap:
+        assert entry["repetitions"] == BOOTSTRAP_REPETITIONS == 2_000
+        assert entry["master_seed"] == MASTER_SEED
+        assert entry["pooled_seed"] == MASTER_SEED + 90_000 + entry["block_length"]
+        assert entry["fold_seeds"] == [
+            [fold_id, entry["pooled_seed"] + 1_000 * (index + 1)]
+            for index, fold_id in enumerate(FOLD_ORDER)
+        ]
+        assert entry["percentile"] == 0.05
+        replay = paired_session_block_bootstrap(
+            tables,
+            block_length=entry["block_length"],
+            repetitions=BOOTSTRAP_REPETITIONS,
+            master_seed=MASTER_SEED,
+        )
+        assert replay.draw_identity_sha256 == entry["draw_identity_sha256"]
+        assert replay.lower_bound == entry["lower_bound"]
+
+    def sign(value: float) -> int:
+        return 0 if value == 0.0 else (1 if value > 0.0 else -1)
+
+    diagnostic = terminal["sign_diagnostic"]
+    assert diagnostic["primary_block_length"] == 5
+    assert diagnostic["primary_lower_bound_sign"] == sign(bootstrap[0]["lower_bound"])
+    assert diagnostic["twenty_session_lower_bound_sign"] == sign(bootstrap[2]["lower_bound"])
+    assert diagnostic["sign_changed"] == (
+        diagnostic["twenty_session_lower_bound_sign"]
+        != diagnostic["primary_lower_bound_sign"]
+    )
+    assert diagnostic["effect"] == "MANDATORY_DISCLOSURE_ONLY_NOT_A_GATE"
+    # The disclosure never enters the gate block.
+    assert "sign" not in json.dumps(terminal["gates"])
+
+
+def test_continuation_gate_equalities_follow_the_frozen_protocol() -> None:
+    def decide(**overrides: object):
+        arguments: dict[str, object] = {
+            "assertions_passed": True,
+            "fold_mean_improvements": (("WF_2022", 0.5), ("WF_2023", 0.5)),
+            # Binary-stable inputs: 10.0 and 9.0 are exact float64 values, their difference is
+            # exactly 1.0, and 1.0 / 10.0 is exactly the frozen 0.10 threshold float. The
+            # previous 1.0 / 0.9 pair computed a value just below the threshold, which tested the
+            # subtraction rather than the boundary.
+            "pooled_mean_qlike_base": 10.0,
+            "pooled_mean_qlike_har": 9.0,
+            "primary_lower_bound": 0.25,
+            "real_fold_fit_calls": 4,
+        }
+        arguments.update(overrides)
+        return decide_continuation(ContinuationInputs(**arguments))
+
+    # Relative reduction of exactly 0.10 passes the materiality boundary. No epsilon, tolerance,
+    # rounding, decimal type or changed gate policy is involved: the computed float is bit-for-bit
+    # the frozen threshold, so this proves the inclusive equality of the frozen gate.
+    passing = decide()
+    assert passing.relative_qlike_reduction == RELATIVE_QLIKE_REDUCTION_FLOOR
+    assert passing.relative_qlike_reduction == 0.10
+    assert passing.disposition is TerminalDisposition.INTERESTING
+
+    # Anything strictly below the same frozen threshold still fails; the gate is unchanged.
+    below = decide(pooled_mean_qlike_har=9.000001)
+    assert below.relative_qlike_reduction < RELATIVE_QLIKE_REDUCTION_FLOOR
+    assert below.disposition is TerminalDisposition.NOT_INTERESTING
+    assert "relative_qlike_reduction_below_0.10" in below.failures
+
+    # A fold mean improvement of exactly zero fails.
+    zero_fold = decide(fold_mean_improvements=(("WF_2022", 0.0), ("WF_2023", 0.5)))
+    assert zero_fold.disposition is TerminalDisposition.NOT_INTERESTING
+    assert "WF_2022_improvement_not_positive" in zero_fold.failures
+
+    # A primary lower bound of exactly zero fails.
+    zero_bound = decide(primary_lower_bound=0.0)
+    assert zero_bound.disposition is TerminalDisposition.NOT_INTERESTING
+    assert "primary_lower_bound_not_positive" in zero_bound.failures
+
+    # Anything other than exactly four validated fits is invalid evidence, never a scientific
+    # result, and an underpowered stop must carry zero fits.
+    assert decide(real_fold_fit_calls=3).disposition is TerminalDisposition.INVALID
+    assert decide(real_fold_fit_calls=5).disposition is TerminalDisposition.INVALID
+    assert (
+        decide_continuation(
+            ContinuationInputs(
+                assertions_passed=True,
+                fold_mean_improvements=(("WF_2022", 0.5), ("WF_2023", 0.5)),
+                pooled_mean_qlike_base=1.0,
+                pooled_mean_qlike_har=0.9,
+                primary_lower_bound=0.25,
+                real_fold_fit_calls=0,
+                underpowered=True,
+            )
+        ).disposition
+        is TerminalDisposition.UNDERPOWERED
+    )
+
+
+def test_qlike_and_duan_helpers_match_the_frozen_definitions() -> None:
+    actual = np.array([0.5, 1.25, 2.0], dtype=np.float64)
+    forecast = np.array([0.4, 1.5, 2.0], dtype=np.float64)
+    ratio = actual / forecast
+    assert np.allclose(qlike(actual, forecast), ratio - np.log(ratio) - 1.0)
+    residuals = np.array([-0.25, 0.0, 0.5], dtype=np.float64)
+    assert duan_smearing_factor(residuals) == pytest.approx(float(np.mean(np.exp(residuals))))
+
+
+@pytest.mark.parametrize(
+    ("label", "options"),
+    (
+        ("nineteen_sessions", {"holdout_2022_sessions": 19}),
+        ("undefined_acf_lags", {"rows_per_session": 2}),
+        (
+            "rows_not_greater_than_columns",
+            {"train_sessions": 1, "train_rows_per_session": 5},
+        ),
+        ("wrong_holdout_year", {"wrong_holdout_year": True}),
+        ("overlap_and_purge_failure", {"overlapping_train_session": True}),
+    ),
+)
+def test_structural_prefit_failures_stop_before_any_permit_or_fit(
+    tmp_path: Path,
+    label: str,
+    options: dict,
+) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module, name=f"prefit-{label}")
+    evidence = _evidence(payload)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+
+    fields = _recovery_fields(**options)
+    # The injected rows are always distinct rows, so the intended structural gate fires instead
+    # of an identity or timestamp duplicate being rejected first.
+    identities = [control.identity for control in fields["controls"]]
+    times = [control.timestamp for control in fields["controls"]]
+    assert len(set(identities)) == len(identities)
+    assert len(set(times)) == len(times)
+
+    with pytest.raises(module.Test3G3FUnderpoweredStop):
+        _deliver(module, fields)
+
+    # Not one permit was created, so not one least-squares call could have happened.
+    for name in evidence["permit_names"]:
+        assert not _record_path(root, payload, str(name)).exists()
+    terminal = _read_record(root, payload, str(evidence["terminal_name"]))
+    assert terminal["disposition"] == "UNDERPOWERED_STOP"
+    assert terminal["fits"] == []
+    assert terminal["bootstrap"] == []
+    assert terminal["metrics"] is None
+    assert terminal["gates"] is None
+    assert terminal["counters"]["permits_created"] == 0
+    assert terminal["counters"]["real_fold_fit_calls"] == 0
+    assert terminal["counters"]["real_bootstrap_replicates"] == 0
+    assert terminal["validation_status"] == "UNOPENED"
+    assert terminal["final_test_status"] == "SEALED"
+    assert module.execution_authority_report(authority)["disposition"] == "UNDERPOWERED_STOP"
+    if label == "overlap_and_purge_failure":
+        # A TRAIN label end that reaches into the holdout window is stopped by the purge gate.
+        assert "purge failed before the first holdout decision time" in terminal["reasons"][0]
+
+
+def test_real_mode_has_no_arbitrary_fit_callback(tmp_path: Path) -> None:
+    module = _fresh_g3f_module()
+    root, activation, _digests, _payload = _prepared_activation(tmp_path)
+    capability = module.load_owner_activation_capability(activation, repository_root=str(root))
+    callback = _InertFitCallback()
+
+    with pytest.raises(
+        module.Test3G3FPreActivationStop,
+        match="no arbitrary fit callback",
+    ):
+        module.run_one_shot_fits(
+            _synthetic_rows(module.RowOrigin.G3P_IN_PROCESS_HANDOFF, module=module),
+            mode=module.ExecutionMode.OWNER_ACTIVATED_REAL,
+            fit_callback=callback,
+            activation=capability,
+        )
+    assert callback.calls == 0
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert source.count("np.linalg.lstsq(") == 1
+    assert "rcond=None" in source
+
+
+def test_the_terminal_is_attempted_once_and_never_retried(tmp_path: Path) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    evidence = _evidence(payload)
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    _deliver(module, _recovery_fields())
+
+    before = _record_path(root, payload, str(evidence["terminal_name"])).read_bytes()
+    with pytest.raises(module.Test3G3FOneShotError, match="attempted exactly once"):
+        module.record_terminal_stop(
+            authority,
+            disposition="INVALID_EVIDENCE",
+            reasons=("synthetic retry",),
+            source_binding={"stage": "SYNTHETIC_RETRY"},
+        )
+    assert _record_path(root, payload, str(evidence["terminal_name"])).read_bytes() == before
+
+    # No temporary, partial or row-bearing artifact was ever created beside the closed records.
+    expected = {
+        str(evidence["reservation_name"]) + module._ACTIVATION_CLAIM_SUFFIX,
+        str(evidence["reservation_name"]),
+        str(evidence["terminal_name"]),
+        *(str(name) for name in evidence["permit_names"]),
+    }
+    assert {entry.name for entry in _claim_directory(root, payload).iterdir()} == expected
+
+
+def test_reservation_permits_and_terminal_are_create_once_and_reread_semantically(
+    tmp_path: Path,
+) -> None:
+    module = _fresh_g3f_module()
+    root, payload, authority = _prepared_execution(tmp_path, module)
+    evidence = _evidence(payload)
+
+    # A second execution authority is refused for this module instance.
+    with pytest.raises(module.Test3G3FOneShotError, match="one-attempt"):
+        module.open_execution_authority(object())
+
+    # Replay survives the process: a second, wholly independent instance given the identical
+    # activation bytes is refused by the persisted claim before it can reach a reservation, and
+    # the already published reservation is never overwritten.
+    published = _record_path(root, payload, str(evidence["reservation_name"])).read_bytes()
+    second = _fresh_g3f_module()
+    with pytest.raises(second.Test3G3FOneShotError, match="already exists"):
+        second.load_owner_activation_capability(
+            str(tmp_path / "recovery-repository-activation-file"),
+            repository_root=str(root),
+        )
+    assert _record_path(root, payload, str(evidence["reservation_name"])).read_bytes() == published
+
+    module.bind_source_evidence(authority, {"stage": "SYNTHETIC_G3P_STAND_IN"})
+    _deliver(module, _recovery_fields())
+
+    # Every published record is exactly its own canonical serialization, so a forged, reordered,
+    # duplicated or padded byte would not survive the reread the writer already performed.
+    for name in (
+        str(evidence["reservation_name"]),
+        *(str(item) for item in evidence["permit_names"]),
+        str(evidence["terminal_name"]),
+    ):
+        raw = _record_path(root, payload, name).read_bytes()
+        assert raw == _canonical(json.loads(raw.decode("utf-8")))
+
+
+def test_a_stop_terminal_refuses_any_scientific_disposition(tmp_path: Path) -> None:
+    module = _fresh_g3f_module()
+    _root, _payload, authority = _prepared_execution(tmp_path, module)
+    for disposition in (
+        "INTERESTING_ENOUGH_FOR_CONFIRMATORY_PROTOCOL",
+        "NOT_INTERESTING_ENOUGH",
+        "SOMETHING_ELSE",
+    ):
+        with pytest.raises(module.Test3G3FOneShotError, match="stop terminal"):
+            module.record_terminal_stop(
+                authority,
+                disposition=disposition,
+                reasons=("synthetic",),
+                source_binding={"stage": "SYNTHETIC"},
+            )
+
+
+def test_no_authority_exists_before_a_verified_activation(tmp_path: Path) -> None:
+    module = _fresh_g3f_module()
+    for hostile in (None, object(), "authority", {"serial": 1}):
+        with pytest.raises(module.Test3G3FPreActivationStop):
+            module.assert_execution_authority_reserved(hostile)
+        with pytest.raises(module.Test3G3FPreActivationStop):
+            module.execution_authority_report(hostile)
+    assert list(tmp_path.rglob("*")) == []

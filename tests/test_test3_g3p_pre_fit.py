@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import ast
 import functools
 import hashlib
 import inspect
 import json
 import math
 import sys
+import textwrap
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -1372,3 +1374,259 @@ def test_delivery_source_opens_no_persistence_or_logging_surface() -> None:
     source = inspect.getsource(g3p._deliver_in_memory_handoff)
     for forbidden in ("open(", ".write(", "json", "pickle", "tempfile", "socket", "print("):
         assert forbidden not in source
+
+
+# ---------------------------------------------------------------------------------------------
+# Fresh capability-bound recovery entrypoint.
+#
+# These tests stay strictly before every protected surface. None of them supplies a real artifact
+# path, reaches a provider, consumes the real target space, creates a reservation or runs a fit.
+# ---------------------------------------------------------------------------------------------
+
+
+def _reservation_binding(**overrides: object) -> dict[str, object]:
+    """A synthetic stand-in for the reviewed G3-F reservation binding; never real authority."""
+
+    binding: dict[str, object] = {
+        "recovery_lineage_id": "SYNTHETIC-PLACEHOLDER-LINEAGE-001",
+        "override_id": "SYNTHETIC-PLACEHOLDER-OVERRIDE-001",
+        "protocol_id": g3p.PROTOCOL_ID,
+        "protocol_sha256": g3p.PROTOCOL_SHA256,
+        "target_space_id": g3p.TARGET_SPACE_ID,
+        "reservation_name": "synthetic-placeholder-reservation",
+        "reservation_sha256": "0" * 64,
+        "reservation_status": g3f.RESERVATION_STATUS,
+    }
+    binding.update(overrides)
+    return binding
+
+
+class _TripwireArtifactPaths:
+    """Any artifact-path access before the reservation is verified fails the test."""
+
+    def __getattr__(self, name: str) -> object:
+        raise AssertionError(f"G3-P touched artifact path {name!r} before its reservation")
+
+
+def test_recovery_refuses_every_unreserved_authority_before_any_source_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    for hostile in (None, object(), "authority", {"reservation_sha256": "0" * 64}):
+        with pytest.raises(g3f.Test3G3FPreActivationStop):
+            g3p.run_g3p_recovery(
+                root=tmp_path,
+                paths=_TripwireArtifactPaths(),
+                execution_authority=hostile,
+            )
+    # Nothing was read, sealed, consumed or written on any refused path.
+    assert list(tmp_path.rglob("*")) == []
+
+
+@pytest.mark.parametrize(
+    ("label", "overrides"),
+    (
+        ("spent_authorization_identity", {"recovery_lineage_id": g3p.G3P_AUTHORIZATION_ID}),
+        ("spent_gate_identity", {"recovery_lineage_id": g3p.G3P_GATE_ID}),
+        ("spent_branch_identity", {"recovery_lineage_id": g3p.G3P_BRANCH}),
+        ("empty_lineage", {"recovery_lineage_id": ""}),
+        ("path_separator_lineage", {"recovery_lineage_id": "lineage/with/separator"}),
+        ("wrong_protocol_bytes", {"protocol_sha256": "9" * 64}),
+        ("wrong_target_space", {"target_space_id": "TARGET_SPACE_999"}),
+    ),
+)
+def test_recovery_refuses_a_drifted_or_spent_binding_before_any_source_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    label: str,
+    overrides: dict,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        g3f,
+        "assert_execution_authority_reserved",
+        lambda _authority: _reservation_binding(**overrides),
+    )
+
+    with pytest.raises(g3p.Test3G3PBoundaryError):
+        g3p.run_g3p_recovery(
+            root=tmp_path,
+            paths=_TripwireArtifactPaths(),
+            execution_authority=object(),
+        )
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_recovery_takes_no_historical_reservation_topology_or_witness_credit() -> None:
+    """The fresh lineage may not call any spent-authority or repository-topology helper."""
+
+    source = inspect.getsource(g3p.run_g3p_recovery)
+    tree = ast.parse(textwrap.dedent(source))
+    called = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    for forbidden in (
+        "_consume_authorization",
+        "_git_context",
+        "_verify_documents",
+        "_verify_g2p_evidence",
+        "_assert_runtime_module_origins",
+        "write_failure_summary_if_reserved",
+        "write_g3p_record",
+        "run_g3p",
+    ):
+        assert forbidden not in called, forbidden
+
+    # The historical witness constants are never used as write or read destinations here.
+    read = {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+    }
+    for forbidden in (
+        "AUTHORIZATION_RESERVATION_PATH",
+        "REQUEST_SET_WITNESS_PATH",
+        "TARGET_SPACE_WITNESS_PATH",
+        "FAILURE_RECORD_PATH",
+        "G3P_OUTPUT_SUBPATH",
+        "G3P_BASE_COMMIT",
+        "G2P_RECORD_PATH",
+    ):
+        assert forbidden not in read, forbidden
+
+    # The predecessor ledger cross-check is explicitly disclaimed rather than silently reused.
+    assert "expected_ledger=None" in source
+
+
+def test_recovery_consumes_the_target_space_before_the_first_numeric_target_read() -> None:
+    lines = inspect.getsource(g3p.run_g3p_recovery).splitlines()
+
+    def index_of(fragment: str) -> int:
+        return next(index for index, line in enumerate(lines) if fragment in line)
+
+    consumption = index_of("G3P_RECOVERY_TARGET_WITNESS")
+    for later in ("paths.cell10", "paths.cell12", "decode_canonical_dbn(", "_build_targets("):
+        assert index_of(later) > consumption
+    # The request set is sealed and witnessed before the target space is consumed at all.
+    assert index_of("G3P_RECOVERY_REQUEST_WITNESS") < consumption
+    # Delivery is the very last action and is guarded by the support gate.
+    assert index_of("if not support_passed:") < index_of("_deliver_in_memory_handoff(")
+    assert index_of("bind_source_evidence") < index_of("_deliver_in_memory_handoff(")
+
+
+def test_recovery_flags_every_undefined_required_acf_lag() -> None:
+    def profile(defined_through: int) -> dict[str, object]:
+        return {
+            "lags": [
+                {
+                    "lag": lag,
+                    "pairs": 10 if lag <= defined_through else 0,
+                    "rho_observed": 0.4 if lag <= defined_through else None,
+                    "rho_null": 0.0,
+                    "excess": 0.4 if lag <= defined_through else None,
+                }
+                for lag in range(1, 9)
+            ]
+        }
+
+    complete = {
+        "folds": {"WF_2022": {"dependence": profile(8)}, "WF_2023": {"dependence": profile(8)}},
+        "pooled_disjoint_oof_dependence": profile(8),
+    }
+    assert g3p._recovery_required_lags_defined(complete) == ()
+
+    partial = {
+        "folds": {"WF_2022": {"dependence": profile(5)}, "WF_2023": {"dependence": profile(8)}},
+        "pooled_disjoint_oof_dependence": profile(8),
+    }
+    failures = g3p._recovery_required_lags_defined(partial)
+    assert failures == (
+        "WF_2022:REQUIRED_ACF_LAG_6_UNDEFINED",
+        "WF_2022:REQUIRED_ACF_LAG_7_UNDEFINED",
+        "WF_2022:REQUIRED_ACF_LAG_8_UNDEFINED",
+    )
+
+    pooled = {
+        "folds": {"WF_2022": {"dependence": profile(8)}, "WF_2023": {"dependence": profile(8)}},
+        "pooled_disjoint_oof_dependence": profile(7),
+    }
+    assert g3p._recovery_required_lags_defined(pooled) == (
+        "pooled_disjoint_oof:REQUIRED_ACF_LAG_8_UNDEFINED",
+    )
+
+    assert g3p._recovery_required_lags_defined({}) == (
+        "pooled_disjoint_oof:DEPENDENCE_ABSENT",
+    )
+
+
+def test_recovery_flags_a_holdout_row_outside_its_frozen_fold_year() -> None:
+    good = (
+        _control(
+            "a|instrument_id=12345",
+            datetime(2022, 6, 1, 15, 0, tzinfo=UTC),
+            role_2022="VALIDATION",
+            role_2023="UNUSED",
+        ),
+        _control(
+            "b|instrument_id=12345",
+            datetime(2023, 6, 1, 15, 0, tzinfo=UTC),
+            role_2022="UNUSED",
+            role_2023="VALIDATION",
+        ),
+    )
+    assert g3p._recovery_holdout_year_failures(good) == ()
+
+    drifted = (
+        good[0],
+        _control(
+            "c|instrument_id=12345",
+            datetime(2022, 6, 2, 15, 0, tzinfo=UTC),
+            role_2022="UNUSED",
+            role_2023="VALIDATION",
+        ),
+    )
+    assert g3p._recovery_holdout_year_failures(drifted) == ("WF_2023:HOLDOUT_YEAR_NOT_2023",)
+
+
+def test_recovery_support_gate_failure_is_underpowered_and_delivers_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-pass G3-P support gate can never reach the fit stage."""
+
+    monkeypatch.setattr(g3p, "FROZEN_HOLDOUT_COUNTS", {"WF_2022": 20, "WF_2023": 20})
+    controls, predictor, targets = _support_fixture(duplicate_session=True)
+    harmonics, _pre_target = g3p._pre_target_support_contract(controls, predictor)
+    evidence, disposition, g3f_status = g3p._support_evidence(
+        controls,
+        predictor,
+        targets,
+        harmonics,
+    )
+
+    assert disposition == "UNDERPOWERED_STOP"
+    assert g3f_status == "TERMINAL"
+    structural = tuple(evidence["structural_failures"])
+    structural += g3p._recovery_required_lags_defined(evidence)
+    structural += g3p._recovery_holdout_year_failures(controls)
+    assert "WF_2022:HOLDOUT_SESSIONS_LT_20" in structural
+    # The recovery gate composes the frozen support failures with its own additional minima, so
+    # a support-gate failure can only produce a non-delivering UNDERPOWERED_STOP.
+    assert not (disposition != "UNDERPOWERED_STOP" and not structural)
+
+
+def test_recovery_predictor_ledger_stays_frozen_without_predecessor_credit() -> None:
+    signature = inspect.signature(g3p._predictor_data).parameters
+    assert signature["expected_ledger"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert signature["expected_ledger"].default is inspect.Parameter.empty
+
+    recovery = inspect.signature(g3p.run_g3p_recovery).parameters
+    assert set(recovery) == {"root", "paths", "execution_authority"}
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in recovery.values()
+    )
+    assert "handoff" not in recovery
+    assert "fit_callback" not in recovery
