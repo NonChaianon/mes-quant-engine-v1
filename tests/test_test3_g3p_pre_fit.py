@@ -1,17 +1,61 @@
 from __future__ import annotations
 
+import functools
 import hashlib
+import inspect
 import json
 import math
+import sys
+from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 
+_V19_PACKAGE_PARTS = ("mes_quant", "exploration")
+
+
+def _prepend_v19_source_path() -> None:
+    """Select this worktree's ``src`` tree before importing ``mes_quant``.
+
+    The V19 consumer repair exists only in this worktree, so an editable install that points at
+    another checkout must not win. This module therefore selects its own candidate source
+    independently of collection order, using the standard library only and no hard-coded Git
+    identity.
+    """
+
+    candidate = Path(__file__).resolve().parents[1] / "src"
+    if not (candidate / "mes_quant" / "__init__.py").is_file():
+        return
+
+    entry = str(candidate)
+    sys.path[:] = [item for item in sys.path if item != entry]
+    sys.path.insert(0, entry)
+
+    # If an ancestor package was already imported from another source tree, extend only that
+    # package's search path; no sys.modules entry is removed.
+    for depth in range(1, len(_V19_PACKAGE_PARTS) + 1):
+        module = sys.modules.get(".".join(_V19_PACKAGE_PARTS[:depth]))
+        search_path = getattr(module, "__path__", None)
+        package_directory = candidate.joinpath(*_V19_PACKAGE_PARTS[:depth])
+        if not isinstance(search_path, list) or not package_directory.is_dir():
+            continue
+        location = str(package_directory)
+        if location not in search_path:
+            search_path.insert(0, location)
+
+
+_prepend_v19_source_path()
+
+from mes_quant.exploration import test3_g3f_one_shot as g3f
 from mes_quant.exploration import test3_g3p_pre_fit as g3p
-from mes_quant.exploration.test2_request_set import ParentDecision, build_streaming_request_set
+from mes_quant.exploration.test2_request_set import (
+    ParentDecision,
+    build_streaming_request_set,
+)
 from mes_quant.exploration.test3_contract import (
     CELL8_SPLIT_ASSIGNMENT_SHA256,
     FailureReason,
@@ -916,3 +960,415 @@ def test_sha256_helpers_do_not_confuse_file_hash_and_semantic_hash(tmp_path: Pat
     file_sha, _size = g3p._hash_file(path)
     assert file_sha == hashlib.sha256(path.read_bytes()).hexdigest()
     assert file_sha != g3p._record_sha256(payload)
+
+
+def _cell14_calendar_table(early_close: pa.Array) -> pa.Table:
+    """Minimal Cell14-like projection carrying only the columns `_predictor_data` reads."""
+
+    rows = len(early_close)
+    return pa.table(
+        {
+            "realized_vol_60m": pa.array([0.5] * rows, type=pa.float64()),
+            "realized_vol_120m": pa.array([0.6] * rows, type=pa.float64()),
+            "realized_vol_240m": pa.array([0.7] * rows, type=pa.float64()),
+            "minutes_since_nyse_open": pa.array([30.0] * rows, type=pa.float64()),
+            "minutes_to_horizon_safe_close": pa.array([120.0] * rows, type=pa.float64()),
+            "early_close_session": early_close,
+        }
+    )
+
+
+def _usable_predictor_ledger(controls: tuple[g3p.ControlRow, ...]) -> dict[str, object]:
+    """Recompute the expected G2-P predictor ledger for all-usable synthetic rows."""
+
+    status = RowStatus.PREDICTOR_USABLE.value
+    identity_payload = "".join(
+        f"{control.identity}|{control.timestamp.isoformat()}\n" for control in controls
+    ).encode("utf-8")
+    status_payload = "".join(
+        f"{control.identity}|{control.timestamp.isoformat()}|{status}\n"
+        for control in controls
+    ).encode("utf-8")
+    counts = {entry: 0 for entry in g3p._STATUS_ORDER}
+    counts[status] = len(controls)
+    return {
+        "row_count": len(controls),
+        "status_counts": counts,
+        "ordered_identity_sha256": hashlib.sha256(identity_payload).hexdigest(),
+        "ordered_identity_status_sha256": hashlib.sha256(status_payload).hexdigest(),
+    }
+
+
+def test_predictor_data_accepts_producer_int8_flags_and_preserves_failure_category() -> None:
+    base = datetime(2023, 1, 3, 15, 0, tzinfo=UTC)
+    two_controls = (
+        _control("2023-01-03T15:00:00Z|instrument_id=12345", base),
+        _control(
+            "2023-01-03T15:01:00Z|instrument_id=12345", base + timedelta(minutes=1)
+        ),
+    )
+    one_control = two_controls[:1]
+    two_ledger = _usable_predictor_ledger(two_controls)
+    one_ledger = _usable_predictor_ledger(one_control)
+
+    # The Cell14 producer emits an integral 0/1 flag; the consumer must normalize it.
+    integral = g3p._predictor_data(
+        _cell14_calendar_table(pa.array([0, 1], type=pa.int8())),
+        two_controls,
+        expected_ledger=two_ledger,
+    )
+    assert integral.calendar[two_controls[0].identity][2] is False
+    assert integral.calendar[two_controls[1].identity][2] is True
+
+    # The pre-existing native-boolean producer contract is unchanged.
+    boolean = g3p._predictor_data(
+        _cell14_calendar_table(pa.array([False, True], type=pa.bool_())),
+        two_controls,
+        expected_ledger=two_ledger,
+    )
+    assert boolean.calendar == integral.calendar
+
+    # The shared boundary normalizer also covers NumPy integral producer scalars.
+    assert g3p.normalize_integral_flag(np.int8(0)) is False
+    assert g3p.normalize_integral_flag(np.int8(1)) is True
+
+    # Out-of-domain integral, non-integral, and null flags keep the one local category.
+    for invalid_flag in (
+        pa.array([2], type=pa.int8()),
+        pa.array([1.0], type=pa.float64()),
+        pa.array([None], type=pa.int8()),
+    ):
+        with pytest.raises(g3p.Test3G3PInvalidEvidenceError) as failure:
+            g3p._predictor_data(
+                _cell14_calendar_table(invalid_flag),
+                one_control,
+                expected_ledger=one_ledger,
+            )
+        assert failure.value.category == "EARLY_CLOSE_SESSION_TYPE_INVALID"
+
+
+def test_early_close_session_accepts_bool_numpy_bool_and_integral_zero_one() -> None:
+    """Native bool, ``numpy.bool_`` and integral 0/1 producers are exactly equivalent."""
+
+    for false_flag, true_flag in (
+        (False, True),
+        (np.bool_(False), np.bool_(True)),
+        (0, 1),
+        (np.int8(0), np.int8(1)),
+        (np.int64(0), np.int64(1)),
+    ):
+        assert g3p._normalize_early_close_session(false_flag) is False
+        assert g3p._normalize_early_close_session(true_flag) is True
+
+
+def test_early_close_session_invalid_inputs_map_to_the_single_local_category() -> None:
+    """Invalid integral, float, string, null and missing flags all fail closed identically."""
+
+    for rejected in (2, -1, np.int8(2), 0.0, 1.0, np.float64(1.0), "0", "1", "true", None):
+        with pytest.raises(g3p.Test3G3PInvalidEvidenceError) as failure:
+            g3p._normalize_early_close_session(rejected)
+        assert failure.value.category == "EARLY_CLOSE_SESSION_TYPE_INVALID"
+
+
+def test_predictor_data_rejects_string_and_absent_early_close_session() -> None:
+    base = datetime(2023, 1, 3, 15, 0, tzinfo=UTC)
+    one_control = (_control("2023-01-03T15:00:00Z|instrument_id=12345", base),)
+    one_ledger = _usable_predictor_ledger(one_control)
+
+    string_flags = (
+        pa.array(["0"], type=pa.string()),
+        pa.array(["1"], type=pa.string()),
+    )
+    for string_flag in string_flags:
+        with pytest.raises(g3p.Test3G3PInvalidEvidenceError) as failure:
+            g3p._predictor_data(
+                _cell14_calendar_table(string_flag),
+                one_control,
+                expected_ledger=one_ledger,
+            )
+        assert failure.value.category == "EARLY_CLOSE_SESSION_TYPE_INVALID"
+
+    absent = _cell14_calendar_table(pa.array([0], type=pa.int8())).drop_columns(
+        ["early_close_session"]
+    )
+    with pytest.raises(g3p.Test3G3PInvalidEvidenceError) as missing:
+        g3p._predictor_data(absent, one_control, expected_ledger=one_ledger)
+    assert missing.value.category == "EARLY_CLOSE_SESSION_TYPE_INVALID"
+
+
+def _handoff_fixture() -> tuple[
+    tuple[g3p.ControlRow, ...],
+    g3p.PredictorData,
+    g3p.TargetBuildResult,
+    dict[str, object],
+]:
+    """Build one tiny synthetic in-memory G3-P result set; no file or provider is involved."""
+
+    base = datetime(2023, 1, 3, 15, 0, tzinfo=UTC)
+    controls = (_control("2023-01-03T15:00:00Z|instrument_id=12345", base),)
+    identity = controls[0].identity
+    calendar = (30.0, 120.0, False)
+    predictor = g3p.PredictorData(
+        (PredictorStatusRow(identity, base, RowStatus.PREDICTOR_USABLE.value),),
+        {identity: (0.5, 0.6, 0.7)},
+        {identity: calendar},
+        {status: 0 for status in g3p._STATUS_ORDER},
+        "",
+        "",
+    )
+    targets = g3p.TargetBuildResult(
+        (
+            TargetStatusRow(
+                identity,
+                base,
+                base + timedelta(minutes=60),
+                RowStatus.TARGET_USABLE.value,
+                1.5,
+                math.log(1.5),
+            ),
+        ),
+        {identity: 1.5},
+        {status: 0 for status in g3p._TARGET_STATUS_ORDER},
+        "",
+        1,
+        0,
+        0,
+        0,
+        0,
+    )
+    harmonics = {identity: g3p._harmonic_for(controls[0], calendar)}
+    return controls, predictor, targets, harmonics
+
+
+def test_no_caller_supplied_handoff_callback_or_payload_type_remains() -> None:
+    parameters = inspect.signature(g3p.run_g3p).parameters
+    assert "handoff" not in parameters
+    assert not hasattr(g3p, "G3PInMemoryHandoff")
+    assert "G3PInMemoryHandoff" not in g3p.__all__
+
+    flag = parameters["deliver_to_g3f"]
+    assert flag.kind is inspect.Parameter.KEYWORD_ONLY
+    assert flag.default is False
+    assert flag.annotation == "bool"
+
+    delivery = inspect.signature(g3p._deliver_in_memory_handoff).parameters
+    assert set(delivery) == {"controls", "predictor", "targets", "harmonic_by_identity"}
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in delivery.values()
+    )
+
+    # The one-shot activation is separate: the G3-P CLI wires no delivery and no consumer.
+    cli_source = inspect.getsource(g3p.main)
+    assert "handoff" not in cli_source
+    assert "deliver_to_g3f" not in cli_source
+
+
+def test_no_arbitrary_or_metadata_based_receiver_boundary_remains() -> None:
+    """There is no receiver global to patch and no metadata predicate left to spoof."""
+
+    for name in (
+        "_G3F_ROW_HANDOFF_RECEIVER",
+        "_G3F_EXPECTED_HANDOFF_ID",
+        "G3P_IN_MEMORY_HANDOFF_RECEIVER_MODULE",
+        "G3P_IN_MEMORY_HANDOFF_RECEIVER_QUALNAME",
+        "_bind_reviewed_g3f_delivery",
+    ):
+        assert not hasattr(g3p, name), name
+        assert name not in g3p.__all__, name
+
+    source = inspect.getsource(g3p._deliver_in_memory_handoff)
+    assert "__module__" not in source
+    assert "__qualname__" not in source
+
+    # The handle and the module-instance marker are captured in a closure at import, so no
+    # module attribute can redirect them. A closure is not secret, but it is not a patch point.
+    closure = g3p._deliver_in_memory_handoff.__closure__
+    assert closure is not None and len(closure) >= 3
+
+    # G3-P already holds the single one-time handle, so nothing else can ever claim it.
+    with pytest.raises(g3f.Test3G3FOneShotError, match="already claimed"):
+        g3f._claim_g3p_delivery_handle()
+
+
+def test_hostile_old_callback_cannot_be_invoked_persisted_logged_or_serialized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    controls, predictor, targets, harmonics = _handoff_fixture()
+    monkeypatch.chdir(tmp_path)
+
+    class _HostileCallback:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.captured: list[object] = []
+
+        def __call__(self, *args: object, **kwargs: object) -> object:
+            self.calls += 1
+            self.captured.append((args, kwargs))
+            return "captured"
+
+    hostile = _HostileCallback()
+
+    with pytest.raises(TypeError):
+        g3p._deliver_in_memory_handoff(
+            hostile,
+            controls=controls,
+            predictor=predictor,
+            targets=targets,
+            harmonic_by_identity=harmonics,
+        )
+    with pytest.raises(TypeError):
+        g3p.run_g3p(
+            root=tmp_path,
+            paths=None,
+            git_context=None,
+            authorization=None,
+            documents={},
+            g2p_binding={},
+            runtime_binding={},
+            handoff=hostile,
+        )
+
+    assert hostile.calls == 0
+    assert hostile.captured == []
+    # Nothing was delivered, printed, logged, written or serialized on the hostile path.
+    assert capsys.readouterr() == ("", "")
+    assert list(tmp_path.rglob("*")) == []
+
+
+class _TripwireBundle:
+    """Any attribute access on a refused delivery path is an immediate test failure."""
+
+    def __getattr__(self, name: str) -> object:
+        raise AssertionError(f"G3-P read {name!r} on a refused delivery path")
+
+
+class _TripwireMapping(Mapping):
+    """A row mapping whose contents may never be read on a refused delivery path."""
+
+    def __getitem__(self, key: object) -> object:
+        raise AssertionError(f"G3-P read mapping key {key!r} on a refused delivery path")
+
+    def __iter__(self):
+        raise AssertionError("G3-P iterated a row mapping on a refused delivery path")
+
+    def __len__(self) -> int:
+        raise AssertionError("G3-P measured a row mapping on a refused delivery path")
+
+
+def _tripwire_delivery_arguments() -> dict[str, object]:
+    return {
+        "controls": (_TripwireBundle(),),
+        "predictor": _TripwireBundle(),
+        "targets": _TripwireBundle(),
+        "harmonic_by_identity": _TripwireMapping(),
+    }
+
+
+def test_a_reloaded_or_replaced_g3f_instance_refuses_before_any_row_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A replaced module-instance marker fails closed before any row or field is touched."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(g3f, "_MODULE_INSTANCE_MARKER", object(), raising=True)
+
+    with pytest.raises(g3p.Test3G3PBoundaryError, match="module instance"):
+        g3p._deliver_in_memory_handoff(**_tripwire_delivery_arguments())
+
+    # The refusal spent nothing: no handoff was created inside the reviewed G3-F stage.
+    assert g3f._local_state_report()["handoffs_created"] == 0
+    assert g3f._local_state_report()["delivery_handle_armed"] is True
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_a_metadata_spoof_wrapper_or_callable_object_can_never_be_delivered_to(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    captured: list[object] = []
+
+    class _CallableSpoof:
+        """A callable carrying the retired receiver's exact module and qualified name."""
+
+        __module__ = "mes_quant.exploration.test3_g3f_one_shot"
+        __qualname__ = "deliver_g3p_row_handoff"
+
+        def __call__(self, *args: object, **kwargs: object) -> object:
+            captured.append((args, kwargs))
+            return ()
+
+    spoof = _CallableSpoof()
+
+    @functools.wraps(spoof.__call__)
+    def wrapper(*args: object, **kwargs: object) -> object:
+        captured.append((args, kwargs))
+        return ()
+
+    # There is no receiver global, so a spoof or wrapper has nothing to be installed into; it
+    # can only be offered as a positional argument, which the keyword-only delivery refuses.
+    for hostile in (spoof, wrapper):
+        with pytest.raises(TypeError):
+            g3p._deliver_in_memory_handoff(hostile, **_tripwire_delivery_arguments())
+
+    assert captured == []
+    assert g3f._local_state_report()["handoffs_created"] == 0
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_delivery_uses_the_captured_handle_once_and_refuses_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controls, predictor, targets, harmonics = _handoff_fixture()
+    monkeypatch.chdir(tmp_path)
+
+    assert g3p.G3P_IN_MEMORY_HANDOFF_ID == g3f.EXPECTED_HANDOFF_ID
+
+    assert (
+        g3p._deliver_in_memory_handoff(
+            controls=controls,
+            predictor=predictor,
+            targets=targets,
+            harmonic_by_identity=harmonics,
+        )
+        is None
+    )
+    # Strictly in-memory: no handoff file, temporary spill, cache or IPC artifact is created.
+    assert list(tmp_path.rglob("*")) == []
+    report = g3f._local_state_report()
+    assert report["handoffs_created"] == 1
+    assert report["handoffs_spent"] == 1
+    assert report["delivery_handle_armed"] is False
+
+    # A second delivery or replay is refused at first-stage entry, before G3-P evaluates any
+    # predictor/target/harmonic field expression: every tripwire attribute access and every
+    # tripwire mapping read below would fail this test outright.
+    with pytest.raises(
+        g3f.Test3G3FPreActivationStop,
+        match="one-time G3-P delivery handle is already spent",
+    ):
+        g3p._deliver_in_memory_handoff(**_tripwire_delivery_arguments())
+    assert g3f._local_state_report()["handoffs_created"] == 1
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_delivery_runs_outside_the_pre_fit_only_guard() -> None:
+    lines = inspect.getsource(g3p.run_g3p).splitlines()
+
+    def indent(line: str) -> int:
+        return len(line) - len(line.lstrip())
+
+    guard = next(index for index, line in enumerate(lines) if "with pre_fit_only_guard()" in line)
+    delivery = next(index for index, line in enumerate(lines) if "if deliver_to_g3f:" in line)
+    assert delivery > guard
+    assert indent(lines[delivery]) == indent(lines[guard])
+
+
+def test_delivery_source_opens_no_persistence_or_logging_surface() -> None:
+    source = inspect.getsource(g3p._deliver_in_memory_handoff)
+    for forbidden in ("open(", ".write(", "json", "pickle", "tempfile", "socket", "print("):
+        assert forbidden not in source

@@ -32,6 +32,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from mes_quant.core.hashing import canonical_json_bytes, canonicalize_audit, sha256_bytes
+from mes_quant.exploration import test3_g3f_one_shot as _test3_g3f
 from mes_quant.exploration import test3_stats as _test3_stats
 from mes_quant.exploration.test2_request_set import (
     ParentDecision,
@@ -73,6 +74,10 @@ from mes_quant.exploration.test3_design import (
 )
 from mes_quant.exploration.test3_stats import DependenceRow, dependence_summary
 from mes_quant.exploration.test3_target import TargetStatusRow
+from mes_quant.governance.execution_hardening.boundary import (
+    BoundaryValidationError,
+    normalize_integral_flag,
+)
 
 G3P_GATE_LITERAL = "G3P_TEST3_TRAIN_TARGET_SUPPORT_PREFIT"
 G3P_GATE_ID = "MES_TEST3_G3P_TRAIN_PREFIT_V1"
@@ -1671,6 +1676,24 @@ def _required_finite(value: object, *, field_name: str) -> float:
     return numeric
 
 
+def _normalize_early_close_session(value: object) -> bool:
+    """Normalize one producer ``early_close_session`` flag to the local boolean contract.
+
+    Native ``bool`` and ``numpy.bool_`` producers keep their existing accepted contract
+    unchanged. Producer-side integral ``0``/``1`` flags (for example Arrow ``int8``) are the
+    known Cell 14 consumer landmine; they are normalized through the shared boundary helper
+    instead of being rejected. Every other input — non-integral, float, string, null/missing and
+    out-of-domain integral — fails closed with exactly ``EARLY_CLOSE_SESSION_TYPE_INVALID``.
+    """
+
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    try:
+        return normalize_integral_flag(value)
+    except BoundaryValidationError:
+        _invalid("EARLY_CLOSE_SESSION_TYPE_INVALID")
+
+
 @dataclass(frozen=True)
 class PredictorData:
     status_rows: tuple[PredictorStatusRow, ...]
@@ -1715,10 +1738,8 @@ def _predictor_data(
             raw.get("minutes_to_horizon_safe_close"),
             field_name="minutes_to_horizon_safe_close",
         )
-        early = raw.get("early_close_session")
-        if not isinstance(early, (bool, np.bool_)):
-            _invalid("EARLY_CLOSE_SESSION_TYPE_INVALID")
-        calendar_by_id[control.identity] = (minutes_since, minutes_to_safe, bool(early))
+        early_flag = _normalize_early_close_session(raw.get("early_close_session"))
+        calendar_by_id[control.identity] = (minutes_since, minutes_to_safe, early_flag)
     status_rows = tuple(statuses)
     counts_raw = Counter(row.status for row in status_rows)
     counts = {status: int(counts_raw[status]) for status in _STATUS_ORDER}
@@ -2952,6 +2973,77 @@ def _terminal_lines(record: Mapping[str, object]) -> tuple[str, ...]:
     )
 
 
+G3P_IN_MEMORY_HANDOFF_ID = "TEST3_G3P_TO_G3F_STRICT_IN_PROCESS_ROW_HANDOFF_V1"
+G3P_IN_MEMORY_HANDOFF_PERSISTENCE = (
+    "FORBIDDEN_NO_DISK_NO_CACHE_NO_LOG_NO_SERIALIZATION_NO_SPILL_NO_IPC"
+)
+
+
+def _bind_reviewed_g3f_delivery():
+    """Claim the single reviewed G3-F delivery handle once, at import, into a closure.
+
+    There is no arbitrary or metadata-based receiver boundary left: G3-P never accepts a
+    callback, never authorizes by ``__module__``/``__qualname__`` strings, and keeps no
+    module-level receiver global that a wrapper, callable object or metadata spoof could be
+    patched into. The exact handle and the exact G3-F module-instance marker are captured here
+    at import; the delivery below calls only that captured function.
+
+    The claim is one-time. If the handle was already claimed, if G3-F was reloaded or replaced,
+    or if the two stages disagree about the handoff identity, this fails closed at import rather
+    than degrading to a weaker boundary.
+
+    Honest limit: a Python closure is not secret, and arbitrary in-process code can still reach
+    these cells by reflection. What this removes is every ordinary substitution surface.
+    """
+
+    if G3P_IN_MEMORY_HANDOFF_ID != _test3_g3f.EXPECTED_HANDOFF_ID:
+        _fail("in-memory G3-P handoff identity does not match the reviewed G3-F stage")
+    handle, marker = _test3_g3f._claim_g3p_delivery_handle()
+    module = _test3_g3f
+
+    def _deliver_in_memory_handoff(
+        *,
+        controls: tuple[ControlRow, ...],
+        predictor: PredictorData,
+        targets: TargetBuildResult,
+        harmonic_by_identity: Mapping[str, Harmonic],
+    ) -> None:
+        """Hand the live rows to the captured reviewed G3-F handle and retain nothing.
+
+        The captured G3-F module-instance marker is rechecked against the live module before any
+        row or field is touched, so a reloaded or replaced G3-F instance fails closed first. The
+        captured handle is then entered in two stages: its first stage is called with only the
+        exact marker and the exact handoff identity, before any predictor, target or harmonic
+        field expression is evaluated, so a refused or already spent delivery stops there. Only
+        the private second-stage closure it returns is given the row fields, and G3-P still
+        accepts no arbitrary receiver, supplier or callback. The canonical handoff object is
+        minted and consumed inside that closure, so nothing here can hold, wrap or replay it. No
+        file, temporary spill, serialization, log line or inter-process channel is created, and
+        whatever the second stage returns is discarded rather than stored, recorded or returned.
+        """
+
+        if getattr(module, "_MODULE_INSTANCE_MARKER", None) is not marker:
+            raise Test3G3PBoundaryError(
+                "the reviewed G3-F module instance was reloaded or replaced"
+            )
+        supply = handle(marker, handoff_id=G3P_IN_MEMORY_HANDOFF_ID)
+        supply(
+            controls=controls,
+            predictor_status_rows=predictor.status_rows,
+            predictor_values=predictor.values,
+            target_status_rows=targets.rows,
+            target_variance_by_identity=targets.variance_by_identity,
+            harmonic_by_identity=harmonic_by_identity,
+        )
+
+    return _deliver_in_memory_handoff
+
+
+_deliver_in_memory_handoff = _bind_reviewed_g3f_delivery()
+
+del _bind_reviewed_g3f_delivery
+
+
 def run_g3p(
     *,
     root: Path,
@@ -2961,6 +3053,7 @@ def run_g3p(
     documents: Mapping[str, object],
     g2p_binding: Mapping[str, object],
     runtime_binding: Mapping[str, object],
+    deliver_to_g3f: bool = False,
 ) -> dict[str, object]:
     source_bindings = _preflight_sources(paths)
     cell8_table = _read_train_projection(
@@ -3073,6 +3166,17 @@ def run_g3p(
             harmonic_by_identity=harmonic_by_identity,
         )
         _assert_forbidden_modules_absent(phase="after record assembly")
+    # The delivery deliberately runs after the zero-fit guard has been removed, so the captured
+    # reviewed G3-F delivery handle and any later authorized real fit behind it are not blocked
+    # by the temporarily patched linear-algebra symbols. Every G3-P record, counter, gate and
+    # witness above is already complete and unchanged at this point.
+    if deliver_to_g3f:
+        _deliver_in_memory_handoff(
+            controls=cell8_controls,
+            predictor=predictor,
+            targets=targets,
+            harmonic_by_identity=harmonic_by_identity,
+        )
     return record
 
 
@@ -3152,6 +3256,7 @@ __all__ = [
     "G3P_BASE_COMMIT",
     "G3P_BRANCH",
     "G3P_GATE_LITERAL",
+    "G3P_IN_MEMORY_HANDOFF_ID",
     "Test3G3PBoundaryError",
     "Test3G3PInvalidEvidenceError",
     "main",
