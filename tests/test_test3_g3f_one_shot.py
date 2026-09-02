@@ -23,6 +23,8 @@ import itertools
 import json
 import math
 import pickle
+import stat
+import subprocess
 import sys
 import warnings
 from collections.abc import Callable, Mapping
@@ -222,6 +224,98 @@ def _prepared_activation(
         _claim_directory(root, payload).mkdir(parents=True, exist_ok=True)
     activation = _write_activation(tmp_path / f"{name}-activation-file", payload)
     return root, activation, digests, payload
+
+
+def _git(root: Path, *arguments: str) -> str:
+    completed = subprocess.run(
+        ("git", "-C", str(root), *arguments),
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _prepared_v2_activation(tmp_path: Path, module: object) -> tuple[Path, str]:
+    """Create a synthetic local Git binding for the V2 loader; no data path exists."""
+
+    root = tmp_path / "synthetic-v2-repository"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "synthetic@example.invalid")
+    _git(root, "config", "user.name", "Synthetic Test")
+    _git(root, "checkout", "-q", "-b", "governance/test3-one-shot-real-train-v2")
+    digests = _write_reviewed_tree(root)
+    owner = root / module.ACTIVATION_V2_OWNER_AUTHORIZATION_PATH
+    owner.parent.mkdir(parents=True, exist_ok=True)
+    owner.write_text("synthetic Owner-authorized V2 test fixture\n", encoding="utf-8")
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+    (artifacts / ".synthetic-parent").write_text("fixture\n", encoding="utf-8")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "synthetic V2 fixture")
+    _git(root, "update-ref", module.ACTIVATION_V2_ORIGIN_REF, "HEAD")
+    head = _git(root, "rev-parse", "HEAD^{commit}")
+    tree = _git(root, "rev-parse", "HEAD^{tree}")
+    payload = {
+        "activation_id": module.ACTIVATION_V2_ID,
+        "activation_version": module.ACTIVATION_V2_VERSION,
+        "fit_permit_budget": module.FIT_PERMIT_BUDGET,
+        "git_binding": {
+            "head": head,
+            "origin_ref": module.ACTIVATION_V2_ORIGIN_REF,
+            "symbolic_ref": module.ACTIVATION_V2_SYMBOLIC_REF,
+            "tree": tree,
+        },
+        "implementation_path_sha256": list(digests),
+        "implementation_paths": list(module.REVIEWED_IMPLEMENTATION_PATHS),
+        "override_id": module.ACTIVATION_V2_OVERRIDE_ID,
+        "owner_authorization": {
+            "path": module.ACTIVATION_V2_OWNER_AUTHORIZATION_PATH,
+            "sha256": hashlib.sha256(owner.read_bytes()).hexdigest(),
+        },
+        "protocol_id": PROTOCOL_ID,
+        "protocol_sha256": PROTOCOL_SHA256,
+        "recovery_lineage_id": module.ACTIVATION_V2_RECOVERY_LINEAGE_ID,
+        "runtime_evidence": {
+            "namespace": module.ACTIVATION_V2_EVIDENCE_NAMESPACE,
+            "permit_names": list(module.ACTIVATION_V2_PERMIT_NAMES),
+            "reservation_name": module.ACTIVATION_V2_RESERVATION_NAME,
+            "root": module.ACTIVATION_V2_EVIDENCE_ROOT,
+            "terminal_name": module.ACTIVATION_V2_TERMINAL_NAME,
+        },
+        "target_space_id": TARGET_SPACE_ID,
+    }
+    activation = root / "docs/research/TEST3_ONE_SHOT_REAL_TRAIN_ACTIVATION_V2.json"
+    activation.parent.mkdir(parents=True, exist_ok=True)
+    activation.write_bytes(_canonical(_envelope(payload)))
+    module.__file__ = str(root / module.REVIEWED_IMPLEMENTATION_PATHS[2])
+    return root, str(activation)
+
+
+def _rewrite_v2_activation(
+    activation: str,
+    mutate,
+    *,
+    canonical: bool = True,
+) -> None:
+    """Machine-rewrite one synthetic envelope after a bounded test mutation."""
+
+    path = Path(activation)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    payload = document["activation_payload"]
+    mutate(payload)
+    envelope = _envelope(payload)
+    if canonical:
+        path.write_bytes(_canonical(envelope))
+    else:
+        path.write_text(json.dumps(envelope, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _assert_v2_preclaim_absent(root: Path, module: object) -> None:
+    evidence_root = root / module.ACTIVATION_V2_EVIDENCE_ROOT
+    assert not evidence_root.exists()
+    assert not evidence_root.is_symlink()
 
 
 def _harmonic(index: int) -> Harmonic:
@@ -484,6 +578,9 @@ _EXPECTED_PUBLIC_SURFACE = (
     "ACTIVATION_ENVELOPE_KEYS",
     "ACTIVATION_FILE_MAX_BYTES",
     "ACTIVATION_PAYLOAD_KEYS",
+    "ACTIVATION_V2_GIT_BINDING_KEYS",
+    "ACTIVATION_V2_OWNER_AUTHORIZATION_KEYS",
+    "ACTIVATION_V2_PAYLOAD_KEYS",
     "ALLOWED_IMPORT_ROOTS",
     "BOOTSTRAP_BLOCK_ORDER",
     "EVIDENCE_NAMING",
@@ -532,6 +629,7 @@ _EXPECTED_PUBLIC_SURFACE = (
     "describe_pre_activation_stop",
     "execution_authority_report",
     "load_owner_activation_capability",
+    "load_owner_activation_capability_v2",
     "open_execution_authority",
     "record_terminal_stop",
     "run_one_shot_fits",
@@ -550,7 +648,10 @@ def test_no_module_level_mint_factory_capability_class_or_registry_remains() -> 
         lowered = name.lower()
         assert "mint" not in lowered, name
         assert "registry" not in lowered, name
-        assert "capability" not in lowered or name == "load_owner_activation_capability", name
+        assert "capability" not in lowered or name in {
+            "load_owner_activation_capability",
+            "load_owner_activation_capability_v2",
+        }, name
 
     # No module-level mutable container can hold serials, states or issued objects.
     mutable = {
@@ -1521,8 +1622,6 @@ def test_module_imports_only_the_closed_allowlist_and_writes_only_the_activation
     assert "eval" not in called and "exec" not in called
 
     for forbidden in (
-        "artifacts/",
-        ".json",
         ".parquet",
         "Path(",
         "pickle.",
@@ -1531,7 +1630,6 @@ def test_module_imports_only_the_closed_allowlist_and_writes_only_the_activation
         "O_TRUNC",
         "os.remove",
         "os.unlink",
-        "os.mkdir",
         "makedirs",
         "print(",
     ):
@@ -1539,15 +1637,209 @@ def test_module_imports_only_the_closed_allowlist_and_writes_only_the_activation
 
     assert _filesystem_rename_surfaces(source) == []
 
-    # There is exactly one write surface in the whole module: the exclusive, non-overwriting
-    # create-once record writer that publishes the activation replay claim, the reservation, the
-    # four ordered permits and the one terminal. One create, one write loop, and exactly two
-    # fsyncs for the record and its directory.
+    # Record bytes still have exactly one exclusive writer. V2 additionally has exactly two
+    # descriptor-rooted mkdirat calls for its evidence root and namespace.
     assert source.count("os.O_CREAT") == 1
     assert source.count("os.O_EXCL") == 1
     assert source.count("os.write(") == 1
-    assert source.count("os.fsync(") == 2
+    assert source.count("os.mkdir(") == 2
     assert source.count("def _create_record_once(") == 1
+
+
+def test_v2_loader_creates_exact_namespace_then_claim_once(tmp_path: Path) -> None:
+    module = _fresh_g3f_module()
+    root, activation = _prepared_v2_activation(tmp_path, module)
+
+    capability = module.load_owner_activation_capability_v2(
+        activation, repository_root=str(root)
+    )
+
+    assert capability is not None
+    evidence_root = root / module.ACTIVATION_V2_EVIDENCE_ROOT
+    namespace = evidence_root / module.ACTIVATION_V2_EVIDENCE_NAMESPACE
+    claim = namespace / (
+        module.ACTIVATION_V2_RESERVATION_NAME + module._ACTIVATION_CLAIM_SUFFIX
+    )
+    assert stat.S_IMODE(evidence_root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(namespace.stat().st_mode) == 0o700
+    assert claim.is_file() and not claim.is_symlink()
+    assert not any(path.name.endswith(".json") for path in namespace.iterdir())
+
+    with pytest.raises(module.Test3G3FOneShotError, match="spent"):
+        module.load_owner_activation_capability_v2(activation, repository_root=str(root))
+
+
+@pytest.mark.parametrize(
+    ("binding_failure", "expected_error"),
+    (
+        ("symbolic_ref", "symbolic ref or remote-equality"),
+        ("head_origin", "symbolic ref or remote-equality"),
+        ("dirty_git", "tracked/index state"),
+        ("owner_source", "Owner-authorization bytes drifted"),
+    ),
+)
+def test_v2_loader_refuses_git_or_owner_binding_drift_before_claim(
+    tmp_path: Path,
+    binding_failure: str,
+    expected_error: str,
+) -> None:
+    module = _fresh_g3f_module()
+    root, activation = _prepared_v2_activation(tmp_path, module)
+
+    if binding_failure == "symbolic_ref":
+        _git(root, "checkout", "-q", "-b", "synthetic-wrong-symbolic-ref")
+    elif binding_failure == "head_origin":
+        _git(root, "commit", "-q", "--allow-empty", "-m", "synthetic HEAD drift")
+    elif binding_failure == "dirty_git":
+        marker = root / "artifacts/.synthetic-parent"
+        marker.write_bytes(marker.read_bytes() + b"dirty\n")
+    else:
+        owner = root / module.ACTIVATION_V2_OWNER_AUTHORIZATION_PATH
+        owner.write_bytes(owner.read_bytes() + b"synthetic Owner-source drift\n")
+
+    with pytest.raises(module.Test3G3FOneShotError, match=expected_error):
+        module.load_owner_activation_capability_v2(activation, repository_root=str(root))
+    _assert_v2_preclaim_absent(root, module)
+
+
+def test_v2_loader_refuses_six_path_byte_drift_after_current_git_rebinding(
+    tmp_path: Path,
+) -> None:
+    module = _fresh_g3f_module()
+    root, activation = _prepared_v2_activation(tmp_path, module)
+    implementation = root / module.REVIEWED_IMPLEMENTATION_PATHS[0]
+    implementation.write_bytes(implementation.read_bytes() + b"# synthetic byte drift\n")
+    _git(root, "add", module.REVIEWED_IMPLEMENTATION_PATHS[0])
+    _git(root, "commit", "-q", "-m", "synthetic reviewed-byte drift")
+    _git(root, "update-ref", module.ACTIVATION_V2_ORIGIN_REF, "HEAD")
+    head = _git(root, "rev-parse", "HEAD^{commit}")
+    tree = _git(root, "rev-parse", "HEAD^{tree}")
+
+    def rebind_git(payload: dict[str, object]) -> None:
+        binding = payload["git_binding"]
+        assert isinstance(binding, dict)
+        binding["head"] = head
+        binding["tree"] = tree
+
+    _rewrite_v2_activation(activation, rebind_git)
+    with pytest.raises(module.Test3G3FOneShotError, match="six implementation bytes"):
+        module.load_owner_activation_capability_v2(activation, repository_root=str(root))
+    _assert_v2_preclaim_absent(root, module)
+
+
+@pytest.mark.parametrize(
+    ("envelope_failure", "expected_error"),
+    (
+        ("noncanonical", "not exact canonical"),
+        ("extra_key", "exact closed key set"),
+        ("wrong_name", "runtime-evidence lineage and four permits are not exact"),
+    ),
+)
+def test_v2_loader_refuses_malformed_envelope_before_claim(
+    tmp_path: Path,
+    envelope_failure: str,
+    expected_error: str,
+) -> None:
+    module = _fresh_g3f_module()
+    root, activation = _prepared_v2_activation(tmp_path, module)
+
+    if envelope_failure == "noncanonical":
+        _rewrite_v2_activation(activation, lambda _payload: None, canonical=False)
+    elif envelope_failure == "extra_key":
+        _rewrite_v2_activation(
+            activation,
+            lambda payload: payload.__setitem__("synthetic_unexpected_key", True),
+        )
+    else:
+        def wrong_namespace(payload: dict[str, object]) -> None:
+            evidence = payload["runtime_evidence"]
+            assert isinstance(evidence, dict)
+            evidence["namespace"] = "SYNTHETIC_WRONG_V2_NAMESPACE"
+
+        _rewrite_v2_activation(activation, wrong_namespace)
+
+    with pytest.raises(module.Test3G3FOneShotError, match=expected_error):
+        module.load_owner_activation_capability_v2(activation, repository_root=str(root))
+    _assert_v2_preclaim_absent(root, module)
+
+
+@pytest.mark.parametrize("origin_failure", ("wrong", "symlink"))
+def test_v2_loader_runtime_origin_failure_precedes_namespace_and_claim(
+    tmp_path: Path,
+    origin_failure: str,
+) -> None:
+    module = _fresh_g3f_module()
+    root, activation = _prepared_v2_activation(tmp_path, module)
+    expected = root / module.REVIEWED_IMPLEMENTATION_PATHS[2]
+    outside = tmp_path / "outside-g3f-runtime-origin.py"
+    outside.write_text("# outside synthetic G3-F origin\n", encoding="utf-8")
+    if origin_failure == "wrong":
+        module.__file__ = str(outside)
+    else:
+        expected.unlink()
+        expected.symlink_to(outside)
+
+    with pytest.raises(
+        module.Test3G3FOneShotError,
+        match=(
+            "the live G3-F module origin does not match the supplied repository root"
+            "|symlinked reviewed implementation path"
+        ),
+    ):
+        module.load_owner_activation_capability_v2(activation, repository_root=str(root))
+    _assert_v2_preclaim_absent(root, module)
+
+
+@pytest.mark.parametrize("hostile_kind", ("directory", "file", "symlink"))
+def test_v2_namespace_refuses_existing_or_unsafe_root(
+    tmp_path: Path,
+    hostile_kind: str,
+) -> None:
+    module = _fresh_g3f_module()
+    root = tmp_path / hostile_kind
+    (root / "artifacts").mkdir(parents=True)
+    evidence_root = root / module.ACTIVATION_V2_EVIDENCE_ROOT
+    if hostile_kind == "directory":
+        evidence_root.mkdir()
+    elif hostile_kind == "file":
+        evidence_root.write_text("synthetic collision\n", encoding="utf-8")
+    else:
+        target = tmp_path / "outside"
+        target.mkdir()
+        evidence_root.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(module.Test3G3FOneShotError, match="already exists"):
+        module._create_v2_evidence_namespace_once(str(root))
+    assert evidence_root.exists() or evidence_root.is_symlink()
+
+
+def test_v2_namespace_durability_failure_is_partial_and_never_repaired(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _fresh_g3f_module()
+    root = tmp_path / "durability"
+    (root / "artifacts").mkdir(parents=True)
+    real_fsync = module.os.fsync
+    calls = 0
+
+    def fail_first_fsync(descriptor: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("synthetic durability failure")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(module.os, "fsync", fail_first_fsync)
+    with pytest.raises(module.Test3G3FOneShotError, match="durable"):
+        module._create_v2_evidence_namespace_once(str(root))
+    monkeypatch.setattr(module.os, "fsync", real_fsync)
+
+    evidence_root = root / module.ACTIVATION_V2_EVIDENCE_ROOT
+    assert evidence_root.is_dir()
+    assert not (evidence_root / module.ACTIVATION_V2_EVIDENCE_NAMESPACE).exists()
+    with pytest.raises(module.Test3G3FOneShotError, match="already exists"):
+        module._create_v2_evidence_namespace_once(str(root))
 
 
 # ---------------------------------------------------------------------------------------------

@@ -57,6 +57,39 @@ def _load_runner() -> object:
     return module
 
 
+def _synthetic_execution_fixture(tmp_path: Path, module: object) -> tuple[Path, Path]:
+    """Create only inert runtime-origin and malformed-activation files under ``tmp_path``."""
+
+    root = tmp_path / "synthetic-execution-repository"
+    for relative in (
+        "tools/run_test3_one_shot_scientific_recovery.py",
+        "src/mes_quant/exploration/test3_g3p_pre_fit.py",
+        "src/mes_quant/exploration/test3_g3f_one_shot.py",
+    ):
+        path = root.joinpath(*relative.split("/"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# inert synthetic runtime-origin fixture\n", encoding="utf-8")
+    activation = root / "docs/research/TEST3_ONE_SHOT_REAL_TRAIN_ACTIVATION_V2.json"
+    activation.parent.mkdir(parents=True, exist_ok=True)
+    activation.write_text("{}\n", encoding="utf-8")
+    module.__file__ = str(root / "tools/run_test3_one_shot_scientific_recovery.py")
+    return root, activation
+
+
+def _execution_arguments(module: object, root: Path, activation: Path) -> list[str]:
+    arguments = [
+        "--gate",
+        module.EXECUTION_GATE_LITERAL,
+        "--activation-file",
+        str(activation),
+        "--repository-root",
+        str(root),
+    ]
+    for name in module.ARTIFACT_ARGUMENTS:
+        arguments.extend((f"--{name.replace('_', '-')}", str(root / f"synthetic-{name}")))
+    return arguments
+
+
 def test_importing_the_runner_has_no_side_effect(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -134,7 +167,7 @@ def test_execution_gate_requires_every_bound_input_and_creates_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The execution gate is unusable today: no activation file exists and none may be made."""
+    """A fully synthetic malformed activation fails without touching live V2 surfaces."""
 
     monkeypatch.chdir(tmp_path)
     module = _load_runner()
@@ -144,26 +177,64 @@ def test_execution_gate_requires_every_bound_input_and_creates_nothing(
     assert "repository-root" in str(exit_state.value)
     assert list(tmp_path.rglob("*")) == []
 
-    # A complete argument set still cannot execute, because the activation file is absent and
-    # this runner may never create one.
-    absent = tmp_path / "no-such-activation-file"
-    arguments = [
-        "--gate",
-        module.EXECUTION_GATE_LITERAL,
-        "--activation-file",
-        str(absent),
-        "--repository-root",
-        str(tmp_path),
-    ]
-    for name in module.ARTIFACT_ARGUMENTS:
-        arguments.extend((f"--{name.replace('_', '-')}", str(tmp_path / name)))
-
+    root, activation = _synthetic_execution_fixture(tmp_path, module)
+    from mes_quant.exploration import test3_g3f_one_shot as runtime_g3f
+    from mes_quant.exploration import test3_g3p_pre_fit as runtime_g3p
     from mes_quant.exploration.test3_g3f_one_shot import Test3G3FOneShotError
 
-    with pytest.raises(Test3G3FOneShotError, match="activation file"):
-        module.main(arguments)
-    assert not absent.exists()
-    assert list(tmp_path.rglob("*")) == []
+    monkeypatch.setattr(
+        runtime_g3p,
+        "__file__",
+        str(root / "src/mes_quant/exploration/test3_g3p_pre_fit.py"),
+    )
+    monkeypatch.setattr(
+        runtime_g3f,
+        "__file__",
+        str(root / "src/mes_quant/exploration/test3_g3f_one_shot.py"),
+    )
+    with pytest.raises(Test3G3FOneShotError, match="closed envelope"):
+        module.main(_execution_arguments(module, root, activation))
+    assert not (root / "artifacts/test3_one_shot_real_train_v2").exists()
+
+
+@pytest.mark.parametrize("origin_failure", ("wrong", "symlink"))
+def test_runtime_origin_failure_precedes_v2_loader_and_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    origin_failure: str,
+) -> None:
+    module = _load_runner()
+    root, activation = _synthetic_execution_fixture(tmp_path, module)
+    from mes_quant.exploration import test3_g3f_one_shot as runtime_g3f
+    from mes_quant.exploration import test3_g3p_pre_fit as runtime_g3p
+
+    g3p_path = root / "src/mes_quant/exploration/test3_g3p_pre_fit.py"
+    g3f_path = root / "src/mes_quant/exploration/test3_g3f_one_shot.py"
+    monkeypatch.setattr(runtime_g3p, "__file__", str(g3p_path))
+    monkeypatch.setattr(runtime_g3f, "__file__", str(g3f_path))
+    if origin_failure == "wrong":
+        wrong = tmp_path / "wrong-g3p-origin.py"
+        wrong.write_text("# wrong synthetic origin\n", encoding="utf-8")
+        monkeypatch.setattr(runtime_g3p, "__file__", str(wrong))
+    else:
+        outside = tmp_path / "outside-g3f-origin.py"
+        outside.write_text("# outside synthetic origin\n", encoding="utf-8")
+        g3f_path.unlink()
+        g3f_path.symlink_to(outside)
+
+    loader_calls = 0
+
+    def loader_tripwire(*_args: object, **_kwargs: object) -> object:
+        nonlocal loader_calls
+        loader_calls += 1
+        raise AssertionError("V2 loader reached after a runtime-origin failure")
+
+    monkeypatch.setattr(runtime_g3f, "load_owner_activation_capability_v2", loader_tripwire)
+    with pytest.raises(SystemExit, match="runtime module"):
+        module.main(_execution_arguments(module, root, activation))
+
+    assert loader_calls == 0
+    assert not (root / "artifacts/test3_one_shot_real_train_v2").exists()
 
 
 def test_execution_gate_refuses_relative_paths_before_any_verification(
@@ -223,7 +294,9 @@ def test_runner_source_names_no_evidence_path_and_imports_no_data_surface() -> N
     assert imported == {
         "__future__",
         "argparse",
+        "os",
         "pathlib",
+        "stat",
         "sys",
         "mes_quant.exploration.test3_g3f_one_shot",
         "mes_quant.exploration.test3_g3p_pre_fit",
@@ -243,7 +316,7 @@ def test_runner_never_names_evidence_and_never_chooses_the_estimator() -> None:
 
     # The runner only sequences the reviewed stages; it performs no scientific work itself.
     assert {
-        "load_owner_activation_capability",
+        "load_owner_activation_capability_v2",
         "open_execution_authority",
         "run_g3p_recovery",
         "record_terminal_stop",
@@ -252,3 +325,85 @@ def test_runner_never_names_evidence_and_never_chooses_the_estimator() -> None:
     } <= calls
     for forbidden in ("consume", "seal", "fit", "lstsq", "reserve", "deliver"):
         assert forbidden not in {call.lower() for call in calls}
+
+
+@pytest.mark.parametrize("disposition", ("UNDERPOWERED_STOP", "INVALID_EVIDENCE"))
+def test_existing_terminal_disposition_is_preserved_without_redundant_write(
+    disposition: str,
+) -> None:
+    module = _load_runner()
+
+    class ExistingTerminal:
+        @staticmethod
+        def execution_authority_report(_authority: object) -> dict[str, object]:
+            return {"disposition": disposition}
+
+        @staticmethod
+        def record_terminal_stop(*_args: object, **_kwargs: object) -> object:
+            raise AssertionError("existing terminal must not be written again")
+
+    report, status = module._preserve_or_record_invalid_terminal(
+        ExistingTerminal(), object(), RuntimeError("synthetic stop")
+    )
+    assert report == {"disposition": disposition}
+    assert status == disposition
+
+
+def test_missing_terminal_records_invalid_once_without_io() -> None:
+    module = _load_runner()
+    calls: list[str] = []
+
+    class MissingTerminal:
+        @staticmethod
+        def execution_authority_report(_authority: object) -> dict[str, object]:
+            raise RuntimeError("no terminal")
+
+        @staticmethod
+        def record_terminal_stop(
+            _authority: object,
+            *,
+            disposition: str,
+            reasons: tuple[str, ...],
+            source_binding: dict[str, object],
+        ) -> dict[str, object]:
+            calls.append(disposition)
+            assert reasons == ("RuntimeError: synthetic defect",)
+            assert source_binding["failed_after_reservation"] is True
+            return {"disposition": disposition}
+
+    report, status = module._preserve_or_record_invalid_terminal(
+        MissingTerminal(), object(), RuntimeError("synthetic defect")
+    )
+    assert report == {"disposition": "INVALID_EVIDENCE"}
+    assert status == "INVALID_EVIDENCE"
+    assert calls == ["INVALID_EVIDENCE"]
+
+
+def test_terminal_publication_and_report_failure_is_truthful_after_reservation() -> None:
+    """Ambiguous post-reservation failure never claims a pre-reservation stop."""
+
+    module = _load_runner()
+    calls = {"publication": 0, "report": 0}
+
+    class UnavailableTerminal:
+        @staticmethod
+        def execution_authority_report(_authority: object) -> dict[str, object]:
+            calls["report"] += 1
+            raise RuntimeError("synthetic report retrieval failure")
+
+        @staticmethod
+        def record_terminal_stop(*_args: object, **_kwargs: object) -> object:
+            calls["publication"] += 1
+            raise RuntimeError("synthetic terminal publication failure")
+
+    report, status = module._preserve_or_record_invalid_terminal(
+        UnavailableTerminal(), object(), RuntimeError("synthetic recovery failure")
+    )
+    lines = module._execution_lines(report, None, status)
+
+    assert report is None
+    assert status == "INVALID_EVIDENCE"
+    assert calls == {"publication": 1, "report": 2}
+    assert "TERMINAL_REPORT=UNAVAILABLE_AFTER_RESERVATION_OR_PUBLICATION_FAILURE" in lines
+    assert "TARGET_OR_PERMIT_CONSUMPTION=UNKNOWN_NOT_CLAIMED" in lines
+    assert not any("BEFORE_RESERVATION" in line for line in lines)

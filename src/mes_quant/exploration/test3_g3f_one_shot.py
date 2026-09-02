@@ -80,6 +80,7 @@ import json
 import math
 import os
 import stat
+import subprocess
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -191,7 +192,6 @@ FORBIDDEN_IMPORT_PREFIXES: Final[tuple[str, ...]] = (
     "sqlite3",
     "ssl",
     "statsmodels",
-    "subprocess",
     "sys",
     "tempfile",
     "urllib",
@@ -223,6 +223,7 @@ ALLOWED_IMPORT_ROOTS: Final[frozenset[str]] = frozenset(
         "numpy",
         "os",
         "stat",
+        "subprocess",
         "typing",
     }
 )
@@ -279,6 +280,60 @@ ACTIVATION_PAYLOAD_KEYS: Final[frozenset[str]] = frozenset(
         "runtime_evidence",
         "target_space_id",
     }
+)
+
+# V2 is a separate closed activation lineage.  The historical V1 loader and its schemas above
+# remain byte-for-byte compatible with V1 envelopes; only the V2 loader accepts this extension.
+ACTIVATION_V2_VERSION: Final[str] = "MES_TEST3_ONE_SHOT_REAL_TRAIN_ACTIVATION_V2"
+ACTIVATION_V2_ID: Final[str] = "TEST3_ONE_SHOT_REAL_TRAIN_ACTIVATION_V2"
+ACTIVATION_V2_OUTPUT_PATH: Final[str] = (
+    "docs/research/TEST3_ONE_SHOT_REAL_TRAIN_ACTIVATION_V2.json"
+)
+ACTIVATION_V2_OWNER_AUTHORIZATION_PATH: Final[str] = (
+    "docs/research/TEST3_ONE_SHOT_REAL_TRAIN_EXECUTION_AUTHORIZATION_V2.md"
+)
+ACTIVATION_V2_SYMBOLIC_REF: Final[str] = (
+    "refs/heads/governance/test3-one-shot-real-train-v2"
+)
+ACTIVATION_V2_ORIGIN_REF: Final[str] = (
+    "refs/remotes/origin/governance/test3-one-shot-real-train-v2"
+)
+ACTIVATION_V2_OVERRIDE_ID: Final[str] = "TEST3_ONE_SHOT_REAL_TRAIN_OVERRIDE_V2"
+ACTIVATION_V2_RECOVERY_LINEAGE_ID: Final[str] = "TEST3_ONE_SHOT_REAL_TRAIN_RECOVERY_V2"
+ACTIVATION_V2_EVIDENCE_ROOT: Final[str] = "artifacts/test3_one_shot_real_train_v2"
+ACTIVATION_V2_EVIDENCE_NAMESPACE: Final[str] = (
+    "TEST3_ONE_SHOT_REAL_TRAIN_V2_ATTEMPT_001"
+)
+ACTIVATION_V2_RESERVATION_NAME: Final[str] = "00_execution_authority_reservation.json"
+ACTIVATION_V2_PERMIT_NAMES: Final[tuple[str, ...]] = (
+    "01_fit_permit_RVBASE001_WF_2022.json",
+    "02_fit_permit_RVHAR001_WF_2022.json",
+    "03_fit_permit_RVBASE001_WF_2023.json",
+    "04_fit_permit_RVHAR001_WF_2023.json",
+)
+ACTIVATION_V2_TERMINAL_NAME: Final[str] = "05_terminal.json"
+ACTIVATION_V2_PAYLOAD_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "activation_id",
+        "activation_version",
+        "fit_permit_budget",
+        "git_binding",
+        "implementation_path_sha256",
+        "implementation_paths",
+        "override_id",
+        "owner_authorization",
+        "protocol_id",
+        "protocol_sha256",
+        "recovery_lineage_id",
+        "runtime_evidence",
+        "target_space_id",
+    }
+)
+ACTIVATION_V2_OWNER_AUTHORIZATION_KEYS: Final[frozenset[str]] = frozenset(
+    {"path", "sha256"}
+)
+ACTIVATION_V2_GIT_BINDING_KEYS: Final[frozenset[str]] = frozenset(
+    {"head", "origin_ref", "symbolic_ref", "tree"}
 )
 
 #: Spent identities that a fresh recovery lineage may never reuse or re-credit.
@@ -434,6 +489,16 @@ def _is_sha256(value: object) -> bool:
     return (
         isinstance(value, str)
         and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _is_git_object_id(value: object) -> bool:
+    """Accept the repository's machine-resolved SHA-1 or SHA-256 object-id format."""
+
+    return (
+        isinstance(value, str)
+        and len(value) in {40, 64}
         and all(character in "0123456789abcdef" for character in value)
     )
 
@@ -1470,6 +1535,152 @@ def _claim_activation_once(
     )
 
 
+def _create_v2_evidence_namespace_once(root: str) -> None:
+    """Create the V2 evidence root and namespace exactly once with durable mkdirat steps.
+
+    The existing repository ``artifacts`` directory is opened descriptor-relatively.  The V2
+    evidence-root leaf and namespace are each exclusive: an existing directory, file or symlink
+    is a terminal refusal.  Partial or durability failure is deliberately left in place so a
+    later process cannot mistake the attempt for a fresh one.
+    """
+
+    if (
+        not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+        or os.open not in os.supports_dir_fd
+        or os.mkdir not in os.supports_dir_fd
+    ):
+        raise _error("V2 evidence namespace creation requires secure mkdirat support")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptors: list[int] = []
+    try:
+        try:
+            descriptors.append(os.open(root, flags))
+            descriptors.append(os.open("artifacts", flags, dir_fd=descriptors[-1]))
+        except OSError as exc:
+            raise _error("the V2 evidence parent is missing, symlinked or unsafe") from exc
+        try:
+            os.mkdir("test3_one_shot_real_train_v2", 0o700, dir_fd=descriptors[-1])
+        except FileExistsError as exc:
+            raise _error("the V2 evidence root already exists; replay is refused") from exc
+        except OSError as exc:
+            raise _error("the V2 evidence root could not be created exclusively") from exc
+        try:
+            evidence_fd = os.open(
+                "test3_one_shot_real_train_v2", flags, dir_fd=descriptors[-1]
+            )
+            descriptors.append(evidence_fd)
+            os.fchmod(evidence_fd, 0o700)
+            os.fsync(evidence_fd)
+            os.fsync(descriptors[-2])
+        except OSError as exc:
+            raise _error("the V2 evidence root could not be made durable") from exc
+        try:
+            os.mkdir(ACTIVATION_V2_EVIDENCE_NAMESPACE, 0o700, dir_fd=evidence_fd)
+        except FileExistsError as exc:
+            raise _error("the V2 evidence namespace already exists; replay is refused") from exc
+        except OSError as exc:
+            raise _error("the V2 evidence namespace could not be created exclusively") from exc
+        try:
+            namespace_fd = os.open(
+                ACTIVATION_V2_EVIDENCE_NAMESPACE, flags, dir_fd=evidence_fd
+            )
+            descriptors.append(namespace_fd)
+            os.fchmod(namespace_fd, 0o700)
+            os.fsync(namespace_fd)
+            os.fsync(evidence_fd)
+        except OSError as exc:
+            raise _error("the V2 evidence namespace could not be made durable") from exc
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def _assert_v2_runtime_g3f_origin(root: str) -> None:
+    """Bind this live G3-F module to its exact non-symlink repository source before writes."""
+
+    expected = _repository_file(root, REVIEWED_IMPLEMENTATION_PATHS[2])
+    origin = globals().get("__file__")
+    if not isinstance(origin, str) or not os.path.isabs(origin):
+        raise _error("the live G3-F module has no absolute runtime origin")
+    if os.path.normpath(origin) != os.path.normpath(expected):
+        raise _error("the live G3-F module origin does not match the supplied repository root")
+
+
+def _git_line(root: str, *arguments: str) -> str:
+    """Resolve one bounded Git fact without shell interpretation or network access."""
+
+    environment = {
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": os.environ.get("PATH", ""),
+    }
+    try:
+        completed = subprocess.run(
+            ("git", "-C", root, *arguments),
+            capture_output=True,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            env=environment,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise _error("the V2 Git binding could not be machine-resolved") from exc
+    if completed.returncode != 0:
+        raise _error("the V2 Git binding command refused the repository state")
+    try:
+        value = completed.stdout.decode("ascii").strip()
+    except UnicodeDecodeError as exc:
+        raise _error("the V2 Git binding was not ASCII") from exc
+    if not value or "\n" in value or "\r" in value:
+        raise _error("the V2 Git binding did not resolve to one line")
+    return value
+
+
+def _observed_v2_git_binding(root: str) -> dict[str, str]:
+    symbolic_ref = _git_line(root, "symbolic-ref", "-q", "HEAD")
+    head = _git_line(root, "rev-parse", "--verify", "HEAD^{commit}")
+    tree = _git_line(root, "rev-parse", "--verify", "HEAD^{tree}")
+    origin = _git_line(
+        root, "rev-parse", "--verify", f"{ACTIVATION_V2_ORIGIN_REF}^{{commit}}"
+    )
+    tracked = subprocess.run(
+        (
+            "git",
+            "-C",
+            root,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=no",
+        ),
+        capture_output=True,
+        check=False,
+        stdin=subprocess.DEVNULL,
+        env={
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "PATH": os.environ.get("PATH", ""),
+        },
+        timeout=10,
+    )
+    if tracked.returncode != 0 or tracked.stdout:
+        raise _error("the V2 repository tracked/index state is not clean")
+    if symbolic_ref != ACTIVATION_V2_SYMBOLIC_REF or head != origin:
+        raise _error("the V2 symbolic ref or remote-equality predicate failed")
+    return {
+        "head": head,
+        "origin_ref": ACTIVATION_V2_ORIGIN_REF,
+        "symbolic_ref": symbolic_ref,
+        "tree": tree,
+    }
+
+
 def _assert_json_closed(value: object, *, field: str) -> object:
     """Fail closed unless ``value`` is a closed, finite, deterministic JSON structure."""
 
@@ -2002,6 +2213,174 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
                 "reservation_name": str(names["reservation_name"]),
                 "target_space_id": TARGET_SPACE_ID,
                 "terminal_name": str(names["terminal_name"]),
+            }
+        )
+        loader_state["issued"] = capability
+        return capability
+
+    def load_owner_activation_capability_v2(
+        activation_path: object,
+        *,
+        repository_root: object,
+    ) -> object:
+        """Verify and claim only the closed, Git-bound V2 activation lineage.
+
+        Every byte, Git, Owner-authorization, module-origin and naming predicate is verified
+        before the first filesystem mutation.  The only successful mutation order is exclusive
+        durable V2 evidence-root creation, exclusive durable namespace creation, then the
+        create-once replay claim.  Any failure spends this loader invocation and is never repaired.
+        """
+
+        if not loader_state["armed"]:
+            raise _error(
+                "the local activation loader is one-attempt per module instance and is spent"
+            )
+        loader_state["armed"] = False
+        root = _absolute_directory(repository_root, label="repository root")
+        _assert_v2_runtime_g3f_origin(root)
+        expected_activation_path = _repository_file(
+            root, ACTIVATION_V2_OUTPUT_PATH
+        )
+        path = _absolute_file(activation_path, label="the V2 activation file")
+        if os.path.normpath(path) != os.path.normpath(expected_activation_path):
+            raise _error("the V2 activation must use its exact repository path")
+        raw = _read_regular_file_bytes(
+            path,
+            limit=ACTIVATION_FILE_MAX_BYTES,
+            label="the V2 activation file",
+        )
+        try:
+            document = json.loads(
+                raw.decode("utf-8"),
+                object_pairs_hook=_reject_duplicate_keys,
+                parse_constant=_reject_json_constant,
+            )
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise _error("the V2 activation file must be one closed UTF-8 JSON object") from exc
+        if not isinstance(document, dict) or set(document) != set(ACTIVATION_ENVELOPE_KEYS):
+            raise _error("the V2 activation file must carry the exact closed envelope key set")
+        _assert_finite(document, field="activation_v2")
+        payload = document["activation_payload"]
+        if not isinstance(payload, dict) or set(payload) != set(ACTIVATION_V2_PAYLOAD_KEYS):
+            raise _error("the V2 activation payload must carry its exact closed key set")
+        declared_payload_sha256 = document["activation_payload_sha256"]
+        if not _is_sha256(declared_payload_sha256):
+            raise _error("V2 activation_payload_sha256 must be a lowercase SHA-256 digest")
+        payload_sha256 = _canonical_digest(payload)
+        if payload_sha256 != declared_payload_sha256:
+            raise _error("the V2 activation digest does not cover the exact nested payload")
+        if raw != _canonical_bytes(document):
+            raise _error("the V2 activation file is not exact canonical UTF-8 JSON")
+        if payload["activation_version"] != ACTIVATION_V2_VERSION:
+            raise _error("the V2 activation version is not exact")
+        if payload["activation_id"] != ACTIVATION_V2_ID:
+            raise _error("the V2 activation identity is not exact")
+        lineage = _identity(payload["recovery_lineage_id"], field="recovery_lineage_id")
+        override = _identity(payload["override_id"], field="override_id")
+        if lineage != ACTIVATION_V2_RECOVERY_LINEAGE_ID:
+            raise _error("the V2 recovery lineage identity is not exact")
+        if override != ACTIVATION_V2_OVERRIDE_ID:
+            raise _error("the V2 override identity is not exact")
+        if payload["protocol_id"] != PROTOCOL_ID or payload["protocol_sha256"] != PROTOCOL_SHA256:
+            raise _error("the V2 activation does not bind the ratified protocol")
+        if payload["target_space_id"] != TARGET_SPACE_ID:
+            raise _error("the V2 activation does not bind the frozen target space")
+        budget = payload["fit_permit_budget"]
+        if isinstance(budget, bool) or not isinstance(budget, int) or budget != FIT_PERMIT_BUDGET:
+            raise _error(f"the lifetime fit budget is exactly {FIT_PERMIT_BUDGET}")
+        authorization = payload["owner_authorization"]
+        if (
+            not isinstance(authorization, dict)
+            or set(authorization) != set(ACTIVATION_V2_OWNER_AUTHORIZATION_KEYS)
+            or authorization.get("path") != ACTIVATION_V2_OWNER_AUTHORIZATION_PATH
+            or not _is_sha256(authorization.get("sha256"))
+        ):
+            raise _error("the V2 Owner-authorization binding is not closed and exact")
+        authorization_raw = _read_regular_file_bytes(
+            _repository_file(root, ACTIVATION_V2_OWNER_AUTHORIZATION_PATH),
+            limit=REVIEWED_FILE_MAX_BYTES,
+            label="the V2 Owner authorization",
+        )
+        if hashlib.sha256(authorization_raw).hexdigest() != authorization["sha256"]:
+            raise _error("the V2 Owner-authorization bytes drifted")
+        git_binding = payload["git_binding"]
+        if (
+            not isinstance(git_binding, dict)
+            or set(git_binding) != set(ACTIVATION_V2_GIT_BINDING_KEYS)
+            or not _is_git_object_id(git_binding.get("head"))
+            or not _is_git_object_id(git_binding.get("tree"))
+        ):
+            raise _error("the V2 Git binding is not closed")
+        if git_binding != _observed_v2_git_binding(root):
+            raise _error("the current V2 Git state does not match the activation")
+        declared_paths = payload["implementation_paths"]
+        if not isinstance(declared_paths, list) or tuple(declared_paths) != REVIEWED_IMPLEMENTATION_PATHS:
+            raise _error("the V2 activation must bind the exact ordered six implementation paths")
+        declared_digests = payload["implementation_path_sha256"]
+        if (
+            not isinstance(declared_digests, list)
+            or len(declared_digests) != len(REVIEWED_IMPLEMENTATION_PATHS)
+            or not all(_is_sha256(item) for item in declared_digests)
+        ):
+            raise _error("the V2 activation must bind all six implementation digests")
+        observed = _observed_reviewed_digests(root)
+        if observed != tuple(declared_digests):
+            raise _error("the current six implementation bytes do not match the V2 activation")
+        evidence = _validated_runtime_evidence(payload["runtime_evidence"])
+        names = dict(evidence)
+        expected_evidence = {
+            "namespace": ACTIVATION_V2_EVIDENCE_NAMESPACE,
+            "permit_names": ACTIVATION_V2_PERMIT_NAMES,
+            "reservation_name": ACTIVATION_V2_RESERVATION_NAME,
+            "root": ACTIVATION_V2_EVIDENCE_ROOT,
+            "terminal_name": ACTIVATION_V2_TERMINAL_NAME,
+        }
+        if names != expected_evidence:
+            raise _error("the V2 runtime-evidence lineage and four permits are not exact")
+
+        # All validation above is read-only.  These are the only V2 loader mutations.
+        _create_v2_evidence_namespace_once(root)
+        activation_file_sha256 = hashlib.sha256(raw).hexdigest()
+        _claim_activation_once(
+            root,
+            evidence_root=ACTIVATION_V2_EVIDENCE_ROOT,
+            namespace=ACTIVATION_V2_EVIDENCE_NAMESPACE,
+            reservation_name=ACTIVATION_V2_RESERVATION_NAME,
+            payload=_activation_claim_bytes(activation_file_sha256),
+        )
+        serial = next_serial()
+        capability = _VerifiedOwnerActivationCapability(
+            closure_key,
+            activation_file_sha256=activation_file_sha256,
+            activation_payload_sha256=payload_sha256,
+            fit_permit_budget=budget,
+            override_id=override,
+            recovery_lineage_id=lineage,
+            repository_root=root,
+            reviewed_digests=observed,
+            runtime_evidence=evidence,
+            serial=serial,
+        )
+        activation_registry[serial] = issued_state
+        verified_root.append(root)
+        verified_digests.append(observed)
+        verified_binding.append(
+            {
+                "activation_file_sha256": activation_file_sha256,
+                "activation_payload_sha256": payload_sha256,
+                "evidence_namespace": ACTIVATION_V2_EVIDENCE_NAMESPACE,
+                "evidence_root": ACTIVATION_V2_EVIDENCE_ROOT,
+                "fit_permit_budget": budget,
+                "implementation_path_sha256": list(observed),
+                "implementation_paths": list(REVIEWED_IMPLEMENTATION_PATHS),
+                "override_id": override,
+                "permit_names": list(ACTIVATION_V2_PERMIT_NAMES),
+                "protocol_id": PROTOCOL_ID,
+                "protocol_sha256": PROTOCOL_SHA256,
+                "recovery_lineage_id": lineage,
+                "reservation_name": ACTIVATION_V2_RESERVATION_NAME,
+                "target_space_id": TARGET_SPACE_ID,
+                "terminal_name": ACTIVATION_V2_TERMINAL_NAME,
             }
         )
         loader_state["issued"] = capability
@@ -2815,6 +3194,7 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
     return (
         module_marker,
         load_owner_activation_capability,
+        load_owner_activation_capability_v2,
         accept_and_consume_activation,
         claim_g3p_delivery_handle,
         local_state_report,
@@ -2832,6 +3212,7 @@ def _build_closed_activation_and_handoff_state_machine() -> tuple[object, ...]:
 (
     _MODULE_INSTANCE_MARKER,
     load_owner_activation_capability,
+    load_owner_activation_capability_v2,
     _accept_and_consume_activation,
     _claim_g3p_delivery_handle,
     _local_state_report,
@@ -2962,6 +3343,9 @@ __all__ = [
     "ACTIVATION_ENVELOPE_KEYS",
     "ACTIVATION_FILE_MAX_BYTES",
     "ACTIVATION_PAYLOAD_KEYS",
+    "ACTIVATION_V2_GIT_BINDING_KEYS",
+    "ACTIVATION_V2_OWNER_AUTHORIZATION_KEYS",
+    "ACTIVATION_V2_PAYLOAD_KEYS",
     "ALLOWED_IMPORT_ROOTS",
     "BOOTSTRAP_BLOCK_ORDER",
     "EVIDENCE_NAMING",
@@ -3010,6 +3394,7 @@ __all__ = [
     "describe_pre_activation_stop",
     "execution_authority_report",
     "load_owner_activation_capability",
+    "load_owner_activation_capability_v2",
     "open_execution_authority",
     "record_terminal_stop",
     "run_one_shot_fits",

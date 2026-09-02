@@ -1592,6 +1592,96 @@ def test_recovery_flags_a_holdout_row_outside_its_frozen_fold_year() -> None:
     assert g3p._recovery_holdout_year_failures(drifted) == ("WF_2023:HOLDOUT_YEAR_NOT_2023",)
 
 
+@pytest.mark.parametrize(
+    ("recovery_failure", "expected_failure"),
+    (
+        ("undefined_acf", "WF_2022:REQUIRED_ACF_LAG_8_UNDEFINED"),
+        ("wrong_holdout_year", "WF_2023:HOLDOUT_YEAR_NOT_2023"),
+    ),
+)
+def test_recovery_only_structural_failure_normalizes_passing_base_to_underpowered(
+    monkeypatch: pytest.MonkeyPatch,
+    recovery_failure: str,
+    expected_failure: str,
+) -> None:
+    """Recovery-only minima close a base support pass before delivery, permit or fit."""
+
+    def profile(*, undefined_lag: int | None = None) -> dict[str, object]:
+        return {
+            "lags": [
+                {
+                    "lag": lag,
+                    "rho_observed": None if lag == undefined_lag else 0.25,
+                }
+                for lag in range(1, 9)
+            ]
+        }
+
+    support_evidence = {
+        "structural_failures": [],
+        "folds": {
+            "WF_2022": {
+                "dependence": profile(
+                    undefined_lag=8 if recovery_failure == "undefined_acf" else None
+                )
+            },
+            "WF_2023": {"dependence": profile()},
+        },
+        "pooled_disjoint_oof_dependence": profile(),
+    }
+    original_support_evidence = json.loads(json.dumps(support_evidence))
+    controls = (
+        (
+            _control(
+                "wrong-year|instrument_id=12345",
+                datetime(2022, 6, 2, 15, 0, tzinfo=UTC),
+                role_2022="UNUSED",
+                role_2023="VALIDATION",
+            ),
+        )
+        if recovery_failure == "wrong_holdout_year"
+        else ()
+    )
+
+    class NonZeroVarianceTargets:
+        def __init__(self) -> None:
+            self.status_counts = {g3p.FailureReason.TARGET_ZERO_VARIANCE.value: 0}
+
+    prohibited_calls: list[str] = []
+
+    def passing_support(*_args: object, **_kwargs: object) -> tuple[dict[str, object], str, str]:
+        return (
+            support_evidence,
+            "DEFERRED_PENDING_SEPARATE_G3F_AUTHORIZATION",
+            "NOT_AUTHORIZED_OWNER_DECISION_REQUIRED",
+        )
+
+    def delivery_tripwire(*_args: object, **_kwargs: object) -> None:
+        prohibited_calls.append("delivery")
+
+    monkeypatch.setattr(g3p, "_support_evidence", passing_support)
+    monkeypatch.setattr(g3p, "_deliver_in_memory_handoff", delivery_tripwire)
+
+    returned_evidence, disposition, failures, support_passed, zero_variance = (
+        g3p._recovery_support_decision(
+            controls,
+            object(),
+            NonZeroVarianceTargets(),
+            {},
+        )
+    )
+
+    assert returned_evidence is support_evidence
+    assert returned_evidence == original_support_evidence
+    assert failures == (expected_failure,)
+    assert disposition == g3p.TerminalDisposition.UNDERPOWERED.value
+    assert support_passed is False
+    assert zero_variance is False
+    if support_passed:
+        g3p._deliver_in_memory_handoff()
+    assert prohibited_calls == []
+
+
 def test_recovery_support_gate_failure_is_underpowered_and_delivers_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1600,22 +1690,60 @@ def test_recovery_support_gate_failure_is_underpowered_and_delivers_nothing(
     monkeypatch.setattr(g3p, "FROZEN_HOLDOUT_COUNTS", {"WF_2022": 20, "WF_2023": 20})
     controls, predictor, targets = _support_fixture(duplicate_session=True)
     harmonics, _pre_target = g3p._pre_target_support_contract(controls, predictor)
-    evidence, disposition, g3f_status = g3p._support_evidence(
-        controls,
-        predictor,
-        targets,
-        harmonics,
+    evidence, disposition, structural, support_passed, zero_variance = (
+        g3p._recovery_support_decision(
+            controls,
+            predictor,
+            targets,
+            harmonics,
+        )
     )
 
-    assert disposition == "UNDERPOWERED_STOP"
-    assert g3f_status == "TERMINAL"
-    structural = tuple(evidence["structural_failures"])
-    structural += g3p._recovery_required_lags_defined(evidence)
-    structural += g3p._recovery_holdout_year_failures(controls)
+    assert disposition == g3p.TerminalDisposition.UNDERPOWERED.value
     assert "WF_2022:HOLDOUT_SESSIONS_LT_20" in structural
-    # The recovery gate composes the frozen support failures with its own additional minima, so
-    # a support-gate failure can only produce a non-delivering UNDERPOWERED_STOP.
-    assert not (disposition != "UNDERPOWERED_STOP" and not structural)
+    assert evidence["structural_failures"]
+    assert support_passed is False
+    assert zero_variance is False
+
+
+def test_recovery_zero_variance_is_closed_before_support_common_or_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed synthetic zero-variance ledger cannot reach any later row surface."""
+
+    def tripwire(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("zero-variance terminal reached a prohibited downstream surface")
+
+    class ZeroVarianceTargets:
+        def __init__(self) -> None:
+            self.status_counts = {g3p.FailureReason.TARGET_ZERO_VARIANCE.value: 1}
+
+    monkeypatch.setattr(g3p, "_support_evidence", tripwire)
+    monkeypatch.setattr(g3p, "common_eligibility", tripwire)
+    monkeypatch.setattr(g3p, "_deliver_in_memory_handoff", tripwire)
+
+    support, disposition, failures, support_passed, zero_variance = (
+        g3p._recovery_support_decision(
+            (),
+            object(),
+            ZeroVarianceTargets(),
+            {},
+        )
+    )
+
+    assert zero_variance is True
+    assert disposition == g3p.TerminalDisposition.INVALID.value
+    assert failures == ("TARGET_ZERO_VARIANCE_PRESENT_AFTER_COMPLETE_TARGET_LEDGER",)
+    assert support == {
+        "status": "NOT_COMPUTED_TARGET_ZERO_VARIANCE_TERMINAL",
+        "common_eligibility": "NOT_COMPUTED",
+        "folds": "NOT_COMPUTED",
+        "dependence": "NOT_COMPUTED",
+    }
+    assert support_passed is False
+    # This is the exact run_g3p_recovery delivery guard; the tripwire must stay untouched.
+    if support_passed:
+        g3p._deliver_in_memory_handoff()
 
 
 def test_recovery_predictor_ledger_stays_frozen_without_predecessor_credit() -> None:

@@ -3264,6 +3264,48 @@ def _recovery_holdout_year_failures(controls: tuple[ControlRow, ...]) -> tuple[s
     return tuple(failures)
 
 
+def _recovery_support_decision(
+    controls: tuple[ControlRow, ...],
+    predictor: PredictorData,
+    targets: TargetBuildResult,
+    harmonic_by_identity: Mapping[str, Harmonic],
+) -> tuple[dict[str, object], str, tuple[str, ...], bool, bool]:
+    """Close target-zero-variance before any support/common-eligibility computation."""
+
+    zero_variance = bool(
+        targets.status_counts[FailureReason.TARGET_ZERO_VARIANCE.value]
+    )
+    if zero_variance:
+        support_evidence = {
+            "status": "NOT_COMPUTED_TARGET_ZERO_VARIANCE_TERMINAL",
+            "common_eligibility": "NOT_COMPUTED",
+            "folds": "NOT_COMPUTED",
+            "dependence": "NOT_COMPUTED",
+        }
+        disposition = TerminalDisposition.INVALID.value
+        structural_failures = (
+            "TARGET_ZERO_VARIANCE_PRESENT_AFTER_COMPLETE_TARGET_LEDGER",
+        )
+    else:
+        support_evidence, disposition, _g3f_status = _support_evidence(
+            controls,
+            predictor,
+            targets,
+            harmonic_by_identity,
+        )
+        structural_failures = tuple(support_evidence.get("structural_failures") or ())
+        structural_failures += _recovery_required_lags_defined(support_evidence)
+        structural_failures += _recovery_holdout_year_failures(controls)
+        if structural_failures and disposition != TerminalDisposition.INVALID.value:
+            disposition = TerminalDisposition.UNDERPOWERED.value
+    support_passed = (
+        disposition
+        not in {TerminalDisposition.INVALID.value, TerminalDisposition.UNDERPOWERED.value}
+        and not structural_failures
+    )
+    return support_evidence, disposition, structural_failures, support_passed, zero_variance
+
+
 def run_g3p_recovery(
     *,
     root: Path,
@@ -3433,18 +3475,19 @@ def run_g3p_recovery(
             provider,
         )
         _assert_forbidden_modules_absent(phase="after target ledger")
-        support_evidence, disposition, _g3f_status = _support_evidence(
+        (
+            support_evidence,
+            disposition,
+            structural_failures,
+            support_passed,
+            zero_variance,
+        ) = _recovery_support_decision(
             cell8_controls,
             predictor,
             targets,
             harmonic_by_identity,
         )
         guard_record = _fit_guard_record(guard)
-
-    structural_failures = tuple(support_evidence.get("structural_failures") or ())
-    structural_failures += _recovery_required_lags_defined(support_evidence)
-    structural_failures += _recovery_holdout_year_failures(cell8_controls)
-    support_passed = disposition != "UNDERPOWERED_STOP" and not structural_failures
     record: dict[str, object] = {
         "entrypoint_id": G3P_RECOVERY_ENTRYPOINT_ID,
         "recovery_lineage_id": lineage,
@@ -3463,12 +3506,18 @@ def run_g3p_recovery(
         "structural_failures": list(structural_failures),
         "fit_guard": guard_record,
         "support_gate_status": (
-            "G3P_RECOVERY_SUPPORT_PASS" if support_passed else "G3P_RECOVERY_UNDERPOWERED_STOP"
+            "G3P_RECOVERY_SUPPORT_PASS"
+            if support_passed
+            else (
+                "G3P_RECOVERY_TARGET_ZERO_VARIANCE_INVALID_EVIDENCE"
+                if zero_variance
+                else "G3P_RECOVERY_UNDERPOWERED_STOP"
+            )
         ),
         "disposition": (
             "DELIVERED_TO_REVIEWED_G3F_IN_PROCESS"
             if support_passed
-            else TerminalDisposition.UNDERPOWERED.value
+            else disposition
         ),
         "rows_delivered": support_passed,
         "validation_status": "UNOPENED",

@@ -19,6 +19,8 @@ Importing this module has no side effect; all work happens inside ``main``.
 from __future__ import annotations
 
 import argparse
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -95,6 +97,67 @@ def _absolute(value: object, *, label: str) -> Path:
     return resolved
 
 
+def _assert_exact_module_origin(
+    module_name: str,
+    origin: object,
+    *,
+    root: Path,
+    relative: str,
+) -> None:
+    """Require one live module to originate at one exact non-symlinked repository file."""
+
+    if not isinstance(origin, str) or not os.path.isabs(origin):
+        raise SystemExit(f"runtime module {module_name} has no absolute origin")
+    expected = os.path.normpath(os.path.join(os.fspath(root), *relative.split("/")))
+    if os.path.normpath(origin) != expected:
+        raise SystemExit(f"runtime module {module_name} did not load from {relative}")
+    current = os.path.normpath(os.fspath(root))
+    components = relative.split("/")
+    for index, component in enumerate(components):
+        current = os.path.join(current, component)
+        try:
+            status = os.lstat(current)
+        except OSError as exc:
+            raise SystemExit(f"runtime module origin is missing: {relative}") from exc
+        if stat.S_ISLNK(status.st_mode):
+            raise SystemExit(f"runtime module origin is symlinked: {relative}")
+        if index == len(components) - 1:
+            if not stat.S_ISREG(status.st_mode):
+                raise SystemExit(f"runtime module origin is not a regular file: {relative}")
+        elif not stat.S_ISDIR(status.st_mode):
+            raise SystemExit(f"runtime module origin ancestor is unsafe: {relative}")
+
+
+def _assert_runtime_module_origins(root: Path, g3p: object, g3f: object) -> None:
+    """Verify runner, G3-P and G3-F origins before loader, namespace or replay mutation."""
+
+    try:
+        root_status = os.lstat(root)
+    except OSError as exc:
+        raise SystemExit("--repository-root is missing") from exc
+    if stat.S_ISLNK(root_status.st_mode) or not stat.S_ISDIR(root_status.st_mode):
+        raise SystemExit("--repository-root must be an exact non-symlinked directory")
+    for module_name, origin, relative in (
+        (__name__, globals().get("__file__"), "tools/run_test3_one_shot_scientific_recovery.py"),
+        (
+            "mes_quant.exploration.test3_g3p_pre_fit",
+            getattr(g3p, "__file__", None),
+            "src/mes_quant/exploration/test3_g3p_pre_fit.py",
+        ),
+        (
+            "mes_quant.exploration.test3_g3f_one_shot",
+            getattr(g3f, "__file__", None),
+            "src/mes_quant/exploration/test3_g3f_one_shot.py",
+        ),
+    ):
+        _assert_exact_module_origin(
+            module_name,
+            origin,
+            root=root,
+            relative=relative,
+        )
+
+
 def _terminal_once(g3f, authority, *, disposition: str, reason: str, binding: dict):
     """Attempt exactly one terminal record; a written terminal is never retried."""
 
@@ -110,6 +173,27 @@ def _terminal_once(g3f, authority, *, disposition: str, reason: str, binding: di
             return g3f.execution_authority_report(authority)
         except Exception:  # noqa: BLE001 - the failure is already terminal
             return None
+
+
+def _preserve_or_record_invalid_terminal(g3f, authority, error: Exception) -> tuple[object, str]:
+    """Preserve an existing terminal; write INVALID_EVIDENCE only when none exists."""
+
+    try:
+        report = g3f.execution_authority_report(authority)
+    except Exception:  # noqa: BLE001 - absence is the only case that permits one write
+        report = _terminal_once(
+            g3f,
+            authority,
+            disposition=INVALID_EVIDENCE,
+            reason=f"{type(error).__name__}: {error}",
+            binding={"stage": "TEST3_ONE_SHOT_RECOVERY", "failed_after_reservation": True},
+        )
+    if isinstance(report, dict) and report.get("disposition") in {
+        UNDERPOWERED_STOP,
+        INVALID_EVIDENCE,
+    }:
+        return report, str(report["disposition"])
+    return report, INVALID_EVIDENCE
 
 
 def _execution_lines(report: object, cleanup: object, status: str) -> tuple[str, ...]:
@@ -133,7 +217,12 @@ def _execution_lines(report: object, cleanup: object, status: str) -> tuple[str,
             )
         )
     else:
-        lines.append("TERMINAL_RECORD=ABSENT_STOPPED_BEFORE_RESERVATION")
+        lines.extend(
+            (
+                "TERMINAL_REPORT=UNAVAILABLE_AFTER_RESERVATION_OR_PUBLICATION_FAILURE",
+                "TARGET_OR_PERMIT_CONSUMPTION=UNKNOWN_NOT_CLAIMED",
+            )
+        )
     if isinstance(cleanup, dict):
         lines.extend(
             (
@@ -154,6 +243,7 @@ def _execute(args: argparse.Namespace) -> int:
 
     root = _absolute(args.repository_root, label="repository-root")
     activation = _absolute(args.activation_file, label="activation-file")
+    _assert_runtime_module_origins(root, g3p, g3f)
     artifacts = g3p.ArtifactPaths(
         *(_absolute(getattr(args, name), label=name.replace("_", "-"))
           for name in ARTIFACT_ARGUMENTS)
@@ -161,7 +251,9 @@ def _execute(args: argparse.Namespace) -> int:
 
     # 1. Verify the activation envelope, replay state and current six-path bytes. Nothing
     #    protected is reachable until this returns, and no activation file is ever created here.
-    capability = g3f.load_owner_activation_capability(str(activation), repository_root=str(root))
+    capability = g3f.load_owner_activation_capability_v2(
+        str(activation), repository_root=str(root)
+    )
 
     # 2. Publish the durable execution-authority reservation before any source/target access.
     authority = g3f.open_execution_authority(capability)
@@ -177,23 +269,21 @@ def _execute(args: argparse.Namespace) -> int:
         )
         if not outcome["rows_delivered"]:
             failures = tuple(outcome["structural_failures"]) or ("G3P_RECOVERY_SUPPORT_FAILURE",)
+            disposition = str(outcome["disposition"])
+            if disposition not in {UNDERPOWERED_STOP, INVALID_EVIDENCE}:
+                disposition = INVALID_EVIDENCE
             g3f.record_terminal_stop(
                 authority,
-                disposition=UNDERPOWERED_STOP,
+                disposition=disposition,
                 reasons=failures,
                 source_binding=outcome,
             )
-            status = UNDERPOWERED_STOP
+            status = disposition
         report = g3f.execution_authority_report(authority)
     except Exception as error:  # noqa: BLE001 - exactly one terminal, then a truthful status
-        status = INVALID_EVIDENCE
-        report = _terminal_once(
-            g3f,
-            authority,
-            disposition=INVALID_EVIDENCE,
-            reason=f"{type(error).__name__}: {error}",
-            binding={"stage": "TEST3_ONE_SHOT_RECOVERY", "failed_after_reservation": True},
-        )
+        # G3-F can already have written the one terminal while raising its stop.  Preserve that
+        # disposition and never make a redundant terminal attempt.
+        report, status = _preserve_or_record_invalid_terminal(g3f, authority, error)
     finally:
         cleanup = g3f.close_execution_authority(authority)
     for line in _execution_lines(report, cleanup, status):
