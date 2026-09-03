@@ -1,0 +1,17 @@
+{
+  "authorization_document_sha256": "6042c4e6b9fff928facb41dc5fba2997908bfd7aefb0f6714fd6d9b0630fadcc",
+  "authorization_id": "AUTH_TEST3_G2P_SINGLE_PROVEN_DEFECT_SUCCESSOR_20260824",
+  "authorization_token_sha256": "698efc301cd18e4e54bdd17a273b99579b0ed1145a3a58a862648ab7f99b19bf",
+  "branch": "research/test3-g2p-proven-defect-successor-v1",
+  "consumed_utc": "2026-08-24T17:13:51.462683Z",
+  "execution_commit": "37552b84ab38a27b3bbd699e83da379a8b396b1b",
+  "execution_tree": "eb361eab45327a5f349c95defa7b5ec6f0083712",
+  "predecessor_evidence_commit": "f0a3387f077ac30c99287601adeb81014068ff08",
+  "predecessor_failure_sha256": "9b9f7f7824c89af2fa32de3cda00cfa38a519795a6c88bae6a6201d89717a439",
+  "predecessor_reservation_sha256": "2cf1ce922a012045af9959265b613df662727e268c8797f9555ee19072c9c68c",
+  "proof_commit": "2d4fccf4ac2040e8e908bfadda27b81b3663afad",
+  "repair_lineage_id": "MES_TEST3_G2P_SINGLE_PROVEN_DEFECT_REPAIR_V1",
+  "status": "CONSUMED_BEFORE_PREDICTOR_ACCESS",
+  "successor_limit": 1,
+  "successor_ordinal": 1
+}

@@ -1,0 +1,67 @@
+{
+  "artifact_id": "MES_EXECUTION_HARDENING_STEP3_PHASE_A_CLOSEOUT_MANIFEST_V1",
+  "schema_version": 1,
+  "created_utc": "2026-08-27T17:37:09Z",
+  "operating_mode": "FULL_GOVERNED",
+  "phase": "EXECUTION_HARDENING_STEP3_PHASE_A",
+  "exact_ref": "refs/heads/governance/execution-hardening-step3-v1",
+  "reviewed_commit": "d647320f5ce4e4081b9f87996cb0f32939905324",
+  "reviewed_tree": "22eda03675b47a585dac9e84c06cc493af8abc58",
+  "review": {
+    "attempt_id": "ATTEMPT_EXECUTION_HARDENING_PHASE_A_FINAL_OPUS_20260827_001",
+    "outcome_class": "VERDICT",
+    "verdict": "GO",
+    "blocker_count": 0,
+    "high_count": 0,
+    "low_count": 4,
+    "review_tool_allowlist_nonconformance": 0,
+    "trust": "UNTRUSTED_CONTEXT_ONLY",
+    "reviewer_identity_status": "NOT_VERIFIED"
+  },
+  "forward_chain": [
+    {
+      "artifact_id": "CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1",
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1.md",
+      "sha256": "8a5756ece83f4dccadd946798d0d47229ad3abf1a561687c490aae9dfb5c2f3e"
+    },
+    {
+      "artifact_id": "DISPATCH_RECEIPT_EXECUTION_HARDENING_PHASE_A_FINAL_V1",
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_DISPATCH_RECEIPT.md",
+      "sha256": "df028aa602f8266e020cedd74c8a4913e063f9fb3aa56e0b800e2cf7cef8d1e3"
+    },
+    {
+      "artifact_id": "ATTEMPT_EXECUTION_HARDENING_PHASE_A_FINAL_OPUS_20260827_001",
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_RESPONSE.md",
+      "sha256": "b0585e80bc92e961a5122effc650fa6904b474b31a0d0b58c00d30989a60b876"
+    },
+    {
+      "artifact_id": "OWNER_CLOSEOUT_EXECUTION_HARDENING_PHASE_A_FINAL_V1",
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_OWNER_CLOSEOUT.md",
+      "sha256": "7136900702eea54d86f85ecad0da03c42d49a08901669466c3309d5af860fba0"
+    },
+    {
+      "artifact_id": "CLOSEOUT_RECEIPT_EXECUTION_HARDENING_PHASE_A_FINAL_V1",
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_CLOSEOUT_RECEIPT.md",
+      "sha256": "389c0d697a62e649b8b45885faf749db320c7e0937e9a1c27f0c7c2ed9038546"
+    }
+  ],
+  "terminal_external_anchor": {
+    "artifact_id": "CLOSEOUT_RECEIPT_EXECUTION_HARDENING_PHASE_A_FINAL_V1",
+    "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_PHASE_A_FINAL_V1_CLOSEOUT_RECEIPT.md",
+    "complete_sha256": "389c0d697a62e649b8b45885faf749db320c7e0937e9a1c27f0c7c2ed9038546"
+  },
+  "owner_decision": "ACCEPT_PHASE_A_ENGINEERING_REVIEW_AND_AUTHORIZE_CLOSEOUT_CHAIN_ONLY",
+  "authorization_created": "PHASE_A_CLOSEOUT_CHAIN_AND_FINAL_EVIDENCE_COMMIT_ONLY",
+  "authority_boundary": {
+    "decision_c": "NOT_AUTHORIZED",
+    "phase_b": "NOT_AUTHORIZED",
+    "tier2": "NOT_AUTHORIZED",
+    "oidc_or_signing": "NOT_AUTHORIZED",
+    "merge_or_main_mutation": "NOT_AUTHORIZED",
+    "data_target_or_path_access": "NOT_AUTHORIZED",
+    "fit_validation_or_final_test": "NOT_AUTHORIZED",
+    "test3_retry_or_test3b": "NOT_AUTHORIZED",
+    "test4": "NOT_AUTHORIZED",
+    "scientific_execution": "NOT_AUTHORIZED"
+  }
+}

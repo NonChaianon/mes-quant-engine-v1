@@ -1,0 +1,42 @@
+{
+  "schema_version": "MES_EXECUTION_HARDENING_LIVE_STATE_SNAPSHOT_V1",
+  "status": "READ_ONLY_OBSERVATION_NO_AUTHORITY",
+  "observed_utc": "2026-08-25T16:55:29Z",
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "observer": "authenticated gh CLI",
+  "issue_48": {
+    "number": 48,
+    "state": "OPEN",
+    "title": "CI: enforce executed-frozen document integrity on every PR",
+    "url": "https://github.com/NonChaianon/mes-quant-engine-v1/issues/48"
+  },
+  "pr_47": {
+    "headRefName": "research/test3-volatility-risk-edge-protocol-v1",
+    "headRefOid": "05f569f3ee2093461b5330e8069cb2fd0099d3b1",
+    "isDraft": true,
+    "mergeStateStatus": "BLOCKED",
+    "mergeable": "MERGEABLE",
+    "number": 47,
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-08-24T09:35:22Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/NonChaianon/mes-quant-engine-v1/actions/runs/32712305054/job/97386133781",
+        "name": "Quant CI V1",
+        "startedAt": "2026-08-24T09:34:47Z",
+        "status": "COMPLETED",
+        "workflowName": "MES Quant CI V1"
+      }
+    ],
+    "url": "https://github.com/NonChaianon/mes-quant-engine-v1/pull/47"
+  },
+  "actions_attest_v4_ref": {
+    "object_sha": "1e69f48acb82d1966a394da916b4c1698aa569d6",
+    "object_type": "commit",
+    "ref": "refs/tags/v4"
+  },
+  "volatility_rule": "must be re-observed before any later authorization that depends on these facts"
+}
+

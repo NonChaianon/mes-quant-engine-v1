@@ -1,0 +1,269 @@
+{
+  "manifest_id": "MES_EXECUTION_HARDENING_STEP3_PACKAGE_V9_CLOSEOUT_MANIFEST_V1",
+  "status": "OWNER_AUTHORIZED_PACKAGE_ANCHORING_ONLY_NO_IMPLEMENTATION_AUTHORITY",
+  "created_utc": "2026-08-26T11:47:55Z",
+  "repository": "NonChaianon/mes-quant-engine-v1",
+  "base_commit": "ae3048cc8a58d8eec7cc42f99146c91e579d6582",
+  "base_tree": "4f7aa3a719dcd781411d91166de82a4d4ffa573f",
+  "target_ref": "refs/heads/governance/execution-hardening-step3-package-v9",
+  "owner_statement": {
+    "sha256": "7d410794b4a9cc9aa1d81135cb2d068de06542f8dfe4a156508ec83a2710240f",
+    "line_count": 117,
+    "disposition": "APPROVE_DECISION_A_V9_PACKAGE_ANCHORING_ONLY"
+  },
+  "review_response": {
+    "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_RESPONSE.md",
+    "sha256": "25b05b7f1bde383b4845009097c3b014ad7a1d3cf64357b29c77ce9f9f4f5cff",
+    "verdict": "GO",
+    "blocker": 0,
+    "high": 0,
+    "low": 4,
+    "trust": "UNTRUSTED_CONTEXT_ONLY",
+    "review_tool_allowlist_nonconformance": 0
+  },
+  "owner_binding_set": {
+    "row_count": 34,
+    "rows_sha256": "6ad016f0965f41afa96e98f4cc12c97f34c64c4f82e721a55a38f1ce6e381b63",
+    "exact_pass": true,
+    "duplicate_role_count": 0,
+    "duplicate_path_count": 0,
+    "hash_mismatch_count": 0
+  },
+  "invalid_history_disposition": {
+    "row_count": 5,
+    "rows_sha256": "2a1fa0f771c1409aa258ea05df325d3f54f531ef4d9c5cd0a94fd5469b435647",
+    "exact_pass": true,
+    "missing_count": 0,
+    "extra_count": 0,
+    "duplicate_role_count": 0,
+    "duplicate_path_count": 0
+  },
+  "owner_closeout": {
+    "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_OWNER_CLOSEOUT.md",
+    "sha256": "ec7ef4a37529f620942c5fed61918ead1c3703384169dad9fac8ab0b8d3b8727"
+  },
+  "closeout_receipt": {
+    "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_CLOSEOUT_RECEIPT.md",
+    "sha256": "270ac41239e5534558435a0c0c14bd6449b56f97318e81d23639135ad9ae350a"
+  },
+  "commit_contract": {
+    "addition_count_including_manifest": 34,
+    "bound_artifact_count_excluding_manifest": 33,
+    "modification_count": 0,
+    "deletion_count": 0,
+    "expected_parent_count": 1,
+    "expected_parent": "ae3048cc8a58d8eec7cc42f99146c91e579d6582",
+    "commit_message": "Anchor Execution Hardening Step 3 package V9",
+    "push_count": 1,
+    "force_push": false
+  },
+  "bound_artifacts_excluding_self": [
+    {
+      "path": "configs/governance/rehearsal_surface_map_v5.json",
+      "sha256": "87530dac557952256305591f45edf49a5776346af636b5ff4501604136b7162a"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V5.md",
+      "sha256": "3c63a4b3e18aeaee29512954d7d04d99020fe9190d47d539ade67ab06ff28916"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V6.md",
+      "sha256": "109dd22a63c0fd36a02acfc6652245e11188005e44aacf3d8d3b2780d7ee377e"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V7.md",
+      "sha256": "7a4cf9d2b0224e282dc0ad1fdd25b4f236b1971dc99ff5f869d2a955a065e3f2"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V8.md",
+      "sha256": "d967eae2862a8e9a2980fb054d1ca8dd567c3f94582e8a7a938c8031cae491e3"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V9.md",
+      "sha256": "b7e40c5d9f1f53897b4e1face60f7ff68513f547f12a9ba1d0c4ab4779496b37"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V5.md",
+      "sha256": "7d1693a8e7882e6cd411f56be076617a11072733dc49587f20dbdb0d210bfbed"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V6.md",
+      "sha256": "c5313435c2301ef35a431baf2ec3f2f52d361b15e44b3f2f27e5d3f16fee166a"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V7.md",
+      "sha256": "ae6f1ca52b7c60376186374f644b01551a4000801934446f7f9bd012280c120e"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V8.md",
+      "sha256": "f3b51c7cddae5e438269cc60d1fa38706a4a6bdcae3fc99a97d5724beef7824c"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V9.md",
+      "sha256": "1983c951a54b5fe2790298af12fcc949f705053ec4632b448b210221410e6203"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_PACKAGE_V6_CLOSEOUT_MANIFEST_V1.json",
+      "sha256": "f7a1517e2ada0ef3412c077a03cd4c2bf04b1d0aadf45fd1143ecb386ea6a6ff"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_V8_PREPARATION_AUTHORIZATION_V1.md",
+      "sha256": "ffb148483067f2fa3d243e5829331ea2a1df2f841db93ac33d0eba0cbd1c760f"
+    },
+    {
+      "path": "docs/governance/EXECUTION_HARDENING_STEP3_V9_PREPARATION_AUTHORIZATION_V1.md",
+      "sha256": "6711a8bd7e0373267225a150f11609d66e30b0e1b390d26fdb8f9c7762363491"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005.md",
+      "sha256": "808f4b21dcd09200f29fb3434b4948d7eec94474f29a89bfb60575cdd1c7bd98"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005_DISPATCH_RECEIPT.md",
+      "sha256": "5d1bf9802be5a6b66dc0e330661ecf1d8d783443ae94d60a63966f277f0cf7c4"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005_RESPONSE.md",
+      "sha256": "6cf62c251c6a4a78f66717e705988e98275b9e1f6ace6d2e84cc117eb24c6471"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006.md",
+      "sha256": "8527385010fa8b544f6384ac7a88b9bcdd0ac9b3b5cea168242b9b554e4bd56e"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_CLOSEOUT_RECEIPT.md",
+      "sha256": "a1f12ba54a46f52bc69889ab7129e49169be41d4ba2829e7d1416a2ab6426c42"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_DISPATCH_RECEIPT.md",
+      "sha256": "c851cbbbca8d189c4cf7f9e04ea9b6932f11cc5da3630645315ac973323eb9ac"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_OWNER_CLOSEOUT.md",
+      "sha256": "c51f5e1cf681e7da9cdc67c71e276eba060ada83183b2ee089c2bec4add56f58"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_RESPONSE.md",
+      "sha256": "00641b38145993e8d3e1890bf60398358e6caa120f73b62faaba410314f007eb"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_007.md",
+      "sha256": "4bbd96dd926ef9bfb4e150c22307d821b2b91eb7a4d2536eea2f1e49f9c339fb"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_007_DISPATCH_RECEIPT.md",
+      "sha256": "37cb55cf2b7725e4f6959b87725ce84a96ef42b15bdfa87ea7cd655124050c3c"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_007_RESPONSE.md",
+      "sha256": "2ceea25782e0d6ba63150d5629d5adf1a63b7b6909ac4d92b7b9187c67f870ab"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_008.md",
+      "sha256": "bf17c0bc3946c05938faa440f1757a0074308f58f55d4e43cc1ae58e19b6ead2"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_008_DISPATCH_RECEIPT.md",
+      "sha256": "caad67eb568acd2b99da2efc1080523aca656f0b1f609a39b7bca2f1d0cf0a43"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_008_RESPONSE.md",
+      "sha256": "12605c0f4eea1de88498d4c04446dd6a5febcf448baf6ba55779ec54018d28a2"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009.md",
+      "sha256": "19a8ec77535f42773908f0676af916dfc491cd83e17cc9327e36d34ceb0da810"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_CLOSEOUT_RECEIPT.md",
+      "sha256": "270ac41239e5534558435a0c0c14bd6449b56f97318e81d23639135ad9ae350a"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_DISPATCH_RECEIPT.md",
+      "sha256": "b2275d2f67dd7a8c9dfce09bd4f5064a74077636f8c528983c47d61a81334de0"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_OWNER_CLOSEOUT.md",
+      "sha256": "ec7ef4a37529f620942c5fed61918ead1c3703384169dad9fac8ab0b8d3b8727"
+    },
+    {
+      "path": "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_RESPONSE.md",
+      "sha256": "25b05b7f1bde383b4845009097c3b014ad7a1d3cf64357b29c77ce9f9f4f5cff"
+    }
+  ],
+  "manifest_self": {
+    "path": "docs/governance/EXECUTION_HARDENING_STEP3_PACKAGE_V9_CLOSEOUT_MANIFEST_V1.json",
+    "sha256_status": "SELF_NOT_PREBOUND_CREATE_ONCE"
+  },
+  "commit_allowlist": [
+    "configs/governance/rehearsal_surface_map_v5.json",
+    "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V5.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V6.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V7.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V8.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_IMPLEMENTATION_PACKAGE_V9.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V5.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V6.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V7.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V8.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_OWNER_DECISION_REQUEST_V9.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_PACKAGE_V6_CLOSEOUT_MANIFEST_V1.json",
+    "docs/governance/EXECUTION_HARDENING_STEP3_V8_PREPARATION_AUTHORIZATION_V1.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_V9_PREPARATION_AUTHORIZATION_V1.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_005_RESPONSE.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_CLOSEOUT_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_OWNER_CLOSEOUT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_006_RESPONSE.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_007.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_007_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_007_RESPONSE.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_008.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_008_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_008_RESPONSE.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_CLOSEOUT_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_DISPATCH_RECEIPT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_OWNER_CLOSEOUT.md",
+    "docs/governance/clause_packets/CLAUSE_PACKET_EXECUTION_HARDENING_STEP3_20260826_009_RESPONSE.md",
+    "docs/governance/EXECUTION_HARDENING_STEP3_PACKAGE_V9_CLOSEOUT_MANIFEST_V1.json"
+  ],
+  "prohibitions": [
+    "AMEND",
+    "REBASE",
+    "SQUASH",
+    "FORCE_PUSH",
+    "TAG",
+    "RELEASE",
+    "EXTRA_COMMIT",
+    "EXTRA_PUSH",
+    "CODE",
+    "IMPLEMENTATION",
+    "TESTS",
+    "CI",
+    "PR",
+    "ISSUE_48",
+    "PR_47",
+    "MERGE",
+    "RULESET",
+    "MAIN_MUTATION",
+    "DECISION_B_OR_C",
+    "PHASE_A_OR_B",
+    "TIER_2",
+    "OIDC_OR_SIGNING",
+    "DEPENDENCY",
+    "DATABASE",
+    "BROKER",
+    "DATA_OR_TARGET_PATH_ACCESS",
+    "FIT",
+    "VALIDATION",
+    "FINAL_TEST",
+    "TEST3_RETRY_OR_REPAIR",
+    "TEST3B",
+    "TEST4",
+    "SCIENTIFIC_EXECUTION"
+  ]
+}

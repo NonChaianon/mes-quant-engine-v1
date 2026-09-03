@@ -1,0 +1,33 @@
+{
+  "schema_version": "MES_EXECUTED_FROZEN_REGISTRY_SCHEMA_V1",
+  "registry_id": "EXECUTED_FROZEN_BYTE_INTEGRITY_V1",
+  "status": "OWNER_AUTHORIZED_PHASE_A_CHECKOUT_INTEGRITY",
+  "entries": [
+    {
+      "path": "docs/research/TEST2_PATH_AWARE_PROTOCOL_V1.md",
+      "authoritative_sha256": "7048b848770304fa67ff75e7b4baa9e836bf83e5bbb17d08b2b92a61cc0ba105",
+      "authority_evidence": [
+        {
+          "role": "TEST2_G3P_PROTOCOL_BINDING",
+          "path": "artifacts/exploration/test2/g3p/MES_T2_G3P_F39C31C0900A1D35/pre_fit_support_record.json",
+          "sha256": "ce71ddf99e110e12b8469d91b9d2509ccd9f24c22ee4274217273b17ba31e28c"
+        },
+        {
+          "role": "ADDITIVE_ERRATUM_001",
+          "path": "docs/research/TEST2_PATH_AWARE_PROTOCOL_V1_ERRATUM_001.md",
+          "sha256": "3768c6ae2d8983ad130db6b9dfd6d1bccc5fbc958e98c4ae2422e8d69c337073"
+        },
+        {
+          "role": "TEST2_G3F_CONDITIONAL_FIT_RECORD",
+          "path": "artifacts/exploration/test2/g3f/MES_T2_G3F_D36A9AC8BA9CFB07/conditional_fit_record.json",
+          "sha256": "34d7ae2e8275038ff46581fc8972b177bc247b74435cddfcdbf77249db741450"
+        },
+        {
+          "role": "TEST2_G3F_EXECUTION_SUCCESS_WITNESS",
+          "path": "artifacts/exploration/test2/g3f/MES_T2_G3F_D36A9AC8BA9CFB07/execution_success_witness.txt",
+          "sha256": "bdef399901600d82723f0126171671d10a5fd1e56c30c764a26cd4471dae4956"
+        }
+      ]
+    }
+  ]
+}

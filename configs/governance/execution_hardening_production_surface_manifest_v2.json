@@ -1,0 +1,55 @@
+{
+  "schema_version": "EXECUTION_HARDENING_PRODUCTION_SURFACE_MANIFEST_SCHEMA_V2",
+  "manifest_id": "EXECUTION_HARDENING_PRODUCTION_SURFACE_MANIFEST_V2",
+  "status": "PROPOSED_ADDITIVE_COMPANION_PENDING_OWNER_RATIFICATION",
+  "authority": "NO_IMPLEMENTATION_OR_EXECUTION_AUTHORITY",
+  "discovery_source": "exact Phase B activation Git commit tree",
+  "tracked_path_patterns": [
+    "artifacts/governance/**",
+    "configs/governance/**",
+    "docs/governance/**",
+    "src/mes_quant/governance/**",
+    "docs/research/*AUTHORIZATION*.md",
+    "docs/research/*BUDGET*.md",
+    "docs/research/*RATIFICATION*.md"
+  ],
+  "excluded_rehearsal_namespace": "artifacts/rehearsal/**",
+  "discovery_algorithm": [
+    "enumerate every Git-tracked file matching tracked_path_patterns at the exact activation tree",
+    "reject a missing tracked file or an untracked file below a protected pattern",
+    "sort paths by raw UTF-8 byte order",
+    "compute SHA-256 of each actual working-tree file before Tier 2",
+    "repeat enumeration and SHA-256 after Tier 2",
+    "require identical ordered path and digest lists",
+    "require git diff and git status firewalls to show no protected or rehearsal artifact staged"
+  ],
+  "runtime_handle_guard": {
+    "allowed_constructor_handle_class": "REHEARSAL_ONLY_HANDLE_SET_V1",
+    "forbidden_handle_classes": [
+      "PRODUCTION_TARGET_SLOT_LEDGER",
+      "PRODUCTION_AUTHORIZATION_LEDGER",
+      "PRODUCTION_ATTEMPT_LEDGER",
+      "PRODUCTION_REPAIR_LEDGER",
+      "PRODUCTION_EVIDENCE_REGISTRY",
+      "PRODUCTION_SIGNING_HANDLE"
+    ],
+    "outcome": "PRODUCTION_HANDLE_INJECTION_STOP_BEFORE_RESERVATION"
+  },
+  "proof_output": "ordered before/after path-digest manifests plus constructor-handle audit",
+  "supersedes_for_future_authorization_only": {
+    "manifest_id": "EXECUTION_HARDENING_PRODUCTION_SURFACE_MANIFEST_V1",
+    "path": "configs/governance/execution_hardening_production_surface_manifest_v1.json",
+    "sha256": "5fafa2312f0275713ae69fec843910cb887d41b161dbaeeb070e362176d5695f",
+    "reason": "Attempt 003 LOW-06 required an exact before/after Tier 2 comparison window that cannot be confused with separately authorized Phase B setup or closeout writes"
+  },
+  "comparison_window": {
+    "prerequisite": "all separately authorized Phase B activation/config source changes are committed at the exact activation head and both tracked and untracked working-tree status are clean",
+    "before_snapshot": "immediately before Tier 2 reservation, after all Phase B setup paths exist and before any Tier 2 process starts",
+    "during_window": "Tier 2 may write only below its isolated temporary rehearsal root; every repository and protected-pattern write is forbidden",
+    "after_snapshot": "immediately after the terminal Tier 2 record is sealed and reread, before any Phase B final Clause-Packet review-chain or closeout-manifest artifact is created",
+    "equality_domain": "the same activation-tree discovered protected path set and the actual bytes of every path in that set",
+    "post_window": "Phase B final review-chain and its external closeout manifest are created only after equality passes; those separately allowlisted post-window writes do not redefine or excuse a Tier 2 mutation",
+    "failure": "any dirty prerequisite, path-set change, byte-hash change, untracked protected file, or out-of-window source write stops before Step 3 completion"
+  }
+}
+

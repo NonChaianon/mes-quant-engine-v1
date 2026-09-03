@@ -1,0 +1,14 @@
+{
+  "authorization_document_sha256": "5be7e82b904c9057639ff17af39b4c0627c0c937cecd84f979eb1b37bc1653eb",
+  "authorization_id": "AUTH_TEST3_G3P_TRAIN_PREFIT_20260825",
+  "authorization_token_sha256": "51de8572227121aa69c07c9bbdc60303b1d618cfc0f70a9031fc9afeacb70a89",
+  "base_commit": "a1ea24445f575c5d267d6bfe410cc7acd034b74f",
+  "branch": "research/test3-g3p-pre-fit-v1",
+  "consumed_utc": "2026-08-24T18:35:47.229865Z",
+  "execution_commit": "573b8c93244dd823fbe12bced87ce930005e0dcb",
+  "execution_tree": "f38728ff355112c3027821d4982cb80dd2799f34",
+  "g2p_evidence_commit": "a1ea24445f575c5d267d6bfe410cc7acd034b74f",
+  "merge_authorized": false,
+  "retry_authorized": false,
+  "status": "CONSUMED_BEFORE_ANY_SOURCE_ARTIFACT_ACCESS"
+}

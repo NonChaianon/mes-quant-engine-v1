@@ -1,0 +1,9 @@
+{
+  "authorization_document_sha256": "2651c917a1480a74dfa7300cc6b11a3208828b41b74f726240224dcb783cce98",
+  "authorization_id": "AUTH_TEST3_G2P_TRAIN_PREDICTOR_PREFLIGHT_20260824",
+  "branch": "research/test3-g2p-predictor-preflight-v1",
+  "consumed_utc": "2026-08-24T16:20:13.343940Z",
+  "execution_commit": "485bfa16a6567b5c54e91b7cc72e7f1be58775a9",
+  "execution_tree": "86e7f382586d0155ec058a148a83be858768cf4d",
+  "status": "CONSUMED_BEFORE_PREDICTOR_ACCESS"
+}

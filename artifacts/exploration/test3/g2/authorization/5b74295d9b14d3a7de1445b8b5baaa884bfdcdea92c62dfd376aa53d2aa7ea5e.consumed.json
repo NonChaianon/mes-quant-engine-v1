@@ -1,0 +1,9 @@
+{
+  "authorization_document_sha256": "5b74295d9b14d3a7de1445b8b5baaa884bfdcdea92c62dfd376aa53d2aa7ea5e",
+  "authorization_id": "AUTH_TEST3_G2_METADATA_ONLY_20260824",
+  "branch": "research/test3-g2-metadata-preflight-v1",
+  "consumed_utc": "2026-08-24T12:08:35.113780Z",
+  "execution_commit": "4572b97c577f4445641f2b0e0b84549b0ae1b78c",
+  "execution_tree": "7284122d7a2551940d989c3b5ba52662b4a0bb73",
+  "status": "CONSUMED_BEFORE_ARTIFACT_ACCESS"
+}

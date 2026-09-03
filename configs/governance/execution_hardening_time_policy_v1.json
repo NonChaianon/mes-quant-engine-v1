@@ -1,0 +1,31 @@
+{
+  "schema_version": "MES_GITHUB_OIDC_SIGSTORE_TIME_POLICY_SCHEMA_V1",
+  "policy_id": "MES_GITHUB_OIDC_SIGSTORE_TIME_POLICY_V1",
+  "status": "PROPOSED_ADDITIVE_COMPANION_PENDING_OWNER_RATIFICATION",
+  "authority": "NO_IMPLEMENTATION_OR_EXECUTION_AUTHORITY",
+  "issuance_time_source": {
+    "field": "verifiedTimestamps",
+    "trust": "pinned Sigstore custom trusted root",
+    "selection": "earliest verified timestamp bound to the accepted bundle"
+  },
+  "current_time_source": {
+    "field": "iat",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "audience": "MES_EXECUTION_HARDENING_TIME_GATE_V1",
+    "signature_verification": "GitHub OIDC JWKS under the pinned issuer",
+    "maximum_token_age_seconds": 300
+  },
+  "bounds": {
+    "maximum_clock_skew_seconds": 60,
+    "maximum_attestation_age_seconds": 1800,
+    "required_relation": "issued_at <= current_iat + clock_skew and current_iat < bounded_expiry and current_iat - issued_at <= maximum_attestation_age"
+  },
+  "missing_or_invalid_outcome": "REVIEW_ATTESTATION_SIGNER_INVALID_STOP_BEFORE_RESERVATION",
+  "stale_or_expired_outcome": "REVIEW_ATTESTATION_EXPIRED_STOP_BEFORE_RESERVATION",
+  "evaluation_order": [
+    "verify custom trust root and Sigstore bundle",
+    "verify GitHub OIDC issuer, audience, signature, iat, and token age",
+    "evaluate all bounds once before reservation",
+    "seal the evaluated claims and outcome into the attempt ledger"
+  ]
+}
