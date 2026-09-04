@@ -1,0 +1,192 @@
+{
+  "adversarial_test_contract": {
+    "must_assert": [
+      "NINETEEN_SESSIONS_NEVER_REACHES_FORECAST_QLIKE_OR_BOOTSTRAP",
+      "UNDEFINED_REQUIRED_ACF_NEVER_REACHES_FORECAST_QLIKE_OR_BOOTSTRAP",
+      "ALL_CHRONOLOGY_MASK_ACF_LOSS_AGGREGATE_AND_BOOTSTRAP_OPERANDS_SHARE_ONE_MATERIALIZATION_IDENTITY"
+    ],
+    "must_reject_before_scoring": [
+      "MISSING_DEPLOYMENT_PRECHECK",
+      "MISSING_VALIDATION_SUPPORT",
+      "DIAGNOSTIC_BLOCK_SUBSTITUTION",
+      "CALLER_SUPPLIED_PRIMARY_FLOAT",
+      "ROW_PERMUTATION",
+      "ROW_DUPLICATION",
+      "ROW_DELETION",
+      "SESSION_REASSIGNMENT",
+      "COMMON_MASK_DRIFT",
+      "FAKE_COUNTERS",
+      "RUNTIME_IDENTITY_DRIFT",
+      "GOLDEN_REPLAY_DRIFT",
+      "FORGED_GRANT_1_OR_GRANT_2",
+      "ACCESS_BEFORE_DURABLE_WITNESS",
+      "FORECAST_QLIKE_OR_BOOTSTRAP_ON_UNDERPOWERED_INPUTS"
+    ]
+  },
+  "bindings_by_exact_repository_path": {
+    "co_ratified_contract_ordered": [
+      "docs/research/TEST3_CONFIRMATORY_VALIDATION_PROTOCOL_PREPARATION_V1.md",
+      "docs/research/TEST3_CONFIRMATORY_VALIDATION_PROTOCOL_SIGNED_BOOTSTRAP_ERRATUM_V1.md"
+    ],
+    "owner_ratification": "docs/research/TEST3_CONFIRMATORY_VALIDATION_PROTOCOL_OWNER_RATIFICATION_V2.md",
+    "tooling_capability_only_ordered": [
+      "tools/prepare_test3_confirmatory_validation_prerequisites.py",
+      "tests/test_prepare_test3_confirmatory_validation_prerequisites.py",
+      "docs/research/TEST3_CONFIRMATORY_VALIDATION_TOOLING_BINDING_V1.json"
+    ]
+  },
+  "classification": "PREPARATION_ONLY / IMPLEMENTATION_REVIEW_GO_B0_H0 / ACTIVATION_NOT_READY / NO_AUTHORITY",
+  "contract_rules": {
+    "authority_is_not_inferred_from_filename": true,
+    "protocol_and_erratum_are_one_inseparable_co_ratified_contract": true,
+    "review_is_operational_context_only": true,
+    "tooling_binding_is_tooling_capability_only": true
+  },
+  "erratum_semantics": {
+    "bootstrap_denominator": "STRICTLY_POSITIVE_AND_FINITE",
+    "bootstrap_replicate": "EVERY_STORED_D_STAR_FINITE_WITH_SIGN_UNCONSTRAINED",
+    "frozen_scientific_constants": "UNCHANGED",
+    "primary_mean_gate": "D_STRICTLY_GREATER_THAN_ZERO"
+  },
+  "future_causal_order": [
+    "RERUN_AUTHORIZED_DETERMINISTIC_HISTORICAL_PARENT_VERIFICATION",
+    "BIND_EXACT_CO_RATIFICATION_BYTES",
+    "EXACTLY_MATCH_MACHINE_GENERATED_PARENT_BINDING_BLOCK",
+    "ACCEPT_EXACT_IMPLEMENTATION_BYTES_ONLY_AFTER_PARENT_GATE",
+    "SEPARATELY_OWNER_AUTHORIZE_LOW3_LOW4_FOUR_PATH_CODE_HARDENING",
+    "RUN_HARDENING_TESTS_AND_OBTAIN_FRESH_CROSS_FAMILY_GO",
+    "ANCHOR_REVIEWED_HARDENING_UNDER_SEPARATE_AUTHORITY",
+    "LATER_SEPARATE_OWNER_ACTIVATION_DECISION",
+    "SEPARATE_OWNER_GRANT_1_CITING_AND_BINDING_PROTOCOL_SECTION_0_1_5",
+    "DATA_FREE_C0_BIND_LIVE_RUNTIME_IDENTITY",
+    "DATA_FREE_C0_IMMEDIATE_RUNTIME_RERECORD_EQUALITY",
+    "DATA_FREE_C0_GOLDEN_REPLAY",
+    "CREATE_RESERVATION",
+    "ATTEMPT_BASE_FIT_WITH_PERMIT_CONSUMED_AT_ATTEMPT",
+    "ATTEMPT_HAR_FIT_WITH_PERMIT_CONSUMED_AT_ATTEMPT",
+    "INDEPENDENTLY_VERIFY_BASE_COEFFICIENT_AND_FULL_TRAIN_MODEL_LOCAL_DUAN_SEAL",
+    "INDEPENDENTLY_VERIFY_HAR_COEFFICIENT_AND_FULL_TRAIN_MODEL_LOCAL_DUAN_SEAL",
+    "SEPARATE_OWNER_GRANT_2_CITING_AND_BINDING_PROTOCOL_SECTIONS_0_1_5_AND_4_AFTER_BOTH_SEALS_VERIFY",
+    "DATA_FREE_C0V_IDENTITY_EQUALITY_TO_C0",
+    "DATA_FREE_C0V_IMMEDIATE_RUNTIME_RERECORD_EQUALITY",
+    "DATA_FREE_C0V_SAME_GOLDEN_REPLAY",
+    "DURABLY_CREATE_EXACTLY_ONE_CREATE_ONCE_VALIDATION_OPENING_WITNESS",
+    "SEAL_COMPLETE_VALIDATION_REQUEST_SET",
+    "CREATE_EXACTLY_ONE_VALIDATION_MATERIALIZATION",
+    "PASS_VALIDATION_INTEGRITY",
+    "PASS_VALIDATION_STRUCTURAL_SUPPORT",
+    "SCORE_EXACTLY_ONCE",
+    "WRITE_EXACTLY_ONE_NO_RETRY_TERMINAL"
+  ],
+  "future_code_hardening": {
+    "low_3_scoring_orchestrator": {
+      "actual_primary_input": "INTERNALLY_SELECTED_BOOTSTRAP_BLOCK_RESULT_FOR_L5",
+      "bootstrap_blocks_ordered": [
+        5,
+        1,
+        20
+      ],
+      "bootstrap_replications_each": 2000,
+      "diagnostic_policy": "L1_AND_L20_MANDATORY_DIAGNOSTICS_NEVER_PRIMARY_NEVER_RESCUE_L5",
+      "must_compel_ordered_gates": [
+        "DEPLOYMENT_PRECHECK",
+        "VALIDATION_SUPPORT",
+        "PRIMARY_L5_PASS_EVALUATION"
+      ],
+      "prohibited_inputs": [
+        "CALLER_SUPPLIED_BARE_PRIMARY_FLOAT",
+        "CALLER_SELECTED_BLOCK_RESULT",
+        "CALLER_PROMOTED_DIAGNOSTIC"
+      ],
+      "terminal_guard": "NO_SCORE_TIER_WITHOUT_DEPLOYMENT_PRECHECK_AND_VALIDATION_SUPPORT"
+    },
+    "low_4_validation_materialization": {
+      "identity": "ONE_IMMUTABLE_VALIDATION_MATERIALIZATION_IDENTITY",
+      "must_carry_ordered": [
+        "SESSION_IDENTITY_AND_DECISION_TIME",
+        "REQUEST_TARGET_AND_PREDICTOR_STATUS",
+        "COMMON_MASK",
+        "ACTUAL_RV_FWD_60",
+        "X60_X120_X240_AND_EXACT_DESIGN_ORDER",
+        "BASE_AND_HAR_PREDICTIONS"
+      ],
+      "must_rebind_same_exact_row_set_and_order": [
+        "CHRONOLOGY",
+        "COMMON_MASK",
+        "ACF_ROWS",
+        "ROW_LOSSES",
+        "SESSION_AGGREGATES",
+        "BOOTSTRAP"
+      ],
+      "reject_before_forecast_or_scoring": [
+        "MISSING_ROWS",
+        "DUPLICATE_ROWS",
+        "PERMUTED_ROWS",
+        "MISMATCHED_ROWS"
+      ]
+    }
+  },
+  "implementation_candidate": {
+    "accepted_only_after_parent_binding_gate": true,
+    "any_byte_or_code_change_requires": [
+      "ALL_GATES_REOPENED",
+      "FRESH_CROSS_FAMILY_REVIEW"
+    ],
+    "exact_paths_ordered": [
+      "src/mes_quant/exploration/test3_confirmatory_validation.py",
+      "tests/test_test3_confirmatory_validation.py",
+      "tools/run_test3_confirmatory_validation.py",
+      "tests/test_run_test3_confirmatory_validation.py"
+    ],
+    "exact_source_ref": "refs/heads/governance/test3-confirmatory-validation-implementation-v1",
+    "review_context": "GO / BLOCKER=0 / HIGH=0",
+    "review_trust": "OPERATIONAL_CONTEXT_ONLY_NOT_OWNER_OR_REPOSITORY_AUTHORITY"
+  },
+  "load_bearing_parent_binding_precondition": {
+    "must_complete_before": [
+      "IMPLEMENTATION_ACCEPTANCE",
+      "GRANT_1",
+      "C0",
+      "RESERVATION",
+      "PERMIT",
+      "FIT",
+      "PROTECTED_READ",
+      "WITNESS",
+      "VALIDATION"
+    ],
+    "required_actions_ordered": [
+      "RERUN_AUTHORIZED_DETERMINISTIC_HISTORICAL_PARENT_VERIFICATION",
+      "BIND_EXACT_CO_RATIFICATION_BYTES",
+      "EXACTLY_MATCH_THE_MACHINE_GENERATED_PARENT_BINDING_BLOCK_BOUND_BY_OWNER_RATIFICATION_V2"
+    ]
+  },
+  "preparation_effect": {
+    "activation_artifact_created": false,
+    "activation_generator_created": false,
+    "code_defect_remediated": false,
+    "later_request": "SEPARATE_FOUR_PATH_CODE_ONLY_LOW3_LOW4_HARDENING_DECISION"
+  },
+  "prohibitions": [
+    "IMPLEMENTATION_EDIT_IN_THIS_SLICE",
+    "ACTIVATION_GENERATOR_OR_ARTIFACT",
+    "GRANT_1_OR_GRANT_2",
+    "C0_OR_C0V",
+    "RESERVATION_OR_PERMIT",
+    "COEFFICIENT_OR_DUAN_SEAL",
+    "VALIDATION_OPENING_WITNESS",
+    "DATA_PROVIDER_TARGET_OR_EVIDENCE_ACCESS",
+    "MODEL_IMPORT_FIT_OR_SCORING",
+    "VALIDATION",
+    "FINAL_TEST",
+    "TEST3B_OR_TEST4",
+    "SERVER_CLOUD_OIDC_OR_SIGNING",
+    "CI_PR_MERGE_OR_MAIN_MUTATION"
+  ],
+  "schema": "MES_TEST3_CONFIRMATORY_VALIDATION_ACTIVATION_PRECONDITIONS_V1",
+  "sequencing_rules": {
+    "final_test": "SEALED",
+    "no_step_implies_the_next": true,
+    "preparation_may_be_anchored_only_under_separate_authority": true,
+    "validation_openings_max": 1
+  }
+}
